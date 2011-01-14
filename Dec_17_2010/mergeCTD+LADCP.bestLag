@@ -1,0 +1,68 @@
+#======================================================================
+#                    M E R G E C T D + L A D C P . B E S T L A G 
+#                    doc: Sat May 22 21:30:18 2010
+#                    dlm: Thu Dec 16 04:02:59 2010
+#                    (c) 2010 A.M. Thurnherr
+#                    uE-Info: 34 35 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+# HISTORY:
+#	May 22, 2010: - exiled from [mergeCTD+LADCP]
+#	May 23, 2010: - BUG: undef'd LADCP ref vels had not been treated correctly
+#	Oct 30, 2010: - BUG: changed croak to next in rmsErr, to improve time matching
+#	Dec 16, 2010: - added special case (no search) on -s 0
+#				  - added code to ignore points with discrepancies > $opt_m
+
+#======================================================================
+# Find Best Lag Subroutines
+#======================================================================
+
+sub Ce($) { return $ants_[$_[0]][$CTD_elapsed] + $CTD_timoff; }			# CTD elapsed for given scan
+sub Le($) { return $LADCP{ENSEMBLE}[$_[0]]->{ELAPSED_TIME}; }			# LADCP elapsed for given ens
+
+sub rmsErr($$$$)
+{
+	my($Lsi,$Lei,$ens,$CTD_trg) = @_;
+	my($sumSq) = my($n) = 0;
+
+	for (my($Li)=$Lsi; $Li<=$Lei; $Li++) {
+		my($Ldt) = &Le($Li) - &Le($ens);
+		my($Cdi) = round($Ldt / $opt_z);
+		next unless ($CTD_trg+$Cdi>=0 && $CTD_trg+$Cdi<=$#ants_);
+		next unless defined($LADCP{ENSEMBLE}[$Li]->{REFLR_W});
+		my($err) = $LADCP{ENSEMBLE}[$Li]->{REFLR_W} - $ants_[$CTD_trg+$Cdi][$CTD_w];
+		next if (abs($err) > $opt_m);
+		$sumSq += &SQR($err);
+		$n++;
+	}
+	return ($n>0) ? sqrt($sumSq/$n) : 9e99;
+}
+
+sub bestLag($$$$)	# LADCP start index, LADCP end index, LADCP target index, CTD target index
+{
+	my($Lsi,$Lei,$ens,$CTD_trg) = @_;
+	
+	my($cErr) = rmsErr($Lsi,$Lei,$ens,$CTD_trg);
+	return ($CTD_trg,$cErr) if ($opt_s == 0);									# special case: disable search
+
+	if ($CTD_trg > 0) {															# search backward
+		my($nErr) = rmsErr($Lsi,$Lei,$ens,$CTD_trg-1);
+		while ($nErr < $cErr && $CTD_trg > 1) {
+			$CTD_trg--;
+			$cErr = $nErr;
+			$nErr = rmsErr($Lsi,$Lei,$ens,$CTD_trg-1);
+		}
+	}
+	
+	if ($CTD_trg < $#ants_) {													# search forward
+		$nErr = rmsErr($Lsi,$Lei,$ens,$CTD_trg+1);
+		while ($nErr < $cErr && $CTD_trg < $#ants_-1) {
+			$CTD_trg++;
+			$cErr = $nErr;
+			$nErr = rmsErr($Lsi,$Lei,$ens,$CTD_trg+1);
+	    }
+	}
+	return ($CTD_trg>0 && $CTD_trg<$#ants_) ? ($CTD_trg,$cErr) : (undef,undef);
+}
+
+1;

@@ -1,0 +1,18 @@
+======================================================================
+                    R E A D M E 
+                    doc: Sat Dec 25 16:08:18 2010
+                    dlm: Sat Dec 25 16:08:18 2010
+                    (c) 2010 A.M. Thurnherr
+                    uE-Info: 9 13 NIL 0 0 72 3 2 4 NIL ofnI
+======================================================================
+
+This is the version arrived at after dicking around a lot with trying
+to implement a surface-wave correction based on unfiltered and filtered
+CTD package velocity. After my realization that the correction depends
+very strongly on the package size (because almost no correction is
+required for the P403 data, which were taken with a very small rosette)
+and some thought I now think that the correction should be done in terms
+of CTD acceleration and, possibly, separately for
+accelerating/decelerating motion. I decided to save the current version
+just in case.
+

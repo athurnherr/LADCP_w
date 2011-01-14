@@ -1,0 +1,34 @@
+======================================================================
+                    R E A D M E 
+                    doc: Thu Dec 30 01:20:33 2010
+                    dlm: Thu Dec 30 01:24:55 2010
+                    (c) 2010 A.M. Thurnherr
+                    uE-Info: 34 71 NIL 0 0 72 3 2 4 NIL ofnI
+======================================================================
+
+This is the version that I arrived at after implementing a surface-wave
+correction based on CTD acceleration. This version allows the
+correction to be specified as a polynomial of arbitrary order,
+separately for the down and upcast. The quality can be assessed by
+comparison with bottom-tracked w profiles and, to a lesser degree, by
+comparison with the "diagnostic w profiles" derived with the shear
+method. Some preliminary findings based, primarily but not
+exclusively, on the P403 yoyo data:
+
+1) The surface-wave acceleration correction considerably improves the
+cast-to-cast consistency of vertical velocity profiles.
+
+2) It appears better to use a single correction derived from several
+casts, rather than a cast-based correction.
+
+3) A linear fit seems to work better than a higher-order fit.
+
+4) Based on DIMES UK2 stations, it appears that a near-constant winch
+speed is required for this to work.
+
+5) The method appears not to work for data sets collected with large
+rosettes. This is presumably due to package-induced pressure effects.
+
+Since the best validity test I have been able to come up with is based
+on bottom tracked w profiles, I decided to fold the BT code from the
+shear method into this code. I save the current version, just in case. 

@@ -1,0 +1,38 @@
+#======================================================================
+#                    M E R G E C T D + L A D C P . T I M E M A T C H I N G P R O B L E M S 
+#                    doc: Sun May 23 11:43:53 2010
+#                    dlm: Sat Jun  5 12:09:43 2010
+#                    (c) 2010 A.M. Thurnherr
+#                    uE-Info: 23 22 NIL 0 0 72 0 2 4 NIL ofnI
+#======================================================================
+
+$sumCdt = $NCdt = $trgSumCdt = 0;										# init stuff
+
+sub detectTimeMatchingProblems($$$$)
+{
+
+	local($ens,$depth,$otimoff,$timoff) = @_;
+	local($adtimoff) = $otimoff - $timoff;
+
+	warning("WARNING: Jump in CTD time offset at %dm (#$ens, %.1fs, %d CTD scans)",
+				$depth,$adtimoff,abs($adtimoff/$opt_z))
+		if (abs($adtimoff) >= 1);
+
+	if ($depth > 30) {
+		warning("WARNING: Jump in CTD time offset at %dm (#$ens, %.1fs, %d CTD scans)",
+				$depth,$adtimoff,abs($adtimoff/$opt_z))
+			if ($adtimoff >= 0.1);
+		$sumCdt += $adtimoff;
+		$trgSumCdt += 0.02;
+		$NCdt++;
+		if ($NCtd > 10) {
+			if ($sumCdt >= 5.0*$trgSumCdt) {
+				croak("$0: bad time match\n");
+			} elsif ($sumCdt >= 1.5*$trgSumCdt && !$warned) {
+				warning("WARNING: dodgy time match at ens #$ens --- mean absolute time-offset jigger is %g",$sumCdt/$NCdt);
+			}
+		}
+	}
+}
+
+1;
