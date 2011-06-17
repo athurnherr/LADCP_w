@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Wed Jan  5 00:32:04 2011
+#                    dlm: Wed Feb 16 14:03:53 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 44 64 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 45 29 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -42,6 +42,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Jan  2, 2010: - BUG: BT_w.mad could bomb with division by 0
 #				  - BUG: division by zero if no valid data
 #	Jan  5, 2010: - adapted to allow for gaps in CTD time series
+#	Feb 16, 2011: - cosmetics
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -124,7 +125,7 @@ $antsParseHeader = 0;
 	'[require top-3) lags to account for <frac[0.6]> of all]',
 	'[-x <dc_wave_corr_coeffs/uc_wave_corr_coeffs>]',
 	'[valid LADCP -b)ins <bin[2],bin[*]>',
-	'[-o)utput bin <resolution[10m]>] [require -s)amples <min[20]>]',
+	'[-o)utput bin <resolution[50m]>] [require -s)amples <min[20]>]',
 	'[-f) write time-series <file>] [-d)ump depth-bins to <basename>] [-p)ackage effect <file>]',
 	'<LADCP-file> [CTD-file]');
 
