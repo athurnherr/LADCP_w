@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ S E R I E S . P L 
 #                    doc: Sun May 23 16:40:53 2010
-#                    dlm: Mon Jul  4 01:53:04 2011
+#                    dlm: Sat Jul  2 21:12:35 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 16 47 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 15 48 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,7 +13,6 @@
 #	Dec 18, 2010: - max gap re-enabled
 #	Dec 20, 2010: - cosmetics
 #	Jul  2, 2011: - tightened gap-detection code
-#	Jul  4, 2011: - added support for $skip_ens
 
 # NOTES:
 #	- resulting DEPTH field based on integrated w without any sound speed correction
@@ -48,15 +47,15 @@ sub ref_lr_w($$$$)										# calc ref-layer vert vels
 
 #======================================================================
 # ($firstgood,$lastgood,$atbottom,$w_gap_time) =
-#	calcLADCPts($dta,$skip_ens,$lr_b0,$lr_b1,$min_corr,$max_e,$max_gap);
+#	calcLADCPts($dta,$lr_b0,$lr_b1,$min_corr,$max_e,$max_gap);
 #======================================================================
 
 sub calcLADCPts($$$$)
 {
-	my($dta,$skip_ens,$rl_b0,$rl_b1,$max_gap) = @_;
+	my($dta,$rl_b0,$rl_b1,$max_gap) = @_;
 	my($firstgood,$lastgood,$atbottom,$w_gap_time,$max_depth);
 
-	for (my($depth)=0,my($e)=$skip_ens; $e<=$#{$dta->{ENSEMBLE}}; $e++) {
+	for (my($depth)=0,my($e)=0; $e<=$#{$dta->{ENSEMBLE}}; $e++) {
 
 		ref_lr_w($dta,$e,$rl_b0,$rl_b1);
 	

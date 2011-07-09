@@ -2,22 +2,20 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Fri Jul  8 05:11:59 2011
+#                    dlm: Sun Jul  3 12:58:19 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 67 86 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 844 45 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
-#	- make timelagging work for short casts (make sure 10% is not more than half window size)
-#	- own seabed detection (P403)
-#	- use instrument tilt in sidelobe editing?
-#	- remove profile-binning code but add option to output BT-referenced data
-#	- make upcast-flag valid for yoyo casts
-#	- make diagnostic output 3-beam field work for Earth coordinates
-#	- read assumed ADCP soundspeed from data file, instead of assuming 1500m/s
-#	- calculate CTD acceleration from CTD velocity; probably not useful
-#	- remove water-depth from BT code, which is not really used and a bit of an outlier
-#	  because mean and stddev are used instead of median/mad
+#	make timelagging work for short casts (make sure 10% is not more than half window size)
+#	own seabed detection (P403)
+#	instrument tilt in sidelobe editing?
+#	make diagnostic output 3-beam field work for Earth coordinates
+#	read assumed ADCP soundspeed from data file, instead of assuming 1500m/s
+#	calculate CTD acceleration from CTD velocity; probably not useful
+#	remove water-depth from BT code, which is not really used and a bit of an outlier
+#		because mean and stddev are used instead of median/mad
 
 $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 
@@ -58,13 +56,6 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Jul  3, 2011: - replaced old package-velocity correction -x code by new beamvel correction
 #				  - removed -p
 #				  - replaced -d by residual (diagnostics) output
-#	Jul  4, 2011: - saved a snapshot in [Jul_04_2011]
-#				  - removed output of binned profile (but not calculation code, which is required for residual)
-#				  - BUG: firstGoodEns or lastGoodEns could end up in a reflr_w gap when valid LADCP data begin
-#						 or end with CTD in water
-#				  - moved rarely used option -s to -k
-#				  - added -s)kip <ens> option
-#				  - had to very very slightly relax an assertion (by 1e-10 seconds...)
 
 # PROCESSING PARAMETER FILE
 #	- # is comment character
@@ -102,15 +93,6 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	  profiles
 #	- as a result, a profile only starts with elapsed==0 if the CTD
 #	  is turned on when the LADCP is already in the water
-
-# OUTPUT
-#	- default is "long" output with all the data; required to generate Visbeck-type plots
-#	- residuals are calculated with respect to down-/upcast medians in binned profiles
-#	- -p requests old profile output
-#	- BT-referenced profiles are only found in -p output
-#	- equivalence, assuming -o 10:
-#		1) 004DL.prof dc_w depth
-#		2) bindata -Sdowncast:1 -Fw.median,depth -n 20 depth 0 1000 10 004DL.w
 
 # TIME LAGGING
 #	- occasionally, the time lagging algorithm fails, in particular if the CTD is turned on
@@ -152,7 +134,7 @@ require "$PERL_TOOLS/RDI_Coords.pl";
 @ARGS = @ARGV;														# save opts & arguments
 
 $antsParseHeader = 0;
-&antsUsage('03:4a:b:c:e:f:g:h:i:k:l:m:n:o:p:r:s:t:uv:w:x:',1,
+&antsUsage('03:4a:b:c:d:e:f:g:h:i:l:m:n:o:r:s:t:uv:w:x:',1,
 	'[-l)oad processing parameters from <file>]',
 	'[-v)erbosity <level[1]>]',
     '[require -4)-beam solutions]',
@@ -168,8 +150,9 @@ $antsParseHeader = 0;
 #	'[-x <pkg_vel_corr_coeffs>]',
 	'[-x <beamvel-scale-fac>]',
 	'[valid LADCP -b)ins <bin[2],bin[*]>',
-	'[-o)utput bin <resolution[50m]>] [-k) require <min[20]> samples]',
-	'[-f) write time-series <file>] [output binned -p)rofile to <file>]',
+	'[-o)utput bin <resolution[50m]>] [require -s)amples <min[20]>]',
+#	'[-f) write time-series <file>] [-d)ump depth-bins to <basename>] [-p)ackage-velocity effect <file>]',
+	'[-f) write time-series <file>] [output residual -d)iagnostics to <file>]',
 	'<LADCP-file> [CTD-file]');
 
 &antsCardOpt(\$opt_v,1);											# suppress regular info
@@ -187,14 +170,12 @@ $RDI_Coords::minValidVels = 4 if ($opt_4);							# suppress 3-beam solutions
 &antsFloatOpt($opt_i);												# externally supplied lag
 &antsUsageError() if ($opt_u && !defined($opt_i));
 
-&antsCardOpt(\$opt_s,0);											# skip # initial ensembles
-
 $opt_n = '10,100' unless defined($opt_n);							# number of time-lags to carry out
 $opt_w = '240,20' unless defined($opt_w);							# time-lag search window (full width)
 &antsFloatOpt(\$opt_3,0.6);
 
 &antsFloatOpt(\$opt_o,50);											# output bin size
-&antsCardOpt(\$opt_k,20);											# min samples required
+&antsCardOpt(\$opt_s,20);											# min samples required
 
 $opt_r = '2,6' unless defined($opt_r);								# reference layer bins for w for time matching
 $opt_b = '2,*' unless defined($opt_b);								# bins to use in w calculations
@@ -224,6 +205,13 @@ croak("$0: cannot decode -b $opt_b\n")
 #}
 
 &antsFloatOpt(\$opt_x,1);
+
+#if (defined($opt_d)) {												# make sure output directory is clean
+#	croak("$0: old depth-bin files <${opt_d}[0-9][0-9][0-9].dncast> found --- remove before creating new ones!\n")
+#		if (glob("${opt_d}[0-9][0-9][0-9].dncast"));
+#	croak("$0: old depth-bin files <${opt_d}[0-9][0-9][0-9].upcast> found --- remove before creating new ones!\n")
+#		if (glob("${opt_d}[0-9][0-9][0-9].upcast"));
+#}
 
 $LADCP_file = &antsFileArg();
 
@@ -424,7 +412,7 @@ progress("\t error-velocity threshold (-e %.1f): %d velocites removed (%d%% of t
 progress("Calculating LADCP time-series...\n");
 
 ($firstGoodEns,$lastGoodEns,$LADCP_atbottom,$LADCP_w_gap_time) =
-	calcLADCPts(\%LADCP,$opt_s,$refLr_firstBin,$refLr_lastBin,$opt_g);
+	calcLADCPts(\%LADCP,$refLr_firstBin,$refLr_lastBin,$opt_g);
 croak("$LADCP_file: no good ensembles\n")
 	unless defined($firstGoodEns) && ($lastGoodEns-$firstGoodEns > 0);
 
@@ -551,13 +539,10 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 		next;
 	}
 	if ($skipped > 0) {
-		$firstGoodEns++,$skipped++,next									# in gap
-			unless defined($LADCP{ENSEMBLE}[$firstGoodEns]->{REFLR_W});
 		info("$skipped initial LADCP ensembles skipped because CTD data begin with LADCP in water\n");
 		$skipped = 0;
 	}
 	if ($scan > $#{$CTD{ELAPSED}}) {
-		while (!defined($LADCP{ENSEMBLE}[$ens-1]->{REFLR_W})) { $ens--; }	# in gap
 		info(sprintf("%d final LADCP ensembles skipped because CTD data end with LADCP in water\n",
 			$lastGoodEns-$ens+1));
 		$lastGoodEns = $ens-1;
@@ -570,7 +555,7 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 		sprintf("\tadjusted LADCP time = %f\n",$LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD{TIME_LAG}) .
 		sprintf("\tCTD($scan) time = %f\n",$CTD{ELAPSED}[$scan]) .
 		"=> Did you use SeaBird elapsed time? Don't!"
-	) unless (abs($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$scan]) <= $CTD{DT}/2 + 1e-10);
+	) unless (abs($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$scan]) <= $CTD{DT}/2);
 
 	$LADCP{ENSEMBLE}[$ens]->{CTD_ELAPSED} = $CTD{ELAPSED}[$scan];		# elapsed field for output
 
@@ -684,17 +669,13 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 
 progress("Binning velocities...\n");
 
-my($min_depth) = 9e99;
-my($max_depth) = 0;
-
 progress("\tdowncast...\n");
 for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 	my(@bindepth) = calc_binDepths($ens);
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		$min_depth = $bindepth[$bin] if ($bindepth[$bin] < $min_depth);
-		$max_depth = $bindepth[$bin] if ($bindepth[$bin] > $max_depth);
+
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] =
 			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W}[$bin],
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
@@ -744,8 +725,6 @@ for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
 	my(@bindepth) = calc_binDepths($ens);
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		$min_depth = $bindepth[$bin] if ($bindepth[$bin] < $min_depth);
-		$max_depth = $bindepth[$bin] if ($bindepth[$bin] > $max_depth);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] =
 			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W}[$bin],
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
@@ -785,10 +764,6 @@ for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 	$UPCAST{N_SAMP}[$bi]		= @{$UPCAST{W}[$bi]};
 }
 
-&antsAddParams('min_depth',$min_depth,'max_depth',$max_depth,
-			   'min_elapsed',$LADCP{ENSEMBLE}[$firstGoodEns]->{CTD_ELAPSED},
-			   'max_elapsed',$LADCP{ENSEMBLE}[$lastGoodEns]->{CTD_ELAPSED});
-
 #--------------------------------------------------
 # Calculate BT-referenced vertical-velocity profile
 #--------------------------------------------------
@@ -800,7 +775,7 @@ if (defined($water_depth)) {
 	my($sumSq) = my($n) = 0;
 	for (my($bi)=0; $bi<=$#{$BT{MEDIAN_W}}; $bi++) {
 		next unless defined($BT{MEDIAN_W}[$bi]);
-		next unless ($BT{N_SAMP}[$bi]>=$opt_k && $DNCAST{N_SAMP}[$bi]>=$opt_k && $UPCAST{N_SAMP}[$bi]>=$opt_k);
+		next unless ($BT{N_SAMP}[$bi]>=$opt_s && $DNCAST{N_SAMP}[$bi]>=$opt_s && $UPCAST{N_SAMP}[$bi]>=$opt_s);
 		$sumSq += ($BT{MEDIAN_W}[$bi] - $DNCAST{MEDIAN_W}[$bi]/2 - $UPCAST{MEDIAN_W}[$bi]/2)**2;
 		$n++;
 	}
@@ -811,110 +786,108 @@ if (defined($water_depth)) {
 	}
 }
 
-#------------
-# full output
-#------------
-
-# NB: residual field is calculated with respect to down-/upcast medians in -o-size bins
-
-progress("Writing data...\n");
-
-@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
-				  'w','residual','CTD_w','LADCP_w','errvel',
-				  'pitch','roll','tilt','heading','3_beam','svel');
-
-for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
-	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-	my(@bindepth) = calc_binDepths($ens);
-	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
-		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		my($bi) = $bindepth[$bin]/$opt_o;
-		&antsOut(
-			$ens,$bin,$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			$bindepth[$bin],$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},1,
-			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
-			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $DNCAST{MEDIAN_W}[$bi],
-			$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			$LADCP{ENSEMBLE}[$ens]->{W}[$bin],
-			$LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
-			$LADCP{ENSEMBLE}[$ens]->{PITCH},
-			$LADCP{ENSEMBLE}[$ens]->{ROLL},
-			$LADCP{ENSEMBLE}[$ens]->{TILT},
-			$LADCP{ENSEMBLE}[$ens]->{HEADING},
-			(defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][0]) + 			# only works for beam coords
-			 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][1]) +
-			 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
-			 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
-			$CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-		);
-	}
-}
-
-for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {						# upcast 
-	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-	my(@bindepth) = calc_binDepths($ens);
-	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
-		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		my($bi) = $bindepth[$bin]/$opt_o;
-		&antsOut(
-			$ens,$bin,$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			$bindepth[$bin],$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},0,
-			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
-			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $UPCAST{MEDIAN_W}[$bi],
-			$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			$LADCP{ENSEMBLE}[$ens]->{W}[$bin],
-			$LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
-			$LADCP{ENSEMBLE}[$ens]->{PITCH},
-			$LADCP{ENSEMBLE}[$ens]->{ROLL},
-			$LADCP{ENSEMBLE}[$ens]->{TILT},
-			$LADCP{ENSEMBLE}[$ens]->{HEADING},
-			(defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][0]) + 			# only works for beam coords
-			 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][1]) +
-			 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
-			 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
-			$CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-		);
-	}
-}
-	
 #---------------
 # Output profile
 #---------------
 
-if (defined($opt_p)) {
-	progress("Writing vertical-velocity profiles to <$opt_p>...\n");
+progress("Writing vertical-velocity profile...\n");
 
-	@antsNewLayout = ('depth','dc_depth','dc_elapsed','dc_w','dc_w.mad','dc_w.N',
-							  'uc_depth','uc_elapsed','uc_w','uc_w.mad','uc_w.N',
-							  'elapsed','w','w.mad','w.N',
-	                          'BT_w','BT_w.mad','BT_w.N');
+@antsNewLayout = ('depth','dc_depth','dc_elapsed','dc_w','dc_w.mad','dc_w.N',
+						  'uc_depth','uc_elapsed','uc_w','uc_w.mad','uc_w.N',
+						  'elapsed','w','w.mad','w.N',
+						  'BT_w','BT_w.mad','BT_w.N');
 
+for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
+	&antsOut(($bi+0.5)*$opt_o,					# nominal depth
+			 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
+			 $DNCAST{N_SAMP}[$bi]>=$opt_s?$DNCAST{MEDIAN_W}[$bi]:nan,
+			 $DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
+			 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],
+			 $UPCAST{N_SAMP}[$bi]>=$opt_s?$UPCAST{MEDIAN_W}[$bi]:nan,
+			 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
+			 $DNCAST{MEAN_ELAPSED}[$bi]/2+$UPCAST{MEAN_ELAPSED}[$bi]/2,
+			 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_s ?
+			 	($DNCAST{MEDIAN_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MEDIAN_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
+			 	nan,
+			 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_s ?
+			 	 ($DNCAST{MAD_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MAD_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
+				 nan,
+			 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi],
+			 $BT{N_SAMP}[$bi]>=$opt_s?$BT{MEDIAN_W}[$bi]:nan,
+			 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
+	);
+}
+
+#-------------------------------------
+# diagnostic output with all residuals
+#-------------------------------------
+
+if (defined($opt_d)) {
+	progress("Writing residuals-diagnostic data to <$opt_d>...\n");
+
+	@antsNewLayout = ('ensemble','bin','elapsed','depth','downcast',
+					  'w','residual','CTD_w','LADCP_w','errvel',
+					  'pitch','roll','tilt','heading','3_beam','svel');
 	&antsOut('EOF');
 	
 	close(STDOUT);
-	open(STDOUT,">$opt_p") || croak("$opt_p: $!\n");
+	open(STDOUT,">$opt_d") || croak("$opt_d: $!\n");
 
-	for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
-		&antsOut(($bi+0.5)*$opt_o,					# nominal depth
-				 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
-				 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W}[$bi]:nan,
-				 $DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
-				 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],
-				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
-				 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
-				 $DNCAST{MEAN_ELAPSED}[$bi]/2+$UPCAST{MEAN_ELAPSED}[$bi]/2,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_k ?
-					($DNCAST{MEDIAN_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MEDIAN_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
-					nan,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_k ?
-					 ($DNCAST{MAD_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MAD_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
-					 nan,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi],
-				 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,
-				 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
-		);
+	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+		my(@bindepth) = calc_binDepths($ens);
+		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+			my($bi) = $bindepth[$bin]/$opt_o;
+			&antsOut(
+				$ens,$bin,$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				$bindepth[$bin],$ens<=$LADCP_atbottom,
+				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
+				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $DNCAST{MEDIAN_W}[$bi],
+				$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				$LADCP{ENSEMBLE}[$ens]->{W}[$bin],
+				$LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
+				$LADCP{ENSEMBLE}[$ens]->{PITCH},
+				$LADCP{ENSEMBLE}[$ens]->{ROLL},
+				$LADCP{ENSEMBLE}[$ens]->{TILT},
+				$LADCP{ENSEMBLE}[$ens]->{HEADING},
+				(defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][0]) +				# only works for beam coords
+				 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][1]) +
+				 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
+				 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4,
+			    $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+			);
+		}
 	}
+
+	for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {						# upcast 
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+		my(@bindepth) = calc_binDepths($ens);
+		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+			my($bi) = $bindepth[$bin]/$opt_o;
+			&antsOut(
+				$ens,$bin,$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				$bindepth[$bin],
+				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $UPCAST{MEDIAN_W}[$bi],
+				$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				$LADCP{ENSEMBLE}[$ens]->{W}[$bin],
+				$LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
+				$LADCP{ENSEMBLE}[$ens]->{PITCH},
+				$LADCP{ENSEMBLE}[$ens]->{ROLL},
+				$LADCP{ENSEMBLE}[$ens]->{TILT},
+				$LADCP{ENSEMBLE}[$ens]->{HEADING},
+				(defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][0]) +				# only works for beam coords
+				 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][1]) +
+				 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
+				 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4,
+			    $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+			);
+		}
+	}
+
 }
+	
 
 #-----------------------------
 # package-velocity effect file
@@ -993,5 +966,72 @@ if (defined($opt_f)) {
 	close(STDOUT);
 	undef($antsHeadersPrinted);
 }
+
+#--------------------------------------------------------------------------------------------
+# Output all bins as separate files if requested
+#	NB: - vertical LADCP velocities are corrected inaccurately for sound-speed variations!!!!
+#		- full correction is used, on the other hand, for ocean velocities (w)
+#--------------------------------------------------------------------------------------------
+
+#if (defined($opt_d)) {
+#
+#	sub outProfBinRec($$$)
+#	{
+#		my($ens,$bin,$depth) = @_;
+#		my($sscorr) = $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/1500;
+#
+#		&antsOut($ens,
+#				 $bin,
+#				 $CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+#				 $depth,
+#				 $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+#				 $LADCP{ENSEMBLE}[$ens]->{PITCH},
+#				 $LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH},
+#				 $LADCP{ENSEMBLE}[$ens]->{ROLL},
+#				 $LADCP{ENSEMBLE}[$ens]->{TILT},
+#				 $LADCP{ENSEMBLE}[$ens]->{HEADING},
+#				 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+#				 $CTD{W_T}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+#				 $LADCP{ENSEMBLE}[$ens]->{W}[$bin]*$sscorr,
+#				 $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
+#				 $LADCP{ENSEMBLE}[$ens]->{REFLR_W},
+#				 $LADCP{ENSEMBLE}[$ens]->{REFLR_W_ERR},
+#				 $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
+#	}
+#	
+#	progress("Writing profile-bin data of downcast...\n");
+#
+#	$commonParams = $antsCurParams;
+#	@antsNewLayout = ('ens','bin','elapsed','depth','sound_speed','pitch','gimbal_pitch',
+#					  'roll','tilt','heading','CTD_w','CTD_w_t','LADCP_w','LADCP_errvel',
+#					  'LADCP_reflr_w','LADCP_reflr_w_err','w');
+#	
+#	for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {
+#		my($fn) = sprintf("$opt_d%03d.dncast",$bi);
+#		&antsOut('EOF');
+#		close(STDOUT);
+#		open(STDOUT,">$fn") || croak("$fn: $!\n");
+#		$antsCurParams = $commonParams;
+#		&antsAddParams('CTD_w',avg(@{$DNCAST{CTD_W}[$bi]}));
+#		for (my($eii)=0; $eii<=$#{$DNCAST{ENSEMBLE}[$bi]}; $eii++) {
+#			&outProfBinRec($DNCAST{ENSEMBLE}[$bi][$eii],$DNCAST{BIN}[$bi][$eii],$DNCAST{DEPTH}[$bi][$eii]);
+#		}
+#	}
+#	
+#	progress("Writing profile-bin data of upcast...\n");
+#	
+#	for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
+#		my($fn) = sprintf("$opt_d%03d.upcast",$bi);
+#		&antsOut('EOF');
+#		close(STDOUT);
+#		open(STDOUT,">$fn") || croak("$fn: $!\n");
+#		$antsCurParams = $commonParams;
+#		&antsAddParams('CTD_w',avg(@{$UPCAST{CTD_W}[$bi]}));
+#		for (my($eii)=0; $eii<=$#{$UPCAST{ENSEMBLE}[$bi]}; $eii++) {
+#			&outProfBinRec($UPCAST{ENSEMBLE}[$bi][$eii],$UPCAST{BIN}[$bi][$eii],$UPCAST{DEPTH}[$bi][$eii]);
+#		}
+#		close(STDOUT);
+#	}
+#}
 
 &antsExit();

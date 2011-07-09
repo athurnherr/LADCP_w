@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Fri Jul  8 04:11:52 2011
+#                    dlm: Sun Jun 26 20:47:09 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 60 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 17 80 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,49 +15,27 @@
 #	Jun 26, 2010: - added heuristic to chose between weighted-mean and
 #					unambiguously best offsets
 #				  - turned -3 criterion into warning when 3 lags are consecutive
-#	Jul  4, 2011: - increased MAX_ALLOWED_THREE_LAG_SPREAD from 2 to 3
-#	Jul  7, 2011: - removed window-mean w before time lagging to allow lagging
-#				    of casts with large w
 
 # TODO:
 #	- better seabed code (from LADCPproc)
 #	- intermediate-step timelagging guess
 #	- flip aliased ensembles
 
-my($MAX_ALLOWED_THREE_LAG_SPREAD) = 3;			# this was initially set to 2 but found to be
-												# violated quite often during 2011_IWISE. A
-												# large spread may indicate dropped CTD scans.
-												# The optimum value may be cast-duration dependent.
-
 sub mad_w($$$)									# mean absolute deviation
 {
 	my($fe,$le,$so) = @_;						# first/last LADCP ens, CTD scan offset
 	my($sad) = my($n) = 0;
 
-	my($LADCP_mean_w,$CTD_mean_w,$nsamp) = (0,0,0);
-	for (my($e)=$fe; $e<=$le; $e++) {			# first, calculate mean w in window
+	for (my($e)=$fe; $e<=$le; $e++) {
 		my($s) = int(($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
 		die("assertion failed\n" .
 			"\ttest: abs($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$s]) <= $CTD{DT}/2\n" .
 			"\te = $e, s = $s, ensemble = $LADCP{ENSEMBLE}[$e]->{NUMBER}"
 		) unless (abs($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$s]) <= $CTD{DT}/2);
-		next unless numberp($LADCP{ENSEMBLE}[$e]->{REFLR_W});
-		my($dw) = $LADCP{ENSEMBLE}[$e]->{REFLR_W}-$LADCP_mean_w - ($CTD{W}[$s+$so]-$CTD_mean_w);
-		next unless (abs($dw) <= $opt_m);
 
-		$LADCP_mean_w += $LADCP{ENSEMBLE}[$e]->{REFLR_W};
-		$CTD_mean_w   += $CTD{W}[$s+$so];
-		$nsamp++;
-	}
-	return 9e99 unless ($nsamp);
-	$LADCP_mean_w /= $nsamp;
-	$CTD_mean_w /= $nsamp;
-
-	for (my($e)=$fe; $e<=$le; $e++) {			# now, calculate mad
-		my($s) = int(($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
-		my($dw) = $LADCP{ENSEMBLE}[$e]->{REFLR_W}-$LADCP_mean_w - ($CTD{W}[$s+$so]-$CTD_mean_w);
-		next unless numberp($LADCP{ENSEMBLE}[$e]->{REFLR_W});
+		my($dw) = $LADCP{ENSEMBLE}[$e]->{REFLR_W} - $CTD{W}[$s+$so];
 		next unless (abs($dw) <= $opt_m);
+		
 		$sad += abs($dw);
 		$n++;
 	}
@@ -139,7 +117,7 @@ RETRY:
 	}
 	
 	unless ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]} >= $opt_3*$n_windows) {
-		if (max(@best_lag)-min(@best_lag) > $MAX_ALLOWED_THREE_LAG_SPREAD) {
+		if (max(@best_lag)-min(@best_lag) > 2) {
 			croak(sprintf("$0: cannot determine a valid lag; top 3 tags account for %d%% of total (use -3 to relax criterion)\n",
 				int(100*($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]})/$n_windows+0.5)))
 		} else {
