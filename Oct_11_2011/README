@@ -1,0 +1,4 @@
+The current version seems more-or-less fine, except that there may be issues
+with time lagging when the false-positives filter is used. To improve
+debugging, I need to replace command-line-options by default variables.
+Before doing this, I decided to copy the current state.
