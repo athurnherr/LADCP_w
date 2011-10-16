@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ S E R I E S . P L 
 #                    doc: Sun May 23 16:40:53 2010
-#                    dlm: Tue Oct 11 14:08:55 2011
+#                    dlm: Wed Oct 12 12:36:46 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 17 69 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 102 23 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,6 +15,8 @@
 #	Jul  2, 2011: - tightened gap-detection code
 #	Jul  4, 2011: - added support for $skip_ens
 #	Oct 11, 2011: - BUG: {DEPTH} had not been set at start of profile
+#	Oct 12, 2011: - re-worked ref_lr_w()
+#				  - stopped depth integration across gaps >= 5s
 
 # NOTES:
 #	- resulting DEPTH field based on integrated w without any sound speed correction
@@ -24,27 +26,16 @@
 sub ref_lr_w($$$$)										# calc ref-layer vert vels
 {
 	my($dta,$ens,$rl_b0,$rl_b1) = @_;
-	my($i,@n,@bn,@v,@vel,@bv,@w);
+	my(@w);
 
-	for ($i=$rl_b0-1; $i<=$rl_b1-1; $i++) {
-		if (defined($dta->{ENSEMBLE}[$ens]->{W}[$i])) {							# valid w
-			$vel[2] += $dta->{ENSEMBLE}[$ens]->{W}[$i]; $n[2]++;
-			$vel[3] += $dta->{ENSEMBLE}[$ens]->{ERRVEL}[$i], $n[3]++ if defined($dta->{ENSEMBLE}[$ens]->{ERRVEL}[$i]);
-			push(@w,$dta->{ENSEMBLE}[$ens]->{W}[$i]); 							# for stderr test
-		}
+	for (my($bin)=$rl_b0-1; $bin<=$rl_b1-1; $bin++) {
+		push(@w,$dta->{ENSEMBLE}[$ens]->{W}[$bin])
+			if defined($dta->{ENSEMBLE}[$ens]->{W}[$bin]);
 	}
-
-	my($w) = $n[2] ? $vel[2]/$n[2] : undef;				# w uncertainty
-	my($sumsq) = 0;
-	for ($i=0; $i<=$#w; $i++) {
-		$sumsq += ($w-$w[$i])**2;
-	}
-	my($stderr) = $n[2]>=2 ? sqrt($sumsq)/($n[2]-1) : undef;
-
-	if (defined($w)) {									# valid w
-		$dta->{ENSEMBLE}[$ens]->{REFLR_W} = $w;
-		$dta->{ENSEMBLE}[$ens]->{REFLR_W_ERR} = $stderr;
-	}
+	return unless (@w);
+	$dta->{ENSEMBLE}[$ens]->{REFLR_W} = avg(@w);
+	$dta->{ENSEMBLE}[$ens]->{REFLR_W_STDDEV} = stddev2($dta->{ENSEMBLE}[$ens]->{REFLR_W},@w);
+	$dta->{ENSEMBLE}[$ens]->{REFLR_W_NSAMP} = @w;
 }
 
 #======================================================================
@@ -107,13 +98,14 @@ sub calcLADCPts($$$$)
 			}
 		}
 	
-		$depth += $dta->{ENSEMBLE}[$lastgood]->{REFLR_W} * $dt;			# integrate
+		$depth += $dta->{ENSEMBLE}[$lastgood]->{REFLR_W} * $dt			# integrate
+			if ($dt < 5);
 		$dta->{ENSEMBLE}[$e]->{DEPTH} = $depth;
 	
 		$atbottom = $e, $max_depth = $depth if ($depth > $max_depth); 
 		$lastgood = $e;
 	}
-	
+
 	return ($firstgood,$lastgood,$atbottom,$w_gap_time);
 }
 

@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Tue Oct 11 13:48:21 2011
+#                    dlm: Sat Oct 15 20:59:38 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 173 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 163 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -18,6 +18,10 @@
 #	Oct 10, 2011: - added editFalsePositives()
 #				  - BUG: when earth velocities were edited, all were
 #						 counted, not just those between first and lastBin
+#	Oct 11, 2011: - moved defaults to [defaults.pl]
+#	Oct 12, 2011: - added &editSurfLayer()
+#				  - BUG: editSideLobes() was slightly loose
+#	Oct 15, 2011: - added editWOutliers()
 
 # NOTES:
 #	- all bins must be edited (not just the ones between $LADCP_firstBin
@@ -131,7 +135,33 @@ sub editErrVel($$)
 
 	my($nrm) = 0;
 	for (my($bin)=0; $bin<$LADCP{N_BINS}; $bin++) {
+		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		next if (abs($LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin]) <= $lim);
+		undef($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+		$nrm++ if ($bin>=$LADCP_firstBin-1 && $bin<=$LADCP_lastBin-1);
+	}
+	return $nrm;
+}
+
+#======================================================================
+# $edited = editWOutliers($ens)
+#
+# NOTES:
+#	- call after Earth vels have been calculated
+#	- count only edited vels in selected bin range
+#	- $DE_outliers_mad_limit determines what is an outlier
+#======================================================================
+
+sub editWOutliers($)
+{
+	my($ens) = @_;
+	my($medw) = median(@{$LADCP{ENSEMBLE}[$ens]->{W}});
+	my($madw) = mad2($medw,@{$LADCP{ENSEMBLE}[$ens]->{W}});
+	
+	my($nrm) = 0;
+	for (my($bin)=0; $bin<$LADCP{N_BINS}; $bin++) {
+		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+		next if (abs($LADCP{ENSEMBLE}[$ens]->{W}[$bin]-$medw) <= $DE_outliers_mad_limit*$madw);
 		undef($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		$nrm++ if ($bin>=$LADCP_firstBin-1 && $bin<=$LADCP_lastBin-1);
 	}
@@ -169,8 +199,6 @@ sub editTruncRange($$)
 #		   length >= $FP_BAD_GAP; initial gap is not counted as such
 #======================================================================
 
-my($FP_BAD_GAP) = 3;
-
 sub editFalsePositives($)
 {
 	my($ens) = @_;
@@ -187,7 +215,7 @@ sub editFalsePositives($)
 	for (my($bin)=0; $bin<$LADCP{N_BINS}; $bin++) {
 		if ($s == 9) {													# skip initial gap
 			$s = 0 if defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		} elsif ($s == $FP_BAD_GAP) {									# gap too long => delete
+		} elsif ($s == $DE_falsepositives_max_gap) {					# gap too long => delete
 			next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			undef($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			$nrm++ if ($bin>=$LADCP_firstBin-1 && $bin<=$LADCP_lastBin-1);
@@ -217,7 +245,7 @@ sub editSideLobes($$$)
 				   ? $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}
 				   : $wd - $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH};
 		my($sscorr) = $CTD{SVEL}[$LADCP{ENSEMBLE}[$e]->{CTD_SCAN}] / 1500;
-		my($goodBins) =   ($range - $sscorr*$LADCP{DISTANCE_TO_BIN1_CENTER})
+		my($goodBins) =   ($range - $sscorr*$LADCP{DISTANCE_TO_BIN1_CENTER}) * cos(rad($LADCP{BEAM_ANGLE}))
 						/ ($sscorr*$LADCP{BIN_LENGTH})
 						- 1.5;
 
@@ -232,6 +260,28 @@ sub editSideLobes($$$)
 		$nerm += $dirty;
 	}
 	return ($nvrm,$nerm);
+}
+
+
+#======================================================================
+# $nerm = editSurfLayer($fromEns,$toEns,$surface_layer_depth)
+#
+# NOTES:
+#	1) When this code is executed the fully corrected instrument and
+#	   bin depths are known
+#	2) This code was inspired by 2011_IWISE station 8
+#	3) No point in counting the deleted velocities
+#======================================================================
+
+sub editSurfLayer($$$)
+{
+	my($fe,$te,$sld) = @_;		# first & last ens to process
+	my($nerm) = 0;				# of ensembles affected
+	for (my($e)=$fe; $e<=$te; $e++) {
+		undef($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}),$nerm++
+			if ($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH} <= $sld);
+	}
+	return $nerm;
 }
 
 1;

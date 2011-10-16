@@ -1,0 +1,97 @@
+#!/bin/sh
+#======================================================================
+#					 L W P L O T _ W 
+#                    doc: Sat Oct 15 13:42:50 2011
+#                    dlm: Sat Oct 15 22:24:48 2011
+#                    (c) 2011 A.M. Thurnherr
+#                    uE-Info: 56 31 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+# HISTORY:
+#	Oct 15, 2011: - created
+
+#--------------------------------------------------
+# Usage
+#--------------------------------------------------
+
+USAGE="Usage: $0 [-s)ave data to <file>] [in-file]"
+
+args=`getopt s: $*`
+[ $? != 0 ] && {
+	echo $USAGE >&2
+	exit 1
+}
+
+set -- $args
+for opt
+do
+	case "$opt" in
+		-s) opt_s="$2";
+			rm -f "$opt_s";
+			shift; shift;;
+		--) shift; break;;
+	esac
+done
+
+[ $# -gt 1 ] && {
+	echo $USAGE >&2
+	exit 1
+}
+
+if [ $# -eq 1 ]
+then
+	if [ -n "$opt_s" ]
+	then
+		exec <$1 $0 -s $opt_s
+	else
+		exec <$1 $0
+	fi
+fi
+
+#--------------------------------------------------
+# Read Header Data
+#--------------------------------------------------
+
+[ -f .gmtdefaults4 ] ||
+	gmtset	PAPER_MEDIA letter+ \
+			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
+			WANT_EURO_FONT true \
+	        PLOT_DEGREE_FORMAT ddd:mm:ssF
+
+[ -n "$opt_s" ] && rm -f "$opt_s"
+
+while [ -z "$fields" ]
+do
+	read line
+	[ -n "$opt_s" ] && echo "$line" >> "$opt_s"
+	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
+	[ -z "$max_depth" ] && max_depth=`expr -- "$line" : '#ANTS#PARAMS#.*max_depth{\([^}]*\)}`
+	[ -z "$min_ens" ] && min_ens=`expr -- "$line" : '#ANTS#PARAMS#.*min_ens{\([^}]*\)}`
+	[ -z "$max_ens" ] && max_ens=`expr -- "$line" : '#ANTS#PARAMS#.*max_ens{\([^}]*\)}`
+	[ -z "$LADCP_bin_length" ] && LADCP_bin_length=`expr -- "$line" : '#ANTS#PARAMS#.*LADCP_bin_length{\([^}]*\)}`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
+done
+
+#--------------------------------------------------
+# Plot Data
+#--------------------------------------------------
+
+R=-R`echo "scale=1;$min_ens-0.5"|bc`/`echo "scale=1;$max_ens+0.5"|bc`/`\
+	 echo "scale=1;$min_depth-$LADCP_bin_length/2"|bc`/`echo "scale=1;$max_depth+$LADCP_bin_length/2"|bc`
+U=-R0/1/0/1
+X=-JX10/-10
+
+ens_width=`echo "scale=5;10/($max_ens-$min_ens+1)"|bc`
+bin_length=`echo "scale=5;10*$LADCP_bin_length/($max_depth-$min_depth+$LADCP_bin_length)"|bc`
+
+while read ens bin elapsed depth CTD_depth downcast w extra
+do
+	[ -n "$opt_s" ] && echo "$ens $bin $elapsed $depth $CTD_depth $downcast $w $extra" >> "$opt_s"
+	echo $ens $depth $w $ens_width $bin_length
+done | psxy -P -K $R $X -C`which LWplot_w | sed 's@LWplot_w$@w.cpt@'` -Sr
+	
+echo 0.02 0.02 12 0 0 TL $out_basename | pstext -O -K $U $X
+
+psbasemap -O $R $X -Bf50a500:"Ensemble":/f10a100:"Depth [m]":WeSn
+

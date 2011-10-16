@@ -1,0 +1,44 @@
+#!/bin/sh
+#======================================================================
+#                    L W P L O T _ T L 
+#                    doc: Thu Oct 13 10:51:49 2011
+#                    dlm: Sat Oct 15 22:24:18 2011
+#                    (c) 2011 A.M. Thurnherr
+#                    uE-Info: 15 31 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+# HISTORY:
+#	Oct 13, 2011: - created
+#	Oct 14, 2011: - fiddled
+
+[ -f .gmtdefaults4 ] ||
+	gmtset	PAPER_MEDIA letter+ \
+			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
+			WANT_EURO_FONT true \
+	        PLOT_DEGREE_FORMAT ddd:mm:ssF
+
+while [ -z "$fields" ]
+do
+	read line
+	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$min_elapsed" ] && min_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.min{\([^}]*\)}`
+	[ -z "$max_elapsed" ] && max_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.max{\([^}]*\)}`
+	[ -z "$best_scan_offset" ] && best_scan_offset=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset{\([^}]*\)}`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{// -e s/}//`
+done
+
+R=-R`echo $min_elapsed/60|bc`/`echo $max_elapsed/60+1|bc`/-24/24
+U=-R0/1/0/1
+J=-JX10
+
+while read elapsed scan_offset mad
+do
+	echo `echo "scale=2;$elapsed/60" | bc` $scan_offset
+done | psxy -P -K $J $R \
+			-Bf1a15:"Elapsed Time [min]":/f1a5:"Best Offset [scans]":WeSn \
+		    -Sc0.1 -G0
+	
+echo 0.02 0.98 12 0 0 TL $out_basename | pstext -O -K $U $J
+
+echo -e "`echo $min_elapsed/60|bc` $best_scan_offset\n`echo $max_elapsed/60+1|bc` $best_scan_offset" \
+	| psxy -O $R $J

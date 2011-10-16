@@ -1,0 +1,43 @@
+#!/bin/sh
+#======================================================================
+#                    L W P L O T _ T L H I S T 
+#                    doc: Thu Oct 13 10:51:49 2011
+#                    dlm: Sat Oct 15 22:24:31 2011
+#                    (c) 2011 A.M. Thurnherr
+#                    uE-Info: 14 31 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+# HISTORY:
+#	Oct 13, 2011: - created
+
+[ -f .gmtdefaults4 ] ||
+	gmtset	PAPER_MEDIA letter+ \
+			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
+			WANT_EURO_FONT true \
+	        PLOT_DEGREE_FORMAT ddd:mm:ssF
+
+while [ -z "$fields" ]
+do
+	read line
+	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$n_windows" ] && n_windows=`expr -- "$line" : '#ANTS#PARAMS#.*n_windows{\([^}]*\)}`
+	[ -z "$best_scan_offset" ] && best_scan_offset=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset{\([^}]*\)}`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{// -e s/}//`
+done
+
+R=-R-24/24/0/60
+U=-R0/1/0/1
+J=-JX10
+
+while read scan_offset nsamp mad
+do
+	echo $scan_offset `echo 100*$nsamp/$n_windows | bc`
+done | psxy -P -K $J $R \
+			-Bf1a10:"Best Offset [scans]":/f1a5:"Fraction [%]":WeSn \
+		    -Sb1u -G127
+	
+echo 0.02 0.98 12 0 0 TL $out_basename | pstext -O -K $J $U
+
+echo -e "$best_scan_offset 0\n$best_scan_offset 60" \
+	| psxy -O $J $R
+

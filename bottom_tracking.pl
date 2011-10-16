@@ -1,44 +1,21 @@
 #======================================================================
 #                    B O T T O M _ T R A C K I N G . P L 
 #                    doc: Wed Oct 20 21:05:37 2010
-#                    dlm: Fri Dec 31 14:21:14 2010
+#                    dlm: Tue Oct 11 17:50:08 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 32 30 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 12 51 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Oct 20, 2010: - created
 #	Dec 30, 2010: - adapted for use with LADCP_w
+#	Oct 11, 2011: - moved defaults to [defaults.pl]
 
 # This code is essentially identical to the one used in LADCPproc. Differences:
 #	1) velocity editing is simpler: no wake editing, no PPI editing, no shear
 #	   editing, no w outlier
 #	2) median/mad calculated instead of mean/stddev
 #	3) u,v not calculated
-
-# Don't look for BT-referenced velocities if package is more than $BT_max_range
-# above seabed. This parameter is frequency dependent and the current value is
-# appropriate (if rather high) for 300kHz Workhorse intruments.
-
-my($BT_max_range) = 300;
-
-
-# The code only tries to bin BT-referenced velocities if a consistent bottom
-# is available in all 4 beams. Ensembles where the range of bin numbers where
-# the maximum echo is found is greater than $max_BIT_bin_range_diff are rejected.
-# In addition to flukes this also rejects ensembles collected with large
-# instrument tilts. The value of 3 is a first guess that has not been explored.
-
-my($BT_max_bin_range_diff) = 3;
-
-
-# If the difference between measured vertical velocity of the seabed (i.e.
-# the package vertical velocity referenced by the seabed) and the vertical
-# velocity of the CTD (from dp/dt) si greater than $BT_max_w_error the current
-# ensemble is ignored and $nBTwFlag is increased. The value of
-# 3cm/s is taken from listBT developed on A0304 cruise.
-
-my($BT_max_w_error) = 0.03;
 
 #----------------------------------------------------------------------
 # bin valid BT-referenced velocities
@@ -125,7 +102,7 @@ sub binBTprof($$$)
 
 	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		my($gi) = int($bd[$bin]) / $opt_o;
+		my($gi) = int($bd[$bin]) / $output_bin_size;
 		push(@{$BTw[$gi]},$LADCP{ENSEMBLE}[$ens]->{W}[$bin]-$seafloor_w);
 	}
 }

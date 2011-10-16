@@ -1,0 +1,118 @@
+#!/bin/sh
+#======================================================================
+#					 L W P L O T _ P R O F 
+#                    doc: Fri Oct 14 09:42:36 2011
+#                    dlm: Sat Oct 15 23:20:48 2011
+#                    (c) 2011 A.M. Thurnherr
+#                    uE-Info: 96 50 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+# HISTORY:
+#	Oct 14, 2011: - created
+#	Oct 15, 2011: - added nsamp
+
+#--------------------------------------------------
+# Usage
+#--------------------------------------------------
+
+USAGE="Usage: $0 [-s)ave data to <file>] [in-file]"
+
+args=`getopt s: $*`
+[ $? != 0 ] && {
+	echo $USAGE >&2
+	exit 1
+}
+
+set -- $args
+for opt
+do
+	case "$opt" in
+		-s) opt_s="$2";
+			rm -f "$opt_s";
+			shift; shift;;
+		--) shift; break;;
+	esac
+done
+
+[ $# -gt 1 ] && {
+	echo $USAGE >&2
+	exit 1
+}
+
+if [ $# -eq 1 ]
+then
+	if [ -n "$opt_s" ]
+	then
+		exec <$1 $0 -s $opt_s
+	else
+		exec <$1 $0
+	fi
+fi
+
+#--------------------------------------------------
+# Read Header Data
+#--------------------------------------------------
+
+TMPFILE=/tmp/$$.LWplot_prof
+
+[ -f .gmtdefaults4 ] ||
+	gmtset	PAPER_MEDIA letter+ \
+			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
+			WANT_EURO_FONT true \
+	        PLOT_DEGREE_FORMAT ddd:mm:ssF
+
+[ -n "$opt_s" ] && rm -f "$opt_s"
+
+while [ -z "$fields" ]
+do
+	read line
+	[ -n "$opt_s" ] && echo "$line" >> "$opt_s"
+	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
+	[ -z "$max_depth" ] && max_depth=`expr -- "$line" : '#ANTS#PARAMS#.*max_depth{\([^}]*\)}`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
+done
+
+if [ -n "$opt_s" ]
+then
+	tee -a "$opt_s" > $TMPFILE
+else
+	cat > $TMPFILE
+fi
+
+#--------------------------------------------------
+# Plot Data
+#--------------------------------------------------
+
+R=-R-0.07/0.35/$min_depth/$max_depth
+R2=-R-200/200/$min_depth/$max_depth
+U=-R0/1/0/1
+X=-JX10/-10
+
+echo -e "0 $min_depth\n0 $max_depth" | psxy -P -K $R $X
+echo -e "0.07 $min_depth\n0.07 $max_depth\n0.18 $max_depth\n0.18 $min_depth" | psxy -O -K $R $X -L -G200
+echo -e "50 $min_depth\n50 $max_depth" | psxy -O -K $R2 $X
+echo -e "100 $min_depth\n100 $max_depth" | psxy -O -K $R2 $X
+echo -e "150 $min_depth\n150 $max_depth" | psxy -O -K $R2 $X
+
+awk '{print $4, $1}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -W4/red
+awk '{print $9, $1}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -W4/blue
+awk '{print $16,$1}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -W4/green
+	
+awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N $R $X -Sc0.1c -Gred
+awk '{print $10,$1, $9}' $TMPFILE | grep -vi nan | psxy -O -K -N $R $X -Sc0.1c -Gblue
+awk '{print $17,$1,$16}' $TMPFILE | grep -vi nan | psxy -O -K -N $R $X -Sc0.1c -Ggreen
+
+awk '{print  $6,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N $R2 $X -W1/red
+awk '{print $11,$1, $9}' $TMPFILE | grep -vi nan | psxy -O -K -N $R2 $X -W1/blue
+awk '{print $18,$1,$16}' $TMPFILE | grep -vi nan | psxy -O -K -N $R2 $X -W1/green
+
+echo 0.02 0.02 12 0 0 TL $out_basename | pstext -O -K $U $X
+echo 0.6 0.98 12 0 0 BR m.a.d. | pstext -O -K $U $X
+
+psbasemap -O -K $R $X -Bf0.01a0.1:"Vertical Velocity [m/s]":/f10a100:"Depth [m]":WeS
+psbasemap -O -K $R2 $X -Bf10a1000-950:"                                     # of Samples":N
+psbasemap -O -K $R2 $X -Ba1000-900N
+psbasemap -O $R2 $X -Ba1000-850N
+		 
+rm $TMPFILE
