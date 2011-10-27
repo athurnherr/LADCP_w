@@ -1,15 +1,16 @@
 #======================================================================
 #                    B O T T O M _ T R A C K I N G . P L 
 #                    doc: Wed Oct 20 21:05:37 2010
-#                    dlm: Tue Oct 11 17:50:08 2011
+#                    dlm: Mon Oct 24 10:10:09 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 12 51 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 144 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Oct 20, 2010: - created
 #	Dec 30, 2010: - adapted for use with LADCP_w
 #	Oct 11, 2011: - moved defaults to [defaults.pl]
+#	Oct 24, 2011: - disabled not-very-useful %BT-params
 
 # This code is essentially identical to the one used in LADCPproc. Differences:
 #	1) velocity editing is simpler: no wake editing, no PPI editing, no shear
@@ -133,13 +134,13 @@ sub calc_BTprof($$$$)
         $BT{MAD_W}[$gi] = mad2($BT{W}[$gi],@{$BTw[$gi]});
 	}
 
-	&antsAddParams('BT_rms_seafloor_u',round(rms(@BTbtmu),0.01),
-				   'BT_rms_seafloor_v',round(rms(@BTbtmv),0.01),
-				   'BT_rms_seafloor_w',round(rms(@BTbtmw),0.01),
-				   'BT_avg_seafloor_u',round(avg(@BTbtmu),0.01),
-				   'BT_avg_seafloor_v',round(avg(@BTbtmv),0.01),
-				   'BT_avg_seafloor_w',round(avg(@BTbtmw),0.01),
-				   'BT_rms_tilt',round(rms(@BTtilt),0.1));
+#	&antsAddParams('BT_rms_seafloor_u',round(rms(@BTbtmu),0.01),
+#				   'BT_rms_seafloor_v',round(rms(@BTbtmv),0.01),
+#				   'BT_rms_seafloor_w',round(rms(@BTbtmw),0.01),
+#				   'BT_avg_seafloor_u',round(avg(@BTbtmu),0.01),
+#				   'BT_avg_seafloor_v',round(avg(@BTbtmv),0.01),
+#				   'BT_avg_seafloor_w',round(avg(@BTbtmw),0.01),
+#				   'BT_rms_tilt',round(rms(@BTtilt),0.1));
 }
 
 1;

@@ -1,0 +1,92 @@
+PSL_font_encode 0 get 0 eq {ISOLatin1+_Encoding /Helvetica /Helvetica PSL_reencode PSL_font_encode 0 1 put} if
+0 setlinecap
+0 setlinejoin
+10 setmiterlimit
+944.882 59.0551 T
+
+%% PostScript produced by:
+%%GMT:  psscale -O -K -E -D8/2/3/0.4 -Cresiduals.cpt -B/:residuals:
+S 0 A
+S 5 W
+47.2441 0 T 90 R
+0.286 0.286 1 47 59 0 0 BC
+0.573 0.573 1 47 59 59 0 BC
+0.784 0.784 1 47 30 118 0 BC
+1 47 59 148 0 BA
+1 0.784 0.784 47 29 207 0 BC
+1 0.573 0.573 47 59 236 0 BC
+1 0.286 0.286 47 59 295 0 BC
+0 47 M
+0 -47 D
+-24 24 D
+0 0 1 QC
+0 47 M
+0 -47 D
+-24 24 D
+QQ
+354 47 M
+0 -47 D
+24 24 D
+1 0 0 QC
+354 47 M
+0 -47 D
+24 24 D
+QQ
+0 0 M 354 0 D S
+0 47 M 354 0 D S
+0 0 M 0 47 D S
+354 0 M 0 47 D S
+S 1 W
+0 0 M 0 47 D S
+59 0 M 0 47 D S
+118 0 M 0 47 D S
+148 0 M 0 47 D S
+207 0 M 0 47 D S
+236 0 M 0 47 D S
+295 0 M 0 47 D S
+354 0 M 0 47 D S
+S 2 W
+0 0 M
+0 -24 D
+S
+0 0 M 29 F0 (-0.030) E /PSL_dimx exch def YP /PSL_dimy exch def
+0 -135 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-0.030) Z U
+59 0 M
+0 -24 D
+S
+0 0 M 29 F0 (-0.020) E /PSL_dimx exch def YP /PSL_dimy exch def
+59 -135 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-0.020) Z U
+118 0 M
+0 -24 D
+S
+0 0 M 29 F0 (-0.010) E /PSL_dimx exch def YP /PSL_dimy exch def
+118 -135 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-0.010) Z U
+148 0 M
+0 -24 D
+S
+0 0 M 29 F0 (-0.005) E /PSL_dimx exch def YP /PSL_dimy exch def
+148 -135 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-0.005) Z U
+207 0 M
+0 -24 D
+S
+0 0 M 29 F0 (0.005) E /PSL_dimx exch def YP /PSL_dimy exch def
+207 -135 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (0.005) Z U
+236 0 M
+0 -24 D
+S
+0 0 M 29 F0 (0.010) E /PSL_dimx exch def YP /PSL_dimy exch def
+236 -135 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (0.010) Z U
+295 0 M
+0 -24 D
+S
+0 0 M 29 F0 (0.020) E /PSL_dimx exch def YP /PSL_dimy exch def
+295 -135 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (0.020) Z U
+354 0 M
+0 -24 D
+S
+0 0 M 29 F0 (0.030) E /PSL_dimx exch def YP /PSL_dimy exch def
+354 -135 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (0.030) Z U
+0 0 M 29 F0 (residuals) E /PSL_dimx exch def YP /PSL_dimy exch def
+402 24 M V -90 R PSL_dimx 2 div neg 0 G 29 F0 (residuals) Z U
+-90 R -47.2441 0 T
+S -944.882 -59.0551 T 0 A

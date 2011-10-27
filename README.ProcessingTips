@@ -1,0 +1,38 @@
+======================================================================
+                    R E A D M E . P R O C E S S I N G T I P S 
+                    doc: Thu Oct 20 14:11:49 2011
+                    dlm: Fri Oct 21 17:33:21 2011
+                    (c) 2011 A.M. Thurnherr
+                    uE-Info: 18 0 NIL 0 0 72 3 2 4 NIL ofnI
+======================================================================
+
+=Time Lagging Problems=
+
+If the first pass (1Hz) fails, there are no diagnostic plots that can
+be inspected. Often, however, this problem is simply due to CTD
+pressure spikes, which must be removed before processing. If the CTD
+pressures are good, it becomes very useful to write the
+LADCP_timeseries ($out_LADCPtis =
+"$data_subdir/$out_basename.LADCPtis";) and compare it to the CTD time
+series (averaged to 1Hz for size), e.g. to spot obvious problems or to
+determine an initial offset guess.
+
+One possible reason for the first time-lagging pass to fail is that the
+beginning of the cast is not correctly recognized. In case of
+2011_IWISE (003UL, but probably also others) this is because there are
+valid velocities in bin#2 even before the LADCP enters the water. The
+problem was solved  by increasing $refLr_firstBin.
+
+If the 2nd pass (24Hz resolution) of time lagging fails, the diagnostic
+plots (*_TL.eps, *_TLhist.eps) should be inspected. Often, the problem
+can simply be solved by decreasing $TL_required_top_three_fraction to
+something like 0.4.
+
+When profiles with very little ship motion (e.g. in/near the ice) are
+processed $TL_required_top_three_fraction may have to be decreased to
+very small values (0.05 in case of some stations in NBP0901). With such
+a low value it is important that the diagnostic plots are inspected
+carefully to make sure that there are no timelagging-related issues. It
+is also advisable to plot/inspect the time-series output to make sure
+that the final lag is reasonable.
+

@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Sat Oct 15 20:59:38 2011
+#                    dlm: Thu Oct 20 15:58:08 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 163 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 207 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -22,11 +22,12 @@
 #	Oct 12, 2011: - added &editSurfLayer()
 #				  - BUG: editSideLobes() was slightly loose
 #	Oct 15, 2011: - added editWOutliers()
+#	Oct 20, 2011: - added editFarBins()
 
 # NOTES:
 #	- all bins must be edited (not just the ones between $LADCP_firstBin
 #	  and $LADCP_lastBin to allow reflr calculations to use bins outside
-#	  this range
+#	  this range (ONLY FOR BEAM-COORD EDITS)
 #	- however, to make the stats work, only the edited velocities
 #	  inside the bin range are counted
 
@@ -49,7 +50,7 @@ sub countValidBeamVels($)
 }
 
 #======================================================================
-# $edited = editCorr($ens,$threshold)
+# $removed = editCorr($ens,$threshold)
 #
 # NOTES:
 #	- called before Earth vels have been calculated
@@ -93,7 +94,7 @@ sub editCorr_Earthcoords($$)
 }
 
 #======================================================================
-# $edited = editTilt($ens,$threshold)
+# $removed = editTilt($ens,$threshold)
 #
 # NOTES:
 #	- called before Earth vels have been calculated
@@ -122,11 +123,11 @@ sub editTilt($$)
 }
 
 #======================================================================
-# $edited = editErrVel($ens,$threshold)
+# $removed = editErrVel($ens,$threshold)
 #
 # NOTES:
 #	- call after Earth vels have been calculated
-#	- count only edited vels in selected bin range
+#	- count only removed vels in selected bin range
 #======================================================================
 
 sub editErrVel($$)
@@ -144,24 +145,24 @@ sub editErrVel($$)
 }
 
 #======================================================================
-# $edited = editWOutliers($ens)
+# $removed = editWOutliers($ens,$lim)
 #
 # NOTES:
 #	- call after Earth vels have been calculated
-#	- count only edited vels in selected bin range
-#	- $DE_outliers_mad_limit determines what is an outlier
+#	- count only removed vels in selected bin range
+#	- lim determines how many times the mad an outlier has to be from median
 #======================================================================
 
-sub editWOutliers($)
+sub editWOutliers($$)
 {
-	my($ens) = @_;
+	my($ens,$lim) = @_;
 	my($medw) = median(@{$LADCP{ENSEMBLE}[$ens]->{W}});
 	my($madw) = mad2($medw,@{$LADCP{ENSEMBLE}[$ens]->{W}});
 	
 	my($nrm) = 0;
 	for (my($bin)=0; $bin<$LADCP{N_BINS}; $bin++) {
 		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		next if (abs($LADCP{ENSEMBLE}[$ens]->{W}[$bin]-$medw) <= $DE_outliers_mad_limit*$madw);
+		next if (abs($LADCP{ENSEMBLE}[$ens]->{W}[$bin]-$medw) <= $lim*$madw);
 		undef($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		$nrm++ if ($bin>=$LADCP_firstBin-1 && $bin<=$LADCP_lastBin-1);
 	}
@@ -169,7 +170,7 @@ sub editWOutliers($)
 }
 
 #======================================================================
-# $edited = editTruncRange($ens,$nbins)
+# $removed = editTruncRange($ens,$nbins)
 #
 # NOTES:
 #	- call after Earth vels have been calculated
@@ -189,40 +190,25 @@ sub editTruncRange($$)
 }
 
 #======================================================================
-# $edited = editFalsePositives($ens,$nbins)
+# $removed = editFarBins($ens,$first_bad_bin)
 #
 # NOTES:
 #	- call after Earth vels have been calculated
-#	- "false positives" are filtered in 2 stages:
-#		1) invalidate any valid velocity bracketed by invalid ones
-#		2) invalidate any remaining valid velocity following gap of
-#		   length >= $FP_BAD_GAP; initial gap is not counted as such
+#	- remove data from far bins
+#	- only bins in valid range are considered here, because
+#	  $per_bin_nsamp is only defined for those
 #======================================================================
 
-sub editFalsePositives($)
+sub editFarBins($$)
 {
-	my($ens) = @_;
+	my($ens,$first_bad_bin) = @_;
 
 	my($nrm) = 0;
-	for (my($bin)=1; $bin<$LADCP{N_BINS}; $bin++) {
-		next if defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin-1])
-			 || !defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin])
-			 || defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin+1]);
+	for (my($bin)=$first_bad_bin; $bin<=$LADCP_lastBin-1; $bin++) {
+		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		undef($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		$nrm++ if ($bin>=$LADCP_firstBin-1 && $bin<=$LADCP_lastBin-1);
+		$nrm++;
 	}
-	my($s) = 9;  														# FINITE STATE MACHINE
-	for (my($bin)=0; $bin<$LADCP{N_BINS}; $bin++) {
-		if ($s == 9) {													# skip initial gap
-			$s = 0 if defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		} elsif ($s == $DE_falsepositives_max_gap) {					# gap too long => delete
-			next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-			undef($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-			$nrm++ if ($bin>=$LADCP_firstBin-1 && $bin<=$LADCP_lastBin-1);
-        } else {														# short-enough gap
-			$s = defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]) ? 0 : $s+1;
-		}
-    }
 	return $nrm;
 }
 

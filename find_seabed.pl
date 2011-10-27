@@ -1,9 +1,9 @@
 #======================================================================
 #                    F I N D _ S E A B E D . P L 
 #                    doc: Sun May 23 20:26:11 2010
-#                    dlm: Tue Oct 11 18:09:06 2011
+#                    dlm: Wed Oct 19 14:25:27 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 13 48 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 15 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -11,6 +11,8 @@
 #	Dec 25, 2010: - adapted to changes in [LADCP_w]
 #	Oct 11, 2011: - moved defaults to [defaults.pl]
 #				  - increased z_offset from 10km to 15km
+#	Oct 19, 2011: - added $SS_max_allowed_range
+#				  - renamed $SS_min_allowed_hab to *_range
 
 # NOTES:
 #	1) BT range is corrected for sound speed at the transducer. This is not
@@ -42,6 +44,7 @@ sub find_seabed($$$)
 					 defined($d->{ENSEMBLE}[$i]->{BT_RANGE}[1]) &&
 					 defined($d->{ENSEMBLE}[$i]->{BT_RANGE}[2]) &&
 					 defined($d->{ENSEMBLE}[$i]->{BT_RANGE}[3]));
+
 		my(@BT) = $beamCoords
 				? velInstrumentToEarth($d,$i,
 					velBeamToInstrument($d,
@@ -55,7 +58,8 @@ sub find_seabed($$$)
 			 $d->{ENSEMBLE}[$i]->{BT_RANGE}[3]/4;
 		$d->{ENSEMBLE}[$i]->{DEPTH_BT} *= cos(rad($d->{BEAM_ANGLE}));
 		$d->{ENSEMBLE}[$i]->{DEPTH_BT} *= $CTD{SVEL}[$d->{ENSEMBLE}[$i]->{CTD_SCAN}]/1500;
-		next unless ($d->{ENSEMBLE}[$i]->{DEPTH_BT} >= $SS_min_allowed_hab);
+		next unless ($d->{ENSEMBLE}[$i]->{DEPTH_BT} >= $SS_min_allowed_range &&
+					 $d->{ENSEMBLE}[$i]->{DEPTH_BT} <= $SS_max_allowed_range);
 		$d->{ENSEMBLE}[$i]->{DEPTH_BT} *= -1
 			if ($d->{ENSEMBLE}[$i]->{XDUCER_FACING_UP});
 		$d->{ENSEMBLE}[$i]->{DEPTH_BT} += $d->{ENSEMBLE}[$i]->{CTD_DEPTH};

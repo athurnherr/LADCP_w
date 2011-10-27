@@ -1,0 +1,70 @@
+#!/bin/sh
+#======================================================================
+#					 L W P L O T _ B R 
+#                    doc: Mon Oct 17 10:57:12 2011
+#                    dlm: Tue Oct 18 16:24:12 2011
+#                    (c) 2011 A.M. Thurnherr
+#                    uE-Info: 62 97 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+# HISTORY:
+#	Oct 17, 2011: - created
+
+#--------------------------------------------------
+# Usage
+#--------------------------------------------------
+
+USAGE="Usage: $0 <eps-file> [in-file]"
+	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
+	[ $# -ne 1 ] && { echo $USAGE >&2; exit 1; }
+
+#--------------------------------------------------
+# Read Header Data
+#--------------------------------------------------
+
+while [ -z "$fields" ]
+do
+	read line
+    [ ! -t 1 ] && echo "$line"
+	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
+	[ -z "$max_bin" ] && max_bin=`expr -- "$line" : '#ANTS#PARAMS#.*max_bin{\([^}]*\)}`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
+done
+
+TMPFILE=/tmp/$$.LWplot_BR
+if [ ! -t 1 ]
+then
+	tee $TMPFILE
+else
+	cat > $TMPFILE
+fi
+
+#--------------------------------------------------
+# Plot Data
+#--------------------------------------------------
+
+[ -f .gmtdefaults4 ] ||
+	gmtset	PAPER_MEDIA letter+ \
+			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
+			WANT_EURO_FONT true \
+	        PLOT_DEGREE_FORMAT ddd:mm:ssF
+
+R=-R-0.07/0.07/0.5/`echo $max_bin+0.5|bc`
+U=-R0/1/0/1
+X=-JX10/-10
+
+echo -e "0 0.5\n0 `echo $max_bin+0.5|bc`" | psxy -P -K $R $X > "$1"
+
+awk '{print $2, $1}' $TMPFILE | psxy -O -K -Mn $R $X -W4/coral >> "$1"
+awk '{print $5, $1}' $TMPFILE | psxy -O -K -Mn $R $X -W4/SeaGreen >> "$1"
+awk '{print $2, $1, ($4>1)?($3/sqrt($4-1)):0}' $TMPFILE | psxy -O -K -Mn $R $X -Ex0.2c/4/coral >> "$1"
+awk '{print $5, $1, ($7>1)?($6/sqrt($7-1)):0}' $TMPFILE | psxy -O -K -Mn $R $X -Ex0.2c/4/SeaGreen >> "$1"
+	
+echo 0.02 0.02 12 0 0 TL $out_basename $run_label| pstext -O -K $U $X >> "$1"
+
+psbasemap -O -K $R $X -Bf0.005a0.05:"Residual Vertical Velocity [m/s]":/f1a5:"Bin [#]":WeSn >> "$1"
+psbasemap -O $R $X -B/a100-99W >> "$1"
+
+rm $TMPFILE
+fixbb "$1"

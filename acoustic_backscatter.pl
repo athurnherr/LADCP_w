@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Thu Dec 30 22:22:02 2010
+#                    dlm: Fri Oct 21 11:29:13 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 131 36 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 17 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -11,6 +11,10 @@
 #	Dec 10, 2010: - BUG: backscatter above sea surface made code bomb
 #						 when run with uplooker data
 #	Dec 30, 2010: - adapted for use with [LADCP_w]
+#	Oct 19, 2011: - added support for $SS_{min,max}_allowed_range
+#				  - BUG: acoustic-backscatter assumed 0 deg C
+#				  - SV now saved in ensemble
+#	Oct 21, 2011: - BUG: made code work for uplooker again
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -72,45 +76,32 @@ sub calc_backscatter_profs($$)
 		my(@bd) = calc_binDepths($ens);
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			my($depth) = int($bd[$bin]);
-#			next if ($depth < 0);		# enable to use this code for uplookers
-			my($range_to_bin) = ($bd[$bin] - $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH})
+			next if ($depth < 0);
+			my($range_to_bin) = abs($bd[$bin] - $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH})
 									/ cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}))
 									/ $cosBeamAngle;
-			if (numberp($LADCP{ENSEMBLE}[$ens]->{CTD_TEMP})) {
-				$sSv[$depth][$bin] += Sv($LADCP{ENSEMBLE}[$ens]->{CTD_TEMP},
-									  $LADCP{TRANSMITTED_PULSE_LENGTH},
-									  $Er[0],$range_to_bin,
-									  $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][0])/4 +
-								   Sv($LADCP{ENSEMBLE}[$ens]->{CTD_TEMP},
-									  $LADCP{TRANSMITTED_PULSE_LENGTH},
-									  $Er[1],$range_to_bin,
-									  $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][1])/4 +
-								   Sv($LADCP{ENSEMBLE}[$ens]->{CTD_TEMP},
-									  $LADCP{TRANSMITTED_PULSE_LENGTH},
-									  $Er[2],$range_to_bin,
-									  $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][2])/4 +
-								   Sv($LADCP{ENSEMBLE}[$ens]->{CTD_TEMP},
-									  $LADCP{TRANSMITTED_PULSE_LENGTH},
-									  $Er[3],$range_to_bin,
-	                                  $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][3])/4;
-	        } else {
-				$sSv[$depth][$bin] += Sv($LADCP{ENSEMBLE}[$ens]->{CTD_TEMPERATURE},
-									  $LADCP{TRANSMITTED_PULSE_LENGTH},
-									  $Er[0],$range_to_bin,
-									  $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][0])/4 +
-								   Sv($LADCP{ENSEMBLE}[$ens]->{CTD_TEMPERATURE},
-									  $LADCP{TRANSMITTED_PULSE_LENGTH},
-									  $Er[1],$range_to_bin,
-									  $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][1])/4 +
-								   Sv($LADCP{ENSEMBLE}[$ens]->{CTD_TEMPERATURE},
-									  $LADCP{TRANSMITTED_PULSE_LENGTH},
-									  $Er[2],$range_to_bin,
-									  $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][2])/4 +
-								   Sv($LADCP{ENSEMBLE}[$ens]->{CTD_TEMPERATURE},
-									  $LADCP{TRANSMITTED_PULSE_LENGTH},
-									  $Er[3],$range_to_bin,
-	                                  $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][3])/4;
-	        }
+			next
+				if ($range_to_bin < $SS_min_allowed_range ||
+					$range_to_bin > $SS_max_allowed_range);
+			my($temp) = defined($CTD_temp)
+					  ? $CTD{TEMP}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]
+					  : $LADCP{ENSEMBLE}[$ens]->{TEMPERATURE};
+			$LADCP{ENSEMBLE}[$ens]->{SV}[$bin] =
+				median(
+					Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[0],$range_to_bin,
+					   $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][0]
+				    ),
+				    Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[1],$range_to_bin,
+					   $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][1]
+					),
+					Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[2],$range_to_bin,
+					   $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][2]
+					),
+					Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[3],$range_to_bin,
+	     			   $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][3]
+					)
+				);
+    		$sSv[$depth][$bin] += $LADCP{ENSEMBLE}[$ens]->{SV}[$bin];
 			$nSv[$depth][$bin]++;
 		}
 	}

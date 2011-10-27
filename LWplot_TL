@@ -2,14 +2,40 @@
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Sat Oct 15 22:24:18 2011
+#                    dlm: Tue Oct 18 16:23:45 2011
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 15 31 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 57 40 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Oct 13, 2011: - created
 #	Oct 14, 2011: - fiddled
+#	Oct 17, 2011: - turned into filter
+#				  - added %run_label
+
+USAGE="Usage: $0 <eps-file> [in-file]"
+	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
+	[ $# -ne 1 ] && { echo $USAGE >&2; exit 1; }
+
+while [ -z "$fields" ]
+do
+	read line
+    [ ! -t 1 ] && echo "$line"
+	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
+	[ -z "$min_elapsed" ] && min_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.min{\([^}]*\)}`
+	[ -z "$max_elapsed" ] && max_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.max{\([^}]*\)}`
+	[ -z "$best_scan_offset" ] && best_scan_offset=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset{\([^}]*\)}`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{// -e s/}//`
+done
+
+TMPFILE=/tmp/$$.LWplot_TL
+if [ ! -t 1 ]
+then
+	tee $TMPFILE
+else
+	cat > $TMPFILE
+fi
 
 [ -f .gmtdefaults4 ] ||
 	gmtset	PAPER_MEDIA letter+ \
@@ -17,28 +43,24 @@
 			WANT_EURO_FONT true \
 	        PLOT_DEGREE_FORMAT ddd:mm:ssF
 
-while [ -z "$fields" ]
-do
-	read line
-	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
-	[ -z "$min_elapsed" ] && min_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.min{\([^}]*\)}`
-	[ -z "$max_elapsed" ] && max_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.max{\([^}]*\)}`
-	[ -z "$best_scan_offset" ] && best_scan_offset=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset{\([^}]*\)}`
-	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{// -e s/}//`
-done
-
 R=-R`echo $min_elapsed/60|bc`/`echo $max_elapsed/60+1|bc`/-24/24
 U=-R0/1/0/1
 J=-JX10
 
-while read elapsed scan_offset mad
-do
-	echo `echo "scale=2;$elapsed/60" | bc` $scan_offset
-done | psxy -P -K $J $R \
-			-Bf1a15:"Elapsed Time [min]":/f1a5:"Best Offset [scans]":WeSn \
-		    -Sc0.1 -G0
+awk '{if ($4 == 1) { print $1/60,$2; }}' $TMPFILE \
+	| psxy -P -K $J $R \
+		   -Bf1a15:"Elapsed Time [min]":/f1a5:"Best Offset [scans]":WeSn \
+		   -Sc0.1 -Gcoral \
+	> "$1"		   
 	
-echo 0.02 0.98 12 0 0 TL $out_basename | pstext -O -K $U $J
+awk '{if ($4 == 0) { print $1/60,$2; }}' $TMPFILE \
+	| psxy -O -K $J $R -Sc0.1 -GSeaGreen \
+	>> "$1"		   
+	
+echo 0.02 0.98 12 0 0 TL $out_basename $run_label | pstext -O -K $U $J >> "$1"
 
 echo -e "`echo $min_elapsed/60|bc` $best_scan_offset\n`echo $max_elapsed/60+1|bc` $best_scan_offset" \
-	| psxy -O $R $J
+	| psxy -O $R $J >> "$1"
+
+rm $TMPFILE
+fixbb "$1"

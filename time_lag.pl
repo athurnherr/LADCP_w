@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Fri Oct 14 22:11:30 2011
+#                    dlm: Fri Oct 21 09:13:02 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 240 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 45 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -36,14 +36,19 @@
 #				  - BUG: last ens of window estimation was off, probably accounting
 #						 for Oct 13 BUG (fix disabled)
 #				  - renamed _out to out_
+#	Oct 17, 2011: - BUG: closed STDOUT caused problems with tee in plotting scripts
+#	Oct 19, 2011: - BUG: windowing did not work correctly for short casts
+#				  - BUG: search restarting did not work correctly
+#				  - modified edge-of-window heuristics
+#				  - added step to remove all lags with mad > median(mads)
+#	Oct 20, 2011: - losened too-restrictive last step
+#	Oct 21, 2011: - BUG: forgot to update $n_valid_windows while removing outlier lags
 
 # DIFFICULT STATIONS:
-#	NBP0901#005
+#	NBP0901#131		this requires the search-radius doubling heuristic
 
 # TODO:
 #	- better seabed code (from LADCPproc)
-#	- intermediate-step timelagging guess
-#	? flip aliased ensembles
 
 sub mad_w($$$)									# mean absolute deviation
 {
@@ -109,6 +114,7 @@ sub bestLag($$$$)								# find best lag in window
 sub calc_lag($$$)
 {
 	my($n_windows,$w_size,$scan_increment) = @_;
+	my($search_radius) = $scan_increment==1 ? 3 : $w_size;
 
 RETRY:
 	my($failed) = undef;
@@ -120,19 +126,20 @@ RETRY:
 	my($approx_CTD_profile_end_ens) =
 		$firstGoodEns + int(($CTD{ELAPSED}[$#{$CTD{ELAPSED}}] + $CTD{ELAPSED}[0] - $CTD{TIME_LAG}) / $LADCP{MEAN_DT});
 
-	my($approx_joint_profile_start_ens) = max($firstGoodEns,$approx_CTD_profile_start_ens);
-	my($approx_joint_profile_end_ens) 	= min($lastGoodEns,$approx_CTD_profile_end_ens);
+	my($approx_joint_profile_start_ens) = max($firstGoodEns,$approx_CTD_profile_start_ens) + 10;
+	my($approx_joint_profile_end_ens) 	= min($lastGoodEns,$approx_CTD_profile_end_ens) - 10;
 	debugmsg("profile start: $firstGoodEns -> $approx_joint_profile_start_ens\n");
 	debugmsg("profile end  : $lastGoodEns -> $approx_joint_profile_end_ens\n");
 
-	my($skip_ens) = int(($approx_joint_profile_end_ens - $approx_joint_profile_start_ens) / 10 + 0.5);
+	my($window_ens) = int($w_size/$LADCP{MEAN_DT}+0.5);
 
 	my(@elapsed,@so,@mad,%nBest,%madBest);
 	my($n_valid_windows) = 0;
+
 	for (my($wi)=0; $wi<$n_windows; $wi++) {
-		my($fe) = $approx_joint_profile_start_ens + $skip_ens +
-					int(($approx_joint_profile_end_ens-$approx_joint_profile_start_ens-2*$skip_ens)*$wi/$n_windows+0.5);
-		my($so,$mad) = bestLag($fe,$fe+int($w_size/$LADCP{MEAN_DT}+0.5),$scan_increment==1?3:$w_size,$scan_increment);
+		my($fe) = $approx_joint_profile_start_ens + 
+					int(($approx_joint_profile_end_ens-$approx_joint_profile_start_ens-$window_ens)*$wi/($n_windows-1)+0.5);
+		my($so,$mad) = bestLag($fe,$fe+$window_ens,$search_radius,$scan_increment);
 		$elapsed[$wi] = $LADCP{ENSEMBLE}[$fe+int($w_size/2/$LADCP{MEAN_DT}+0.5)]->{ELAPSED};
 		die("assertion failed\nfe=$fe, lastGoodEns=$lastGoodEns, w_size=$w_size") unless ($elapsed[$wi]);
 		next unless ($mad < 9e99);
@@ -142,6 +149,14 @@ RETRY:
 	}
 	foreach my $i (keys(%nBest)) {
 		$madBest{$i} /= $nBest{$i};
+	}
+
+	my($med_mad) = median(values(%madBest));								# remove lags with large mads
+	my($mad_mad) = mad2($med_mad,values(%madBest));
+	foreach my $lag (keys(%nBest)) {
+		next if ($madBest{$lag} <= $med_mad+$mad_mad);
+		$n_valid_windows -= $nBest{$lag};
+		$nBest{$lag} = 0;
 	}
 
 	my(@best_lag);
@@ -170,14 +185,6 @@ RETRY:
 			$best_lag[0],int(($nBest{$best_lag[0]}/$n_valid_windows)*100+0.5),100*$madBest{$best_lag[0]});
 	}
 
-# BETTER HEURISTIC NEEDED!
-###	if ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]} <= 6) {
-###		warning(0,"cannot determine valid lag => trying again with doubled window size\n");
-###		undef(%nBest); undef(%madBest);
-###		$w_size *= 2;
-###		goto RETRY;
-###	}
-	
 	unless ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]} >= $TL_required_top_three_fraction*$n_valid_windows) {
 		if (max(@best_lag)-min(@best_lag) > $TL_max_allowed_three_lag_spread) {
 			$failed = sprintf("$0: cannot determine a valid lag; top 3 tags account for %d%% of total (use -3 to relax criterion)\n",
@@ -200,16 +207,30 @@ RETRY:
 #		progress("\tweighted-mean offset = %.1f scans\n",$bmo);
 #	}
 
-	if ($bmo > 0.9*$w_size/2/$CTD{DT}) {
-		warning(0,"lag too close to the edge of the window --- trying again after adjusting the guestimated offset\n");
-		$CTD{TIME_LAG} += $w_size/2;
-		undef(%nBest);
+	if ($bmo > 0.9*$search_radius/2/$CTD{DT}) {
+#		$failed = sprintf("$0: cannot determine valid lag (too close to edge of search)\n");
+		if ($search_radius == $w_size) {
+			warning(0,"lag too close to edge of search --- trying again after shifting the initial offset\n");
+			$CTD{TIME_LAG} += $search_radius/2;
+		} else {
+			warning(0,"lag too close to edge of search --- trying again after doubling the search radius\n");
+			$search_radius *= 2;
+			$search_raidus =- $w_size if ($search_radius > $w_size);
+		}
+		undef(%nBest); undef(%madBest); undef(@best_lag);
 		goto RETRY;
 	}
-	if (-$bmo > 0.9*$w_size/2/$CTD{DT}) {
-		warning(0,"lag too close to the edge of the window --- trying again after adjusting the guestimated offset\n");
-		$CTD{TIME_LAG} -= $w_size/2;
-		undef(%nBest);
+	if (-$bmo > 0.9*$search_radius/2/$CTD{DT}) {
+#		$failed = sprintf("$0: cannot determine valid lag (too close to edge of search)\n");
+		if ($search_radius == $w_size) {
+			warning(0,"lag too close to edge of search --- trying again after shifting the initial offset\n");
+			$CTD{TIME_LAG} -= $search_radius/2;
+		} else {
+			warning(0,"lag too close to edge of search --- trying again after doubling the search radius\n");
+			$search_radius *= 2;
+			$search_raidus =- $w_size if ($search_radius > $w_size);
+		}
+		undef(%nBest); undef(%madBest); undef(@best_lag);
 		goto RETRY;
 	}
 
@@ -217,7 +238,7 @@ RETRY:
 		progress("\tsaving/plotting time-lagging time series...\n");
 	
 		my($saveParams) = $antsCurParams;
-		@antsNewLayout = ('elapsed','scan_offset','mad');
+		@antsNewLayout = ('elapsed','scan_offset','mad','downcast');
 		open(STDOUT,"$out_TL") || croak("$out_TL: $!\n");
 
 		&antsAddParams('best_scan_offset',$bmo);
@@ -225,10 +246,10 @@ RETRY:
 		&antsAddParams('elapsed.max',$elapsed[$#elapsed]);
 
 		for (my($wi)=0; $wi<@elapsed; $wi++) {
-			&antsOut($elapsed[$wi],$so[$wi],$mad[$wi]);
+			&antsOut($elapsed[$wi],$so[$wi],$mad[$wi],$elapsed[$wi]<$LADCP{ENSEMBLE}[$LADCP_atbottom]->{ELAPSED});
 		}
 
-		&antsOut('EOF'); close(STDOUT);
+		&antsOut('EOF'); open(STDOUT,">&2");
 		$antsCurParams = $saveParams;
 	}
 	
@@ -246,7 +267,7 @@ RETRY:
 			&antsOut($so,$nBest{$so}?$nBest{$so}:0,$madBest{$so});
 		}
 	
-		&antsOut('EOF'); close(STDOUT);
+		&antsOut('EOF'); open(STDOUT,">&2");
 		$antsCurParams = $saveParams;
 	}
 

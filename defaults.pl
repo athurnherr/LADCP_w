@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Sat Oct 15 21:01:56 2011
+#                    dlm: Wed Oct 26 19:26:45 2011
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 144 26 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 22 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,6 +12,14 @@
 #	Oct 13, 2011: - added $out_basename, $TL_out, $TL_hist_out
 #	Oct 14, 2011: - added $w_out, $profile_out
 #				  - renamed _out to out_; out_basename to out_basename
+#	Oct 17, 2011: - added {data,plot,log}_subdir
+#				  - added $out_BR
+#				  - adapted to new filter-plot scripts
+#				  - changed -v default to 2
+#	Oct 19, 2011: - added SS_max_allowed_range & renamed _min_
+#	Oct 20, 2011: - added $out_timeseries default
+#				  - added $per_bin_valid_frac_lim
+#	Oct 26, 2011: - added $first_guess_timelag
 
 # Variable Names:
 #	- variables that are only used in a particular library are
@@ -23,7 +31,8 @@
 
 # File to load cruise/cast-specific processing parameters from
 
-$processing_param_file = './ProcessingParams.pl';
+$processing_param_file = "ProcessingParams.$RUN";
+
 
 # CTD depth adjustment
 #	- set with -a
@@ -59,21 +68,7 @@ croak("$0: cannot decode -b $opt_b\n")
 #		>2:	debug messges
 #	- the most useful ones of these are 1 & 2
 
-$verbosity_level = &antsCardOpt($opt_v,1);
-
-# output base name
-
-$out_basename = sprintf('%03d%s',$STN,$RUN);
-
-
-# main w output
-
-$out_w = "| LWplot_w -s $out_basename.w > ${out_basename}_w.eps";
-
-
-# w profile output
-
-$out_profile = "| LWplot_prof -s $out_basename.prof > ${out_basename}_prof.eps";
+$verbosity_level = &antsCardOpt($opt_v,2);
 
 
 # output bin size in meters
@@ -86,10 +81,50 @@ $output_bin_size = &antsFloatOpt($opt_o,10);
 $min_w_nsamp = &antsCardOpt($opt_k,20);
 
 
+# output base name
+
+$out_basename = sprintf('%03d',$STN);
+
+
+# output subdirectories
+
+croak("$RUN: no such directory\n") unless (-d $RUN);
+$data_subdir = $plot_subdir = $log_subdir = $RUN;
+
+
+# main w output and all its plots:
+#	_w.eps			vertical velocities
+#	_residuals.eps	residual vertical velocities
+#	_Sv.eps			volume scattering coefficient after Deimes (1999)
+#	_corr.eps		correlation
+
+$out_w = "| LWplot_residuals $plot_subdir/${out_basename}_residuals.eps" .
+		 "| LWplot_Sv $plot_subdir/${out_basename}_Sv.eps" .
+		 "| LWplot_corr $plot_subdir/${out_basename}_corr.eps" .
+		 "| LWplot_w $plot_subdir/${out_basename}_w.eps" .
+		 "> $data_subdir/$out_basename.w";
+
+
+# w profile output
+
+$out_profile = "| LWplot_prof $plot_subdir/${out_basename}_prof.eps" .
+			   "> $data_subdir/$out_basename.prof";
+
+# log output
+
+$out_log = "$log_subdir/$out_basename.log";
+
+
+# time-series output
+
+$out_timeseries = "$data_subdir/$out_basename.tis";
+
+
 # diagnostic plots
 
-$out_TL 	= "| LWplot_TL     > ${out_basename}_TL.eps";
-$out_TLhist = "| LWplot_TLhist > ${out_basename}_TLhist.eps";
+$out_BR		= "| LWplot_BR 	   $plot_subdir/${out_basename}_BR.eps";
+$out_TL 	= "| LWplot_TL     $plot_subdir/${out_basename}_TL.eps";
+$out_TLhist = "| LWplot_TLhist $plot_subdir/${out_basename}_TLhist.eps";
 
 
 #======================================================================
@@ -131,17 +166,17 @@ $max_LADCP_reflr_vel_gap = &antsFloatOpt($opt_g,60);
 $max_allowed_w = &antsFloatOpt($opt_m,1);
 
 
-# all apparently valid velocities after a gap of at least this length
-# are deleted
+# in each ensemble, vertical velocities differing more than this
+# parameter times mean absolute deviation from median, are considered 
+# outliers and removed
 
-$DE_falsepositives_max_gap = 3;
+$per_ens_outliers_mad_limit = 2;
 
 
-# in each ensemble, vertical velocities differing more than $DE_... times
-# mean absolute deviation from median, are considered outliers and
-# removed
+# data from bins with less valid velocities than the following parameter
+# are considered bad and removed
 
-$DE_outliers_mad_limit = 2;
+$per_bin_valid_frac_lim = 0.15;
 
 
 # ensembles when instrument is shallower than 
@@ -154,6 +189,11 @@ $surface_layer_depth = 25;
 #======================================================================
 # Time Lagging
 #======================================================================
+
+# externally supplied lag
+
+$first_guess_timelag = $opt_i;
+
 
 # reference layer bins for w for time matching
 
@@ -203,9 +243,14 @@ $SS_search_window_halfwidth = 200;
 $SS_max_allowed_depth_range = 10;
 
 
-# min allowed LADCP distance from seabed for good data
+# The following numbers define the valid range of height-above bottom
+# for seabed detection. If the the mean BT_RANGE of a given ens
+# falls outside this range, the ensemble is ignored during seabed detection.
+# Also, bins falling outside this range are not considered during 
+# construction of accoustic backscatter profiles.
 
-$SS_min_allowed_hab = 20;
+$SS_min_allowed_range = 20;
+$SS_max_allowed_range = 150;
 
 
 #======================================================================

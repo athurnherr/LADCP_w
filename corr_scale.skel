@@ -1,0 +1,253 @@
+PSL_font_encode 0 get 0 eq {ISOLatin1+_Encoding /Helvetica /Helvetica PSL_reencode PSL_font_encode 0 1 put} if
+0 setlinecap
+0 setlinejoin
+10 setmiterlimit
+944.882 59.0551 T
+
+%% PostScript produced by:
+%%GMT:  psscale -O -K -E -D8/2/3/0.4 -Ccorrelation.cpt -B/:correlation:
+S 0 A
+S 5 W
+47.2441 0 T 90 R
+0.839 0 1 47 30 0 0 BC
+0.678 0 1 47 29 30 0 BC
+0.518 0 1 47 30 59 0 BC
+0.353 0 1 47 29 89 0 BC
+0.192 0 1 47 30 118 0 BC
+0.0314 0 1 47 29 148 0 BC
+0 0.129 1 47 30 177 0 BC
+0 0.29 1 47 29 207 0 BC
+0 0.451 1 47 30 236 0 BC
+0 0.612 1 47 29 266 0 BC
+0 0.773 1 47 3 295 0 BC
+0 0.937 1 47 3 298 0 BC
+0 1 0.902 47 3 301 0 BC
+0 1 0.741 47 3 304 0 BC
+0 1 0.58 47 3 307 0 BC
+0 1 0.42 47 3 310 0 BC
+0 1 0.259 47 3 313 0 BC
+0 1 0.098 47 3 316 0 BC
+0.0627 1 0 47 3 319 0 BC
+0.227 1 0 47 3 322 0 BC
+0.388 1 0 47 3 325 0 BC
+0.549 1 0 47 3 328 0 BC
+0.71 1 0 47 3 331 0 BC
+0.871 1 0 47 3 334 0 BC
+1 0.969 0 47 3 337 0 BC
+1 0.808 0 47 3 340 0 BC
+1 0.647 0 47 2 343 0 BC
+1 0.482 0 47 3 345 0 BC
+1 0.322 0 47 3 348 0 BC
+1 0.161 0 47 3 351 0 BC
+0 47 M
+0 -47 D
+-24 24 D
+1 0 1 QC
+0 47 M
+0 -47 D
+-24 24 D
+QQ
+354 47 M
+0 -47 D
+24 24 D
+1 0 0 QC
+354 47 M
+0 -47 D
+24 24 D
+QQ
+0 0 M 354 0 D S
+0 47 M 354 0 D S
+0 0 M 0 47 D S
+354 0 M 0 47 D S
+S 1 W
+0 0 M 0 47 D S
+30 0 M 0 47 D S
+59 0 M 0 47 D S
+89 0 M 0 47 D S
+118 0 M 0 47 D S
+148 0 M 0 47 D S
+177 0 M 0 47 D S
+207 0 M 0 47 D S
+236 0 M 0 47 D S
+266 0 M 0 47 D S
+295 0 M 0 47 D S
+298 0 M 0 47 D S
+301 0 M 0 47 D S
+304 0 M 0 47 D S
+307 0 M 0 47 D S
+310 0 M 0 47 D S
+313 0 M 0 47 D S
+316 0 M 0 47 D S
+319 0 M 0 47 D S
+322 0 M 0 47 D S
+325 0 M 0 47 D S
+328 0 M 0 47 D S
+331 0 M 0 47 D S
+334 0 M 0 47 D S
+337 0 M 0 47 D S
+340 0 M 0 47 D S
+343 0 M 0 47 D S
+345 0 M 0 47 D S
+348 0 M 0 47 D S
+351 0 M 0 47 D S
+354 0 M 0 47 D S
+S 2 W
+0 0 M
+0 -24 D
+S
+0 0 M 29 F0 (70.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+0 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (70.0) Z U
+30 0 M
+0 -24 D
+S
+0 0 M 29 F0 (75.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+30 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (75.0) Z U
+59 0 M
+0 -24 D
+S
+0 0 M 29 F0 (80.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+59 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (80.0) Z U
+89 0 M
+0 -24 D
+S
+0 0 M 29 F0 (85.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+89 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (85.0) Z U
+118 0 M
+0 -24 D
+S
+0 0 M 29 F0 (90.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+118 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (90.0) Z U
+148 0 M
+0 -24 D
+S
+0 0 M 29 F0 (95.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+148 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (95.0) Z U
+177 0 M
+0 -24 D
+S
+0 0 M 29 F0 (100.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+177 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (100.0) Z U
+207 0 M
+0 -24 D
+S
+0 0 M 29 F0 (105.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+207 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (105.0) Z U
+236 0 M
+0 -24 D
+S
+0 0 M 29 F0 (110.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+236 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (110.0) Z U
+266 0 M
+0 -24 D
+S
+0 0 M 29 F0 (115.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+266 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (115.0) Z U
+295 0 M
+0 -24 D
+S
+0 0 M 29 F0 (120.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+295 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (120.0) Z U
+298 0 M
+0 -24 D
+S
+0 0 M 29 F0 (120.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+298 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (120.5) Z U
+301 0 M
+0 -24 D
+S
+0 0 M 29 F0 (121.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+301 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (121.0) Z U
+304 0 M
+0 -24 D
+S
+0 0 M 29 F0 (121.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+304 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (121.5) Z U
+307 0 M
+0 -24 D
+S
+0 0 M 29 F0 (122.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+307 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (122.0) Z U
+310 0 M
+0 -24 D
+S
+0 0 M 29 F0 (122.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+310 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (122.5) Z U
+313 0 M
+0 -24 D
+S
+0 0 M 29 F0 (123.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+313 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (123.0) Z U
+316 0 M
+0 -24 D
+S
+0 0 M 29 F0 (123.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+316 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (123.5) Z U
+319 0 M
+0 -24 D
+S
+0 0 M 29 F0 (124.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+319 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (124.0) Z U
+322 0 M
+0 -24 D
+S
+0 0 M 29 F0 (124.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+322 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (124.5) Z U
+325 0 M
+0 -24 D
+S
+0 0 M 29 F0 (125.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+325 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (125.0) Z U
+328 0 M
+0 -24 D
+S
+0 0 M 29 F0 (125.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+328 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (125.5) Z U
+331 0 M
+0 -24 D
+S
+0 0 M 29 F0 (126.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+331 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (126.0) Z U
+334 0 M
+0 -24 D
+S
+0 0 M 29 F0 (126.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+334 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (126.5) Z U
+337 0 M
+0 -24 D
+S
+0 0 M 29 F0 (127.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+337 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (127.0) Z U
+340 0 M
+0 -24 D
+S
+0 0 M 29 F0 (127.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+340 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (127.5) Z U
+343 0 M
+0 -24 D
+S
+0 0 M 29 F0 (128.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+343 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (128.0) Z U
+345 0 M
+0 -24 D
+S
+0 0 M 29 F0 (128.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+345 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (128.5) Z U
+348 0 M
+0 -24 D
+S
+0 0 M 29 F0 (129.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+348 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (129.0) Z U
+351 0 M
+0 -24 D
+S
+0 0 M 29 F0 (129.5) E /PSL_dimx exch def YP /PSL_dimy exch def
+351 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (129.5) Z U
+354 0 M
+0 -24 D
+S
+0 0 M 29 F0 (130.0) E /PSL_dimx exch def YP /PSL_dimy exch def
+354 -119 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (130.0) Z U
+0 0 M 29 F0 (correlation) E /PSL_dimx exch def YP /PSL_dimy exch def
+402 24 M V -90 R PSL_dimx 2 div neg 0 G 29 F0 (correlation) Z U
+-90 R -47.2441 0 T
+S -944.882 -59.0551 T 0 A

@@ -2,80 +2,45 @@
 #======================================================================
 #					 L W P L O T _ P R O F 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Sat Oct 15 23:20:48 2011
+#                    dlm: Tue Oct 18 16:25:43 2011
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 96 50 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 78 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Oct 14, 2011: - created
 #	Oct 15, 2011: - added nsamp
+#	Oct 16, 2011: - made depth tic-marks range dependent
+#	Oct 17, 2011: - turned into filter
+#				  - added %run_label
 
 #--------------------------------------------------
 # Usage
 #--------------------------------------------------
 
-USAGE="Usage: $0 [-s)ave data to <file>] [in-file]"
-
-args=`getopt s: $*`
-[ $? != 0 ] && {
-	echo $USAGE >&2
-	exit 1
-}
-
-set -- $args
-for opt
-do
-	case "$opt" in
-		-s) opt_s="$2";
-			rm -f "$opt_s";
-			shift; shift;;
-		--) shift; break;;
-	esac
-done
-
-[ $# -gt 1 ] && {
-	echo $USAGE >&2
-	exit 1
-}
-
-if [ $# -eq 1 ]
-then
-	if [ -n "$opt_s" ]
-	then
-		exec <$1 $0 -s $opt_s
-	else
-		exec <$1 $0
-	fi
-fi
+USAGE="Usage: $0 <eps-file> [in-file]"
+	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
+	[ $# -ne 1 ] && { echo $USAGE >&2; exit 1; }
 
 #--------------------------------------------------
 # Read Header Data
 #--------------------------------------------------
 
-TMPFILE=/tmp/$$.LWplot_prof
-
-[ -f .gmtdefaults4 ] ||
-	gmtset	PAPER_MEDIA letter+ \
-			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
-			WANT_EURO_FONT true \
-	        PLOT_DEGREE_FORMAT ddd:mm:ssF
-
-[ -n "$opt_s" ] && rm -f "$opt_s"
-
 while [ -z "$fields" ]
 do
 	read line
-	[ -n "$opt_s" ] && echo "$line" >> "$opt_s"
+    [ ! -t 1 ] && echo "$line"
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
 	[ -z "$max_depth" ] && max_depth=`expr -- "$line" : '#ANTS#PARAMS#.*max_depth{\([^}]*\)}`
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
 done
 
-if [ -n "$opt_s" ]
+TMPFILE=/tmp/$$.LWplot_prof
+if [ ! -t 1 ]
 then
-	tee -a "$opt_s" > $TMPFILE
+	tee $TMPFILE
 else
 	cat > $TMPFILE
 fi
@@ -84,35 +49,52 @@ fi
 # Plot Data
 #--------------------------------------------------
 
+[ -f .gmtdefaults4 ] ||
+	gmtset	PAPER_MEDIA letter+ \
+			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
+			WANT_EURO_FONT true \
+	        PLOT_DEGREE_FORMAT ddd:mm:ssF
+
 R=-R-0.07/0.35/$min_depth/$max_depth
 R2=-R-200/200/$min_depth/$max_depth
 U=-R0/1/0/1
 X=-JX10/-10
 
-echo -e "0 $min_depth\n0 $max_depth" | psxy -P -K $R $X
-echo -e "0.07 $min_depth\n0.07 $max_depth\n0.18 $max_depth\n0.18 $min_depth" | psxy -O -K $R $X -L -G200
-echo -e "50 $min_depth\n50 $max_depth" | psxy -O -K $R2 $X
-echo -e "100 $min_depth\n100 $max_depth" | psxy -O -K $R2 $X
-echo -e "150 $min_depth\n150 $max_depth" | psxy -O -K $R2 $X
+echo -e "0 $min_depth\n0 $max_depth" | psxy -P -K $R $X > "$1"
+echo -e "0.07 $min_depth\n0.07 $max_depth\n0.18 $max_depth\n0.18 $min_depth" | psxy -O -K $R $X -L -G200 >> "$1"
+echo -e "50 $min_depth\n50 $max_depth" | psxy -O -K $R2 $X >> "$1"
+echo -e "100 $min_depth\n100 $max_depth" | psxy -O -K $R2 $X >> "$1"
+echo -e "150 $min_depth\n150 $max_depth" | psxy -O -K $R2 $X >> "$1"
 
-awk '{print $4, $1}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -W4/red
-awk '{print $9, $1}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -W4/blue
-awk '{print $16,$1}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -W4/green
+awk '{print $4, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/coral >> "$1"
+awk '{print $9, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/SeaGreen >> "$1"
+awk '{print $16,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/black >> "$1"
 	
-awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N $R $X -Sc0.1c -Gred
-awk '{print $10,$1, $9}' $TMPFILE | grep -vi nan | psxy -O -K -N $R $X -Sc0.1c -Gblue
-awk '{print $17,$1,$16}' $TMPFILE | grep -vi nan | psxy -O -K -N $R $X -Sc0.1c -Ggreen
+awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gcoral >> "$1"
+awk '{print $10,$1, $9}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -GSeaGreen >> "$1"
+awk '{print $17,$1,$16}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gblack >> "$1"
 
-awk '{print  $6,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N $R2 $X -W1/red
-awk '{print $11,$1, $9}' $TMPFILE | grep -vi nan | psxy -O -K -N $R2 $X -W1/blue
-awk '{print $18,$1,$16}' $TMPFILE | grep -vi nan | psxy -O -K -N $R2 $X -W1/green
+awk '{print  $6,$1,$4}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/coral >> "$1"
+awk '{print $11,$1,$9}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/SeaGreen >> "$1"
+awk '{print $18,$1,$16}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/black >> "$1"
 
-echo 0.02 0.02 12 0 0 TL $out_basename | pstext -O -K $U $X
-echo 0.6 0.98 12 0 0 BR m.a.d. | pstext -O -K $U $X
+echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$1"
+echo 0.6 0.98 12 0 0 BR m.a.d. | pstext -O -K $U $X >> "$1"
 
-psbasemap -O -K $R $X -Bf0.01a0.1:"Vertical Velocity [m/s]":/f10a100:"Depth [m]":WeS
-psbasemap -O -K $R2 $X -Bf10a1000-950:"                                     # of Samples":N
-psbasemap -O -K $R2 $X -Ba1000-900N
-psbasemap -O $R2 $X -Ba1000-850N
+if [ 0 -eq `echo "($max_depth-$min_depth)>1000"|bc` ]
+then
+	depth_tics=f10a100
+else
+	depth_tics=f100a500
+fi
+
+psbasemap -O -K $R $X -Bf0.01a10-10.05:"Vertical Velocity [m/s]                               ":/$depth_tics:"Depth [m]":WeS >> "$1"
+psbasemap -O -K $R $X -Ba10-9.95S >> "$1"
+psbasemap -O -K $R $X -Ba10-9.85S >> "$1"
+
+psbasemap -O -K $R2 $X -Bf10a1000-950:"                                     # of Samples":N >> "$1"
+psbasemap -O -K $R2 $X -Ba1000-900N >> "$1"
+psbasemap -O $R2 $X -Ba1000-850N >> "$1"
 		 
 rm $TMPFILE
+fixbb "$1"
