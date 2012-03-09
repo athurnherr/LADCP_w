@@ -2,14 +2,15 @@
 #======================================================================
 #					 L W P L O T _ S V 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Mon Oct 24 10:28:40 2011
+#                    dlm: Mon Nov 14 14:57:31 2011
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 12 55 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 76 26 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Oct 19, 2011: - adapted from [LWplot_residuals]
 #	Oct 24, 2011: - LADCP_bin_length => ADCP_bin_length
+#	Nov 14, 2011: - added file layout check
 
 #--------------------------------------------------
 # Usage
@@ -18,6 +19,8 @@
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
 	[ $# -ne 1 ] && { echo $USAGE >&2; exit 1; }
+
+eps_file="$1"
 
 #--------------------------------------------------
 # Read Header Data
@@ -36,6 +39,12 @@ do
 	[ -z "$ADCP_bin_length" ] && ADCP_bin_length=`expr -- "$line" : '#ANTS#PARAMS#.*ADCP_bin_length{\([^}]*\)}`
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
 done
+
+set -- $fields
+[ "$1" = ensemble -a "$4" = depth -a "${16}" = volume_scattering_coeff ] || {
+	echo "$0: file layout error" >&2
+	exit 1
+}
 
 #--------------------------------------------------
 # Plot Data
@@ -64,10 +73,10 @@ C=-C`which LWplot_Sv | sed 's@LWplot_Sv$@Sv.cpt@'`
 ens_width=`echo "scale=5;10/($max_ens-$min_ens+1)"|bc`
 bin_length=`echo "scale=5;10*$ADCP_bin_length/($max_depth-$min_depth+$ADCP_bin_length)"|bc`
 
-awk "{print \$1, \$4, \$14, $ens_width, $bin_length}" $TMPFILE \
-	| psxy -P -K $R $X $C -Sr > "$1"
+awk "{print \$1, \$4, \$16, $ens_width, $bin_length}" $TMPFILE \
+	| psxy -P -K $R $X $C -Sr > "$eps_file"
 	
-echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$1"
+echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$eps_file"
 
 if [ 0 -eq `echo "($max_depth-$min_depth)>1000"|bc` ]
 then
@@ -78,9 +87,9 @@ else
 	ens_tics=f500a1000
 fi
 
-cat `which LWplot_Sv | sed 's@LWplot_Sv$@Sv_scale.skel@'` >> "$1"
+cat `which LWplot_Sv | sed 's@LWplot_Sv$@Sv_scale.skel@'` >> "$eps_file"
 
-psbasemap -O $R $X -B$ens_tics:"Ensemble":/$depth_tics:"Depth [m]":WeSn >> "$1"
+psbasemap -O $R $X -B$ens_tics:"Ensemble":/$depth_tics:"Depth [m]":WeSn >> "$eps_file"
 
 rm $TMPFILE
-fixbb "$1"
+fixbb "$eps_file"

@@ -1,10 +1,13 @@
 #======================================================================
 #                    M A K E F I L E 
 #                    doc: Mon Oct 17 13:29:27 2011
-#                    dlm: Wed Oct 19 20:43:38 2011
+#                    dlm: Sun Feb 19 13:12:09 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 18 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 10 19 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
+
+MAKE_DIR = /Data/Makefiles
+include ${MAKE_DIR}/Makefile.GMT
 
 w.cpt:
 	mkCPT -oc polar -- -0.07 -0.05 -0.04 -0.03 -0.02 -0.01 0.01 0.02 0.03 0.04 0.05 0.07 > $@

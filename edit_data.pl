@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Thu Oct 20 15:58:08 2011
+#                    dlm: Thu Oct 27 22:34:22 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 207 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 42 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -23,6 +23,8 @@
 #				  - BUG: editSideLobes() was slightly loose
 #	Oct 15, 2011: - added editWOutliers()
 #	Oct 20, 2011: - added editFarBins()
+#	Oct 27, 2011: - adapted editTilt() to new call location
+#				  - added correctAttitude()
 
 # NOTES:
 #	- all bins must be edited (not just the ones between $LADCP_firstBin
@@ -30,6 +32,18 @@
 #	  this range (ONLY FOR BEAM-COORD EDITS)
 #	- however, to make the stats work, only the edited velocities
 #	  inside the bin range are counted
+
+#======================================================================
+# correctAttitude($ens,$pitch_bias,$roll_bias,$heading_bias)
+#======================================================================
+
+sub correctAttitude($$$$)
+{
+	my($ens,$pitch_bias,$roll_bias,$heading_bias) = @_;
+	$LADCP{ENSEMBLE}[$ens]->{PITCH}   -= $pitch_bias;
+	$LADCP{ENSEMBLE}[$ens]->{ROLL}    -= $roll_bias;
+	$LADCP{ENSEMBLE}[$ens]->{HEADING} -= $heading_bias;
+}
 
 #======================================================================
 # $vv = countValidVels($ens)
@@ -97,9 +111,8 @@ sub editCorr_Earthcoords($$)
 # $removed = editTilt($ens,$threshold)
 #
 # NOTES:
-#	- called before Earth vels have been calculated
+#	- called after Earth vels have been calculated
 #	- sets TILT field for each ensemble as a side-effect
-#	- for consistency with editCorr() the individual velocities are counted
 #======================================================================
 
 sub editTilt($$)
@@ -113,11 +126,14 @@ sub editTilt($$)
 
 	my($nrm) = 0;
 	for (my($bin)=0; $bin<$LADCP{N_BINS}; $bin++) {
-		for (my($beam)=0; $beam<4; $beam++) {
-			next unless defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$beam]);
-			undef($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$beam]);
-			$nrm++;
-		}
+		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+		undef($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+		$nrm++;
+#		for (my($beam)=0; $beam<4; $beam++) {
+#			next unless defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$beam]);
+#			undef($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$beam]);
+#			$nrm++;
+#		}
 	}
 	return $nrm;
 }

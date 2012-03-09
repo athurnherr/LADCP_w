@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Wed Oct 26 19:27:12 2011
+#                    dlm: Thu Oct 27 22:34:35 2011
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 109 46 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 114 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -14,8 +14,8 @@
 #	- make diagnostic output 3-beam field work for Earth coordinates
 #	- remove water-depth from BT code, which is not really used and a bit of an outlier
 #	  because mean and stddev are used instead of median/mad
+#	- read assumed ADCP soundspeed from data file, instead of assuming 1500m/s
 #	? use instrument tilt in sidelobe editing?
-#	? read assumed ADCP soundspeed from data file, instead of assuming 1500m/s
 
 $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 
@@ -107,6 +107,11 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - added %ADCP_freuquency, %ADCP_blanking_distance
 #				  - %LADCP_bin_length => %ADCP_bin_length
 #	Oct 26, 2011: - added $first_guess_timelag
+#	Oct 27, 2011: - added w12, w34, ww (pitch/roll-weighted average) to full output
+#				  - removed ww because it apparently does not improve the solutions
+#				  - moved editTilt() to after time-series calculation to allow
+#				    time matching to work even with strict tilt limit
+#				  - added correctAttitude()
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -141,7 +146,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	- residuals are calculated with respect to down-/upcast medians in binned profiles
 #	- equivalence, assuming -o 10:
 #		1) 004DL.prof dc_w depth
-#		2) bindata -Sdowncast:1 -Fw.median,depth -n 20 depth 0 1000 10 004DL.w
+#		2) bindata -Sdowncast:1 -Fw.median,depth -n 20 depth 10 004DL.w
 
 # VELOCITY AMBIGUITY ERRORS
 #	- quite extensive tests with DIMES US2 station 146, which has a lot of
@@ -167,6 +172,8 @@ require "$PERL_TOOLS/RDI_BB_Read.pl";
 require "$PERL_TOOLS/RDI_Coords.pl";
 
 use IO::Handle;
+
+my($TINY) = 1e-16;
 
 #------
 # Usage
@@ -311,31 +318,31 @@ warning(1,"if at all, bin 1 should not be used for short blank-after-transmit va
 #------------------------------------------------------------
 # Edit beam-velocity data
 #	1) correlation threshold
-#	2) tilt threshold (also sets TILT field in all ensembles)
 #------------------------------------------------------------
 
 if ($LADCP{BEAM_COORDINATES}) {
 	progress("Editing beam-velocity data...\n");
 	$nvv = $cte = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
+		correctAttitude($ens,$pitch_bias,$roll_bias,$heading_bias);
 		$nvv += countValidBeamVels($ens);
 		$cte += editCorr($ens,$min_correlation);
-		$pte += editTilt($ens,$max_tilt);
+#		$pte += editTilt($ens,$max_tilt);
 	}
 	croak("$LADCP_file: no valid data\n") unless ($nvv > 0);
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$min_correlation,$cte,round(100*$cte/$nvv));
-	progress("\tattitude threshold (-t %d deg): %d velocites removed (%d%% of total)\n",$max_tilt,$pte,round(100*$pte/$nvv));
+#	progress("\tattitude threshold (-t %d deg): %d velocites removed (%d%% of total)\n",$max_tilt,$pte,round(100*$pte/$nvv));
 } else {
 	progress("Editing velocity data...\n");
 	$nvv = $cte = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
 		$nvv += countValidBeamVels($ens);
 		$cte += editCorr_Earthcoords($ens,$min_correlation);
-		$pte += editTilt($ens,$max_tilt);
+#		$pte += editTilt($ens,$max_tilt);
 	}
 	croak("$LADCP_file: no valid data\n") unless ($nvv > 0);
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$min_correlation,$cte,round(100*$cte/$nvv));
-	progress("\tattitude threshold (-t %d deg): %d velocites removed (%d%% of total)\n",$max_tilt,$pte,round(100*$pte/$nvv));
+#	progress("\tattitude threshold (-t %d deg): %d velocites removed (%d%% of total)\n",$max_tilt,$pte,round(100*$pte/$nvv));
 }
 
 #-------------------------------------------------------------------
@@ -349,6 +356,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 #-------------------------------------------------------------------
 
 if ($LADCP{BEAM_COORDINATES}) {
+	my($dummy);
 	progress("Calculating earth-coordinate velocities...\n");
 	progress("\tdiscarding velocities from beam $discard_velocities_from_beam\n")
 		if ($discard_velocities_from_beam);
@@ -373,6 +381,10 @@ if ($LADCP{BEAM_COORDINATES}) {
 			$LADCP{ENSEMBLE}[$ens]->{U_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{U}[$bin];
 			$LADCP{ENSEMBLE}[$ens]->{V_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{V}[$bin];
 			$LADCP{ENSEMBLE}[$ens]->{W_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin];
+			
+			($dummy,$LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
+			 $dummy,$LADCP{ENSEMBLE}[$ens]->{W34}[$bin]) =
+			 	velBeamToBPEarth(\%LADCP,$ens,@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]});
 		}
 	}
 	progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
@@ -381,7 +393,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 								  "$RDI_Coords::threeBeam_3 " .
 								  "$RDI_Coords::threeBeam_4\n")
 	    unless ($opt_4);
-} else {
+} else { # Earth Coordinates
 	progress("Counting valid vertical velocities...\n");
 	$nvw = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
@@ -481,6 +493,7 @@ if (defined($out_LADCPtis)) {
 #----------------------------------------------------------------------
 # More editing
 #	- this requires ${first,last}GoodEns to be known
+#	- TILT field is set as a side-effect
 #----------------------------------------------------------------------
 
 progress("Editing additional earth-coordinate velocity data...\n");
@@ -493,10 +506,13 @@ for (my($bin)=$LADCP_firstBin-1; $bin<$LADCP_lastBin-1; $bin++) {
 }
 
 if (defined($first_bad_bin)) {
-	$fprm = 0;
+	$fprm = $pte = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
+		$pte += editTilt($ens,$max_tilt);
 		$fprm += editFarBins($ens,$first_bad_bin) if defined($first_bad_bin);
 	}
+	progress("\tattitude threshold (max_tilt = %d deg): %d velocites removed (%d%% of total)\n",
+		$max_tilt,$pte,round(100*$pte/$nvv));
 	progress("\tvelocities beyond bin $first_bad_bin (<%d%% valid values): %d velocites removed (%d%% of total in bins $LADCP_firstBin-$LADCP_lastBin)\n",
 		round(100*$per_bin_valid_frac_lim),$fprm,round(100*$fprm/$nvw));
 }
@@ -781,6 +797,18 @@ for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
 					 $bindepth[$bin]);
+		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] =
+			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
+					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
+					 $bindepth[$bin])
+				if numberp($LADCP{ENSEMBLE}[$ens]->{W12}[$bin]);
+		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] =
+			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W34}[$bin],
+					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
+					 $bindepth[$bin])
+				if numberp($LADCP{ENSEMBLE}[$ens]->{W34}[$bin]);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin] =
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] + $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}];
 		my($bi) = $bindepth[$bin]/$output_bin_size;
@@ -793,7 +821,7 @@ for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 	}
 }
 
-for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {							# bin data
+for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {							# bin data into profile
 	$DNCAST{MEAN_DEPTH}[$bi]  	= avg(@{$DNCAST{DEPTH}[$bi]});
 	$DNCAST{MEAN_ELAPSED}[$bi]	= avg(@{$DNCAST{ELAPSED}[$bi]});
 	$DNCAST{MEDIAN_W}[$bi] 	  	= median(@{$DNCAST{W}[$bi]});
@@ -818,6 +846,18 @@ for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
 					 $bindepth[$bin]);
+		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] =
+			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
+					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
+					 $bindepth[$bin])
+				if numberp($LADCP{ENSEMBLE}[$ens]->{W12}[$bin]);
+		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] =
+			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W34}[$bin],
+					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
+					 $bindepth[$bin])
+				if numberp($LADCP{ENSEMBLE}[$ens]->{W34}[$bin]);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin] =
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] + $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}];
 		my($bi) = $bindepth[$bin]/$output_bin_size;
@@ -838,7 +878,7 @@ for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 	$UPCAST{N_SAMP}[$bi]		= @{$UPCAST{W}[$bi]};
 }
 
-&antsAddParams('min_depth',$min_depth,'max_depth',$max_depth,					# plot parameters
+&antsAddParams('min_depth',$min_depth,'max_depth',$max_depth,					# plot area
 			   'min_ens',$LADCP{ENSEMBLE}[$firstGoodEns]->{NUMBER},
 			   'max_ens',$LADCP{ENSEMBLE}[$realLastGoodEns]->{NUMBER},
 			   'min_elapsed',$LADCP{ENSEMBLE}[$firstGoodEns]->{CTD_ELAPSED},
@@ -970,7 +1010,7 @@ if (defined($out_w)) {
 	progress("Writing vertical-velocity data to $out_w...\n");
 
 	@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
-					  'w','residual','CTD_w','LADCP_w','errvel',
+					  'w','w12','w34','residual','CTD_w','LADCP_w','errvel',
 					  'correlation','echo_amplitude','volume_scattering_coeff',
 					  'pitch','roll','tilt','heading','3_beam','svel');
 
@@ -986,6 +1026,8 @@ if (defined($out_w)) {
 				$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				$bindepth[$bin],$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},1,
 				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
+				$LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] : nan,
+				$LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] : nan,
 				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $DNCAST{MEDIAN_W}[$bi],
 				$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin],
@@ -1017,6 +1059,8 @@ if (defined($out_w)) {
 				$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				$bindepth[$bin],$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},0,
 				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
+				$LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] : nan,
+				$LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] : nan,
 				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $UPCAST{MEDIAN_W}[$bi],
 				$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin],

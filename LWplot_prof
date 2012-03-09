@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ P R O F 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Tue Oct 18 16:25:43 2011
+#                    dlm: Mon Nov 14 14:59:46 2011
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 78 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 44 65 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,7 @@
 #	Oct 16, 2011: - made depth tic-marks range dependent
 #	Oct 17, 2011: - turned into filter
 #				  - added %run_label
+#	Nov 14, 2011: - added file layout check
 
 #--------------------------------------------------
 # Usage
@@ -21,6 +22,7 @@
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
 	[ $# -ne 1 ] && { echo $USAGE >&2; exit 1; }
+eps_file="$1"
 
 #--------------------------------------------------
 # Read Header Data
@@ -37,6 +39,18 @@ do
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
 done
 
+set -- $fields
+[ "$1" = depth -a "$4" = dc_w -a "$5" = dc_w.mad -a "$6" = dc_w.nsamp -a \
+  "$9" = uc_w  -a "${10}" = uc_w.mad -a "${11}" = uc_w.nsamp -a \
+  "${16}" = BT_w  -a "${17}" = BT_w.mad -a "${18}" = BT_w.nsamp ] || {
+		echo "$0: file layout error" >&2
+		exit 1
+}
+
+#--------------------------------------------------
+# Plot Data
+#--------------------------------------------------
+
 TMPFILE=/tmp/$$.LWplot_prof
 if [ ! -t 1 ]
 then
@@ -44,10 +58,6 @@ then
 else
 	cat > $TMPFILE
 fi
-
-#--------------------------------------------------
-# Plot Data
-#--------------------------------------------------
 
 [ -f .gmtdefaults4 ] ||
 	gmtset	PAPER_MEDIA letter+ \
@@ -60,26 +70,26 @@ R2=-R-200/200/$min_depth/$max_depth
 U=-R0/1/0/1
 X=-JX10/-10
 
-echo -e "0 $min_depth\n0 $max_depth" | psxy -P -K $R $X > "$1"
-echo -e "0.07 $min_depth\n0.07 $max_depth\n0.18 $max_depth\n0.18 $min_depth" | psxy -O -K $R $X -L -G200 >> "$1"
-echo -e "50 $min_depth\n50 $max_depth" | psxy -O -K $R2 $X >> "$1"
-echo -e "100 $min_depth\n100 $max_depth" | psxy -O -K $R2 $X >> "$1"
-echo -e "150 $min_depth\n150 $max_depth" | psxy -O -K $R2 $X >> "$1"
+echo -e "0 $min_depth\n0 $max_depth" | psxy -P -K $R $X > "$eps_file"
+echo -e "0.07 $min_depth\n0.07 $max_depth\n0.18 $max_depth\n0.18 $min_depth" | psxy -O -K $R $X -L -G200 >> "$eps_file"
+echo -e "50 $min_depth\n50 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
+echo -e "100 $min_depth\n100 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
+echo -e "150 $min_depth\n150 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
 
-awk '{print $4, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/coral >> "$1"
-awk '{print $9, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/SeaGreen >> "$1"
-awk '{print $16,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/black >> "$1"
+awk '{print $4, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/coral >> "$eps_file"
+awk '{print $9, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/SeaGreen >> "$eps_file"
+awk '{print $16,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/black >> "$eps_file"
 	
-awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gcoral >> "$1"
-awk '{print $10,$1, $9}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -GSeaGreen >> "$1"
-awk '{print $17,$1,$16}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gblack >> "$1"
+awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gcoral >> "$eps_file"
+awk '{print $10,$1, $9}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -GSeaGreen >> "$eps_file"
+awk '{print $17,$1,$16}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gblack >> "$eps_file"
 
-awk '{print  $6,$1,$4}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/coral >> "$1"
-awk '{print $11,$1,$9}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/SeaGreen >> "$1"
-awk '{print $18,$1,$16}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/black >> "$1"
+awk '{print  $6,$1,$4}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/coral >> "$eps_file"
+awk '{print $11,$1,$9}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/SeaGreen >> "$eps_file"
+awk '{print $18,$1,$16}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/black >> "$eps_file"
 
-echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$1"
-echo 0.6 0.98 12 0 0 BR m.a.d. | pstext -O -K $U $X >> "$1"
+echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$eps_file"
+echo 0.6 0.98 12 0 0 BR m.a.d. | pstext -O -K $U $X >> "$eps_file"
 
 if [ 0 -eq `echo "($max_depth-$min_depth)>1000"|bc` ]
 then
@@ -88,13 +98,13 @@ else
 	depth_tics=f100a500
 fi
 
-psbasemap -O -K $R $X -Bf0.01a10-10.05:"Vertical Velocity [m/s]                               ":/$depth_tics:"Depth [m]":WeS >> "$1"
-psbasemap -O -K $R $X -Ba10-9.95S >> "$1"
-psbasemap -O -K $R $X -Ba10-9.85S >> "$1"
+psbasemap -O -K $R $X -Bf0.01a10-10.05:"Vertical Velocity [m/s]                               ":/$depth_tics:"Depth [m]":WeS >> "$eps_file"
+psbasemap -O -K $R $X -Ba10-9.95S >> "$eps_file"
+psbasemap -O -K $R $X -Ba10-9.85S >> "$eps_file"
 
-psbasemap -O -K $R2 $X -Bf10a1000-950:"                                     # of Samples":N >> "$1"
-psbasemap -O -K $R2 $X -Ba1000-900N >> "$1"
-psbasemap -O $R2 $X -Ba1000-850N >> "$1"
+psbasemap -O -K $R2 $X -Bf10a1000-950:"                                     # of Samples":N >> "$eps_file"
+psbasemap -O -K $R2 $X -Ba1000-900N >> "$eps_file"
+psbasemap -O $R2 $X -Ba1000-850N >> "$eps_file"
 		 
 rm $TMPFILE
-fixbb "$1"
+fixbb "$eps_file"

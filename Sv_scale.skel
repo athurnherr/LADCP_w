@@ -6,37 +6,32 @@ PSL_font_encode 0 get 0 eq {ISOLatin1+_Encoding /Helvetica /Helvetica PSL_reenco
 
 %% PostScript produced by:
 %%GMT:  psscale -O -K -E -D8/2/3/0.4 -CSv.cpt -B/:Sv:
-S 0 A
-S 5 W
+%%PROJ: xy -90.00000000 -60.00000000 0.00000000 0.15748031 -90.000 -60.000 0.000 0.157 +xy +a=6378137.000 +b=6356752.314245
+0 A
+5 W
 47.2441 0 T 90 R
-V N 0 0 T 354 47 scale [/Indexed /DeviceRGB 14 <
-AF00FF6000FF1000FF0040FF008FFF00DFFF00FFCF00FF8000FF3020FF0070FF00BFFF00FFEF00FF9F00FF5000>] setcolorspace
-<< /ImageType 1 /Decode [0 15] /Width 15 /Height 1 /BitsPerComponent 4
-   /ImageMatrix [15 0 0 -1 0 1] /DataSource currentfile /ASCII85Decode filter 
+V N 0 0 T 354 47 scale /DeviceRGB setcolorspace
+<< /ImageType 1 /Decode [0 1 0 1 0 1] /Width 15 /Height 1 /BitsPerComponent 8
+   /ImageMatrix [15 0 0 -1 0 1] /DataSource currentfile /ASCII85Decode filter /LZWDecode filter
 >> image
-!@($GM6"nZ~>
+J1JDGo)oIF!rrlShunEZ^C,Oti+NB5^d/>f6J(`4Hjr:B-ibA4~>
 U
+{1 0 1 C} FS
+O1
 0 47 M
 0 -47 D
 -24 24 D
-1 0 1 QC
-0 47 M
-0 -47 D
--24 24 D
-QQ
+FO
+{1 0 0 C} FS
 354 47 M
 0 -47 D
 24 24 D
-1 0 0 QC
-354 47 M
-0 -47 D
-24 24 D
-QQ
+FO
 0 0 M 354 0 D S
 0 47 M 354 0 D S
 0 0 M 0 47 D S
 354 0 M 0 47 D S
-S 1 W
+1 W
 0 0 M 0 47 D S
 24 0 M 0 47 D S
 47 0 M 0 47 D S
@@ -53,88 +48,72 @@ S 1 W
 307 0 M 0 47 D S
 331 0 M 0 47 D S
 354 0 M 0 47 D S
-S 2 W
+2 W
 0 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-90) E /PSL_dimx exch def YP /PSL_dimy exch def
-0 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-90) Z U
+0 -24 D S
+0 0 M 29 F0 (-90) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+0 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-90) Z U
 24 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-88) E /PSL_dimx exch def YP /PSL_dimy exch def
-24 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-88) Z U
+0 -24 D S
+0 0 M 29 F0 (-88) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+24 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-88) Z U
 47 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-86) E /PSL_dimx exch def YP /PSL_dimy exch def
-47 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-86) Z U
+0 -24 D S
+0 0 M 29 F0 (-86) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+47 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-86) Z U
 71 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-84) E /PSL_dimx exch def YP /PSL_dimy exch def
-71 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-84) Z U
+0 -24 D S
+0 0 M 29 F0 (-84) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+71 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-84) Z U
 94 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-82) E /PSL_dimx exch def YP /PSL_dimy exch def
-94 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-82) Z U
+0 -24 D S
+0 0 M 29 F0 (-82) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+94 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-82) Z U
 118 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-80) E /PSL_dimx exch def YP /PSL_dimy exch def
-118 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-80) Z U
+0 -24 D S
+0 0 M 29 F0 (-80) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+118 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-80) Z U
 142 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-78) E /PSL_dimx exch def YP /PSL_dimy exch def
-142 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-78) Z U
+0 -24 D S
+0 0 M 29 F0 (-78) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+142 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-78) Z U
 165 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-76) E /PSL_dimx exch def YP /PSL_dimy exch def
-165 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-76) Z U
+0 -24 D S
+0 0 M 29 F0 (-76) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+165 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-76) Z U
 189 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-74) E /PSL_dimx exch def YP /PSL_dimy exch def
-189 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-74) Z U
+0 -24 D S
+0 0 M 29 F0 (-74) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+189 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-74) Z U
 213 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-72) E /PSL_dimx exch def YP /PSL_dimy exch def
-213 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-72) Z U
+0 -24 D S
+0 0 M 29 F0 (-72) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+213 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-72) Z U
 236 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-70) E /PSL_dimx exch def YP /PSL_dimy exch def
-236 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-70) Z U
+0 -24 D S
+0 0 M 29 F0 (-70) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+236 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-70) Z U
 260 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-68) E /PSL_dimx exch def YP /PSL_dimy exch def
-260 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-68) Z U
+0 -24 D S
+0 0 M 29 F0 (-68) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+260 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-68) Z U
 283 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-66) E /PSL_dimx exch def YP /PSL_dimy exch def
-283 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-66) Z U
+0 -24 D S
+0 0 M 29 F0 (-66) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+283 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-66) Z U
 307 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-64) E /PSL_dimx exch def YP /PSL_dimy exch def
-307 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-64) Z U
+0 -24 D S
+0 0 M 29 F0 (-64) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+307 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-64) Z U
 331 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-62) E /PSL_dimx exch def YP /PSL_dimy exch def
-331 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-62) Z U
+0 -24 D S
+0 0 M 29 F0 (-62) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+331 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-62) Z U
 354 0 M
-0 -24 D
-S
-0 0 M 29 F0 (-60) E /PSL_dimx exch def YP /PSL_dimy exch def
-354 -94 M V -90 R PSL_dimx neg PSL_dimy 2 div neg G 29 F0 (-60) Z U
-0 0 M 29 F0 (Sv) E /PSL_dimx exch def YP /PSL_dimy exch def
-402 24 M V -90 R PSL_dimx 2 div neg 0 G 29 F0 (Sv) Z U
+0 -24 D S
+0 0 M 29 F0 (-60) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+354 -94 M V -90 R PSL_dim_w neg PSL_dim_h 2 div neg G 29 F0 (-60) Z U
+0 0 M 29 F0 (Sv) E /PSL_dim_w exch def FP pathbbox N /PSL_dim_h exch def pop /PSL_dim_d exch def pop
+402 24 M V -90 R PSL_dim_w 2 div neg 0 G 29 F0 (Sv) Z U
 -90 R -47.2441 0 T
-S -944.882 -59.0551 T 0 A
+-944.882 -59.0551 T 0 A

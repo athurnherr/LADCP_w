@@ -2,19 +2,21 @@
 #======================================================================
 #                    L W P L O T _ T L H I S T 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Mon Oct 17 15:15:23 2011
+#                    dlm: Mon Nov 14 15:27:46 2011
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 53 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 29 88 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Oct 13, 2011: - created
 #	Oct 17, 2011: - turned into filter
 #				  - added %run_label
+#   Nov 14, 2011: - added file layout check
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
 	[ $# -ne 1 ] && { echo $USAGE >&2; exit 1; }
+eps_file="$1"
 
 while [ -z "$fields" ]
 do
@@ -24,8 +26,14 @@ do
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$n_windows" ] && n_windows=`expr -- "$line" : '#ANTS#PARAMS#.*n_windows{\([^}]*\)}`
 	[ -z "$best_scan_offset" ] && best_scan_offset=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset{\([^}]*\)}`
-	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{// -e s/}//`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
 done
+
+set -- $fields
+[ "$1" = scan_offset -a "$2" = nsamp ] || {
+	echo "$0: file layout error" >&2
+	exit 1
+}
 
 TMPFILE=/tmp/$$.LWplot_TLhist
 if [ ! -t 1 ]
@@ -48,12 +56,12 @@ J=-JX10
 awk "{print \$1, 100*\$2/$n_windows}" $TMPFILE \
 	| psxy -P -K $J $R \
 			-Bf1a10:"Best Offset [scans]":/f1a5:"Fraction [%]":WeSn \
-		    -Sb1u -G127 > "$1"
+		    -Sb1u -G127 > "$eps_file"
 	
-echo 0.02 0.98 12 0 0 TL $out_basename $run_label | pstext -O -K $J $U >> "$1"
+echo 0.02 0.98 12 0 0 TL $out_basename $run_label | pstext -O -K $J $U >> "$eps_file"
 
 echo -e "$best_scan_offset 0\n$best_scan_offset 60" \
-	| psxy -O $J $R >> "$1"
+	| psxy -O $J $R >> "$eps_file"
 
 rm $TMPFILE
-fixbb "$1"
+fixbb "$eps_file"

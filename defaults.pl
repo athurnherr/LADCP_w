@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Wed Oct 26 19:26:45 2011
+#                    dlm: Thu Oct 27 22:36:34 2011
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 22 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 60 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -20,6 +20,8 @@
 #	Oct 20, 2011: - added $out_timeseries default
 #				  - added $per_bin_valid_frac_lim
 #	Oct 26, 2011: - added $first_guess_timelag
+#	Oct 27, 2011: - modified ProcessingParam file loading
+#				  - added ${pitch,roll,heading}_bias
 
 # Variable Names:
 #	- variables that are only used in a particular library are
@@ -31,7 +33,13 @@
 
 # File to load cruise/cast-specific processing parameters from
 
-$processing_param_file = "ProcessingParams.$RUN";
+if (-r "ProcessingParams.$RUN") {
+	$processing_param_file = "ProcessingParams.$RUN";
+} elsif (-r "ProcessingParams.default") {
+	$processing_param_file = "ProcessingParams.default";
+} else {
+	croak("$0: cannot load either <ProcessingParams.$RUN> or <ProcessingParams.default>\n");
+}
 
 
 # CTD depth adjustment
@@ -45,6 +53,11 @@ $CTD_neg_press_offset = &antsFloatOpt($opt_a,0);
 # suppress 3-beam LADCP solutions
 
 $RDI_Coords::minValidVels = 4 if ($opt_4);							
+
+
+# correct attiude sensors
+
+$pitch_bias = $roll_bias = $heading_bias = 0;
 
 
 # bins to use in w calculations

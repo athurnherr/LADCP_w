@@ -1,0 +1,53 @@
+======================================================================
+                    R E A D M E . O U T F I L E S 
+                    doc: Wed Feb 15 19:37:49 2012
+                    dlm: Wed Feb 15 19:54:27 2012
+                    (c) 2012 A.M. Thurnherr
+                    uE-Info: 51 61 NIL 0 0 72 3 2 8 NIL ofnI
+======================================================================
+
+During processing of, say station 067, the data files listed below are
+produced. While these are all ASCII files containing numbers and
+comment lines beginning with #, they have meta-data encoded in them and
+are, therefore, not particularly readable. They can easily be imported
+into Matlab, however, using the loadANTS.m.
+
+=Standard Field Names=
+
+depth		depth in meters
+downcast	flag that is 1 for downcast, 0 for upcast
+elapsed		elapsed time in seconds since beginning of cast
+ens		ADCP ensemble number
+
+dc_		downcast prefix
+uc_		upcast prefix
+BT_		bottom-tracking prefix
+
+.mad		mean-absolute-deviation suffix
+.nsamp		number-of-sample suffix
+
+
+=Output Files=
+
+067.log		- log-file of diagnostic processing output 
+
+067.w		- this file contains literally everything
+		- each record contains a single w sample (from a
+		  particular bin of a particular ensemble) with all
+		  available metadata
+
+067.prof	- vertical velocity profiles:
+			1) downcast only
+			2) upcast only
+			3) combined down-/upcast (not recommended)
+			4) bottom tracked (only near seabed)
+
+067.LADCPtis	- time series of LADCP reference-layer w data
+		- this file is produced before processing, i.e. it can
+		  be used to diagnose time-lagging problems
+
+067.tis		- more complete time series data including
+
+067.TL		- diagnostic output of time-lagging algorithm
+
+
