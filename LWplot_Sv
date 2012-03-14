@@ -1,16 +1,17 @@
-#!/bin/sh
+#!/bin/ksh
 #======================================================================
 #					 L W P L O T _ S V 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Mon Nov 14 14:57:31 2011
+#                    dlm: Mon Mar 12 21:13:26 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 76 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 15 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Oct 19, 2011: - adapted from [LWplot_residuals]
 #	Oct 24, 2011: - LADCP_bin_length => ADCP_bin_length
 #	Nov 14, 2011: - added file layout check
+#	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 
 #--------------------------------------------------
 # Usage

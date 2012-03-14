@@ -1,15 +1,16 @@
-#!/bin/sh
+#!/bin/ksh
 #======================================================================
 #					 L W P L O T _ B R 
 #                    doc: Mon Oct 17 10:57:12 2011
-#                    dlm: Mon Nov 14 15:02:29 2011
+#                    dlm: Mon Mar 12 21:13:19 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 39 79 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 14 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Oct 17, 2011: - created
 #	Nov 14, 2011: - added file layout check
+#	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 
 #--------------------------------------------------
 # Usage

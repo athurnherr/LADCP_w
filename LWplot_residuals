@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/bin/ksh
 #======================================================================
 #					 L W P L O T _ R E S I D U A L S 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Mon Nov 14 14:53:06 2011
+#                    dlm: Mon Mar 12 21:13:05 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 77 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 17 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,7 @@
 #				  - added %run_label
 #   Oct 24, 2011: - LADCP_bin_length => ADCP_bin_length
 #	Nov 14, 2011: - added file layout check
+#	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 
 #--------------------------------------------------
 # Usage

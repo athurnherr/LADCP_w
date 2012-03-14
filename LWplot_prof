@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/bin/ksh
 #======================================================================
 #					 L W P L O T _ P R O F 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Mon Nov 14 14:59:46 2011
+#                    dlm: Tue Mar 13 20:07:46 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 44 65 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 102 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #	Oct 17, 2011: - turned into filter
 #				  - added %run_label
 #	Nov 14, 2011: - added file layout check
+#	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 
 #--------------------------------------------------
 # Usage
@@ -70,11 +71,11 @@ R2=-R-200/200/$min_depth/$max_depth
 U=-R0/1/0/1
 X=-JX10/-10
 
-echo -e "0 $min_depth\n0 $max_depth" | psxy -P -K $R $X > "$eps_file"
-echo -e "0.07 $min_depth\n0.07 $max_depth\n0.18 $max_depth\n0.18 $min_depth" | psxy -O -K $R $X -L -G200 >> "$eps_file"
-echo -e "50 $min_depth\n50 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
-echo -e "100 $min_depth\n100 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
-echo -e "150 $min_depth\n150 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
+echo "0 $min_depth\n0 $max_depth" | psxy -P -K $R $X > "$eps_file"
+echo "0.07 $min_depth\n0.07 $max_depth\n0.18 $max_depth\n0.18 $min_depth" | psxy -O -K $R $X -L -G200 >> "$eps_file"
+echo "50 $min_depth\n50 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
+echo "100 $min_depth\n100 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
+echo "150 $min_depth\n150 $max_depth" | psxy -O -K $R2 $X >> "$eps_file"
 
 awk '{print $4, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/coral >> "$eps_file"
 awk '{print $9, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/SeaGreen >> "$eps_file"
