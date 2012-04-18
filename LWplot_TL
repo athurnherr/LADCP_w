@@ -2,9 +2,9 @@
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Mon Mar 12 21:12:36 2012
+#                    dlm: Wed Apr 18 10:33:35 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 17 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 18 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #				  - added %run_label
 #	Nov 14, 2011: - added file layout check
 #	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
+#   Apr 12, 2012: - made re-entrant
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
@@ -37,6 +38,10 @@ set -- $fields
 	echo "$0: file layout error ($1,$2,$4)" >&2
 	exit 1
 }
+
+eps_file="$PWD/$eps_file"	# make outfile name absolute (hopefully, it is not already...)
+mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
+cd /tmp/$$
 
 TMPFILE=/tmp/$$.LWplot_TL
 if [ ! -t 1 ]
@@ -73,3 +78,7 @@ echo -e "`echo $min_elapsed/60|bc` $best_scan_offset\n`echo $max_elapsed/60+1|bc
 
 rm $TMPFILE
 fixbb "$eps_file"
+
+cd "$PWD"
+rm -rf /tmp/$$
+
