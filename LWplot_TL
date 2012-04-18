@@ -2,9 +2,9 @@
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Mon Nov 14 15:27:35 2011
+#                    dlm: Thu Apr 12 13:08:13 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 31 88 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 83 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,7 @@
 #	Oct 17, 2011: - turned into filter
 #				  - added %run_label
 #	Nov 14, 2011: - added file layout check
+#   Apr 12, 2012: - made re-entrant
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
@@ -36,6 +37,10 @@ set -- $fields
 	echo "$0: file layout error ($1,$2,$4)" >&2
 	exit 1
 }
+
+eps_file="$PWD/$eps_file"	# make outfile name absolute (hopefully, it is not already...)
+mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
+cd /tmp/$$
 
 TMPFILE=/tmp/$$.LWplot_TL
 if [ ! -t 1 ]
@@ -72,3 +77,7 @@ echo -e "`echo $min_elapsed/60|bc` $best_scan_offset\n`echo $max_elapsed/60+1|bc
 
 rm $TMPFILE
 fixbb "$eps_file"
+
+cd "$PWD"
+rm -rf /tmp/$$
+

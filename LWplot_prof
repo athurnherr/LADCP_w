@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ P R O F 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Mon Nov 14 14:59:46 2011
+#                    dlm: Thu Apr 12 13:08:22 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 44 65 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 119 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #	Oct 17, 2011: - turned into filter
 #				  - added %run_label
 #	Nov 14, 2011: - added file layout check
+#   Apr 12, 2012: - made re-entrant
 
 #--------------------------------------------------
 # Usage
@@ -50,6 +51,10 @@ set -- $fields
 #--------------------------------------------------
 # Plot Data
 #--------------------------------------------------
+
+eps_file="$PWD/$eps_file"	# make outfile name absolute (hopefully, it is not already...)
+mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
+cd /tmp/$$
 
 TMPFILE=/tmp/$$.LWplot_prof
 if [ ! -t 1 ]
@@ -108,3 +113,7 @@ psbasemap -O $R2 $X -Ba1000-850N >> "$eps_file"
 		 
 rm $TMPFILE
 fixbb "$eps_file"
+
+cd "$PWD"
+rm -rf /tmp/$$
+
