@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Thu Oct 27 22:34:35 2011
+#                    dlm: Mon Oct 15 09:43:38 2012
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 114 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 116 10 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -112,6 +112,8 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - moved editTilt() to after time-series calculation to allow
 #				    time matching to work even with strict tilt limit
 #				  - added correctAttitude()
+#	May 22, 2012: - adapted to ANTS V5
+#	Oct 15, 2012: - added $edit_data_hook
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -156,7 +158,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	  affect the w profiles, as long as the median bin values are used
 
 ($WCALC) 	  = ($0                =~ m{^(.*)/[^/]*$});
-($ANTS) 	  = (`which list`      =~ m{^(.*)/[^/]*$});
+($ANTS) 	  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($PERL_TOOLS) = (`which mkProfile` =~ m{^(.*)/[^/]*$});
 
 require "$ANTS/ants.pl";
@@ -675,7 +677,7 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 	    }
 	} else{
 	    undef($LADCP{ENSEMBLE}[$ens]->{REFLR_W});						# don't output in time-series file
-	    undef($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});						# old DEPTH from calcLADCPts()
+	    undef($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});						# old DEPTH from calcLADCPts() must be removed
 	}
 }
 	
@@ -755,11 +757,17 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 #----------------------------------------------------------------------
 # Data Editing after LADCP and CTD data have been merged
 #	1) surface layer editing
+#	2) user-supplied $edit_data_hook
 #----------------------------------------------------------------------
 
 progress("Removing data from instrument at surface...\n");
 $nerm = editSurfLayer($firstGoodEns,$lastGoodEns,$surface_layer_depth);
 progress("\t$nerm ensembles removed\n");
+
+if (defined($edit_data_hook)) {
+	progress("Executing user-supplied \$edit_data_hook...\n");
+	&{$edit_data_hook}($firstGoodEns,$lastGoodEns);
+}
 
 #---------------------------------------------------------------------------
 # Depth-bin LADCP velocity data

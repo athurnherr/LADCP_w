@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Thu Oct 27 22:34:22 2011
+#                    dlm: Mon Oct 15 10:03:13 2012
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 42 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 28 81 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -25,6 +25,7 @@
 #	Oct 20, 2011: - added editFarBins()
 #	Oct 27, 2011: - adapted editTilt() to new call location
 #				  - added correctAttitude()
+#	Oct 15, 2012: - BUG: editSurfLayer() counted also ensembles without CTD depth
 
 # NOTES:
 #	- all bins must be edited (not just the ones between $LADCP_firstBin
@@ -280,6 +281,7 @@ sub editSurfLayer($$$)
 	my($fe,$te,$sld) = @_;		# first & last ens to process
 	my($nerm) = 0;				# of ensembles affected
 	for (my($e)=$fe; $e<=$te; $e++) {
+		next unless numberp($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH});
 		undef($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}),$nerm++
 			if ($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH} <= $sld);
 	}

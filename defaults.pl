@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Thu Oct 27 22:36:34 2011
+#                    dlm: Thu Oct 11 14:18:12 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 60 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 25 48 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -22,6 +22,7 @@
 #	Oct 26, 2011: - added $first_guess_timelag
 #	Oct 27, 2011: - modified ProcessingParam file loading
 #				  - added ${pitch,roll,heading}_bias
+#	Oct 11, 2012: - added .TL output to defaults
 
 # Variable Names:
 #	- variables that are only used in a particular library are
@@ -136,7 +137,8 @@ $out_timeseries = "$data_subdir/$out_basename.tis";
 # diagnostic plots
 
 $out_BR		= "| LWplot_BR 	   $plot_subdir/${out_basename}_BR.eps";
-$out_TL 	= "| LWplot_TL     $plot_subdir/${out_basename}_TL.eps";
+$out_TL 	= "| LWplot_TL     $plot_subdir/${out_basename}_TL.eps" .
+			  "> $data_subdir/$out_basename.TL";
 $out_TLhist = "| LWplot_TLhist $plot_subdir/${out_basename}_TLhist.eps";
 
 
