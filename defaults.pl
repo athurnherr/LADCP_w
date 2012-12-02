@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Thu Oct 11 14:18:12 2012
+#                    dlm: Mon Oct 15 21:34:00 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 25 48 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 26 14 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -23,6 +23,8 @@
 #	Oct 27, 2011: - modified ProcessingParam file loading
 #				  - added ${pitch,roll,heading}_bias
 #	Oct 11, 2012: - added .TL output to defaults
+#--- hg commit
+#	Oct 15, 2012: - removed support for TLhist
 
 # Variable Names:
 #	- variables that are only used in a particular library are

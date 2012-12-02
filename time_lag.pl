@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Mon Nov 14 15:19:12 2011
+#                    dlm: Tue Oct 16 20:13:38 2012
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 258 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 288 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -43,6 +43,10 @@
 #				  - added step to remove all lags with mad > median(mads)
 #	Oct 20, 2011: - losened too-restrictive last step
 #	Oct 21, 2011: - BUG: forgot to update $n_valid_windows while removing outlier lags
+#	Oct 15, 2012: - added $cast_type to &calc_lag()
+#				  - removed support for TLhist
+#	Oct 16, 2012: - renamed field elapsed to elapsed.LADCP for clarity
+#				  - made failure "soft"
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -108,17 +112,25 @@ sub bestLag($$$$)								# find best lag in window
 
 #----------------------------------------------------------------------
 # carry out lag correlations and keep tally of the results
-#	- fist and last 10% of LADCP profile ignored
 #----------------------------------------------------------------------
 
-sub calc_lag($$$)
+{ # STATIC SCOPE
+
+my(@dc_elapsed,@dc_so,@dc_mad);								# buffer 
+
+sub calc_lag($$$$)
 {
-	my($n_windows,$w_size,$scan_increment) = @_;
+	my($n_windows,$w_size,$scan_increment,$cast_type) = @_;
 	my($search_radius) = $scan_increment==1 ? 3 : $w_size;
+
+	my($ctmsg);
+	if ($cast_type == 0) 	{ $ctmsg = "full-cast"; }
+	elsif ($cast_type == 1) { $ctmsg = "down-cast"; }
+	else 					{ $ctmsg = "up-cast"; }
 
 RETRY:
 	my($failed) = undef;
-	progress("Calculating $n_windows time lags from ${w_size}s-long windows at %dHz resolution...\n",
+	progress("Calculating $n_windows $ctmsg time lags from ${w_size}s-long windows at %dHz resolution...\n",
 		int(1/$scan_increment/$CTD{DT}+0.5));
 
 	my($approx_CTD_profile_start_ens) =
@@ -136,9 +148,22 @@ RETRY:
 	my(@elapsed,@so,@mad,%nBest,%madBest);
 	my($n_valid_windows) = 0;
 
+	my($first_ens,$last_ens);
+	if ($cast_type == 0) {													# dc/uc
+		$first_ens = $approx_joint_profile_start_ens;
+		$last_ens  = $approx_joint_profile_end_ens;
+	} elsif ($cast_type == 1) {												# dc
+		$first_ens = $approx_joint_profile_start_ens;
+		$last_ens  = $LADCP_atbottom;
+	} elsif ($cast_type == -1) {											# uc
+		$first_ens = $LADCP_atbottom;
+		$last_ens  = $approx_joint_profile_end_ens;
+	} else {
+		croak("$0: illegal \$cast_type");
+	}
+
 	for (my($wi)=0; $wi<$n_windows; $wi++) {
-		my($fe) = $approx_joint_profile_start_ens + 
-					int(($approx_joint_profile_end_ens-$approx_joint_profile_start_ens-$window_ens)*$wi/($n_windows-1)+0.5);
+		my($fe) = $first_ens + int(($last_ens-$first_ens-$window_ens)*$wi/($n_windows-1)+0.5);
 		my($so,$mad) = bestLag($fe,$fe+$window_ens,$search_radius,$scan_increment);
 		$elapsed[$wi] = $LADCP{ENSEMBLE}[$fe+int($w_size/2/$LADCP{MEAN_DT}+0.5)]->{ELAPSED};
 		die("assertion failed\nfe=$fe, lastGoodEns=$lastGoodEns, w_size=$w_size") unless ($elapsed[$wi]);
@@ -187,8 +212,9 @@ RETRY:
 
 	unless ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]} >= $TL_required_top_three_fraction*$n_valid_windows) {
 		if (max(@best_lag)-min(@best_lag) > $TL_max_allowed_three_lag_spread) {
-			$failed = sprintf("$0: cannot determine a valid lag; top 3 tags account for %d%% of total (use -3 to relax criterion)\n",
+			warning(2,"$0: cannot determine a valid $ctmsg lag; top 3 tags account for %d%% of total (use -3 to relax criterion)\n",
 				int(100*($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]})/$n_valid_windows+0.5));
+			$failed = 1;				
 		} else {
 			warning(1,"top 3 tags account for only %d%% of total\n",
 				int(100*($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]})/$n_valid_windows+0.5));
@@ -196,19 +222,8 @@ RETRY:
 	}
 
 	my($bmo) = $best_lag[0];
-#	if (max(@best_lag)-min(@best_lag) > 3 || $nBest{$best_lag[0]}/$n_valid_windows >= 2/3) {
-#		progress("\tunambiguously best offset = %d scans\n",$bmo);
-#	} else {
-#		$bmo = ($nBest{$best_lag[0]}*$best_lag[0] +
-#				$nBest{$best_lag[1]}*$best_lag[1] +
-#				$nBest{$best_lag[2]}*$best_lag[2]) / ($nBest{$best_lag[0]} +
-#													  $nBest{$best_lag[1]} +
-#													  $nBest{$best_lag[2]});
-#		progress("\tweighted-mean offset = %.1f scans\n",$bmo);
-#	}
 
 	if ($bmo > 0.9*$search_radius/2/$CTD{DT}) {
-#		$failed = sprintf("$0: cannot determine valid lag (too close to edge of search)\n");
 		if ($search_radius == $w_size) {
 			warning(0,"lag too close to edge of search --- trying again after shifting the initial offset\n");
 			$CTD{TIME_LAG} += $search_radius/2;
@@ -221,7 +236,6 @@ RETRY:
 		goto RETRY;
 	}
 	if (-$bmo > 0.9*$search_radius/2/$CTD{DT}) {
-#		$failed = sprintf("$0: cannot determine valid lag (too close to edge of search)\n");
 		if ($search_radius == $w_size) {
 			warning(0,"lag too close to edge of search --- trying again after shifting the initial offset\n");
 			$CTD{TIME_LAG} -= $search_radius/2;
@@ -237,43 +251,44 @@ RETRY:
 	if (defined($out_TL) && $scan_increment==1) {
 		progress("\tsaving/plotting time-lagging time series...\n");
 	
-		my($saveParams) = $antsCurParams;
-		@antsNewLayout = ('elapsed','scan_offset','mad','downcast');
-		open(STDOUT,"$out_TL") || croak("$out_TL: $!\n");
-
-		&antsAddParams('best_scan_offset',$bmo);
-		&antsAddParams('elapsed.min',$elapsed[0]);
-		&antsAddParams('elapsed.max',$elapsed[$#elapsed]);
-
-		for (my($wi)=0; $wi<@elapsed; $wi++) {
-			&antsOut($elapsed[$wi],$so[$wi],$mad[$wi],$elapsed[$wi]<$LADCP{ENSEMBLE}[$LADCP_atbottom]->{ELAPSED});
+		if ($cast_type == 1) {				# dc => buffer data in static scope. output will be produced during uc
+			@dc_elapsed = @elapsed; @dc_so = @so; @dc_mad = @mad;
+			$dc_elapsed_min = $elapsed[0]; $dc_bmo = $bmo;
+		} else {							# uc or duc
+			my($saveParams) = $antsCurParams;
+			@antsNewLayout = ('elapsed.LADCP','scan_offset','mad','downcast');
+			open(STDOUT,"$out_TL") || croak("$out_TL: $!\n");
+	
+			if ($cast_type == -1) {			# uc => first output buffered dc data
+				&antsAddParams('best_scan_offset.dc',$dc_bmo);
+				&antsAddParams('best_scan_offset.uc',$bmo);
+				&antsAddParams('elapsed.min',$dc_elapsed_min);
+				&antsAddParams('elapsed.max',$elapsed[$#elapsed]);
+				&antsAddParams('elapsed.bot',$elapsed[0]);
+				for (my($wi)=0; $wi<@dc_elapsed; $wi++) {
+					&antsOut($dc_elapsed[$wi],$dc_so[$wi],$dc_mad[$wi],1);
+				}
+				for (my($wi)=0; $wi<@elapsed; $wi++) {
+					&antsOut($elapsed[$wi],$so[$wi],$mad[$wi],0);
+				}
+			} else {						# duc (not used as of 10/15/2012, but should work with adaptation of [LWplot_TL]
+				&antsAddParams('best_scan_offset',$bmo);
+				&antsAddParams('elapsed.min',$elapsed[0]);
+				&antsAddParams('elapsed.max',$elapsed[$#elapsed]);
+				for (my($wi)=0; $wi<@elapsed; $wi++) {
+					&antsOut($elapsed[$wi],$so[$wi],$mad[$wi],$elapsed[$wi]<$LADCP{ENSEMBLE}[$LADCP_atbottom]->{ELAPSED});
+				}
+			}
+	
+			&antsOut('EOF'); open(STDOUT,">&2");
+	        $antsCurParams = $saveParams;
 		}
-
-		&antsOut('EOF'); open(STDOUT,">&2");
-		$antsCurParams = $saveParams;
-	}
-	
-	if (defined($out_TLhist) && $scan_increment==1) {
-		progress("\tsaving/plotting time-lagging histogram...\n");
-	
-		my($saveParams) = $antsCurParams;
-		@antsNewLayout = ('scan_offset','nsamp','mad.avg');
-		open(STDOUT,"$out_TLhist") || croak("$out_TLhist: $!\n");
-	
-		&antsAddParams('n_windows',$n_windows);
-		&antsAddParams('best_scan_offset',$bmo);
-	
-		for (my($so)=-24; $so<=24; $so++) {
-			&antsOut($so,$nBest{$so}?$nBest{$so}:0,$madBest{$so});
-		}
-	
-		&antsOut('EOF'); open(STDOUT,">&2");
-		$antsCurParams = $saveParams;
 	}
 
-	croak($failed) if defined($failed);
-	return $CTD{TIME_LAG}+$bmo*$CTD{DT};
+	return defined($failed) ? undef : $CTD{TIME_LAG}+$bmo*$CTD{DT};
 }
+
+} # STATIC SCOPE
 
 
 1;

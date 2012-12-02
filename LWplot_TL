@@ -2,9 +2,9 @@
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Wed Apr 18 10:33:35 2012
+#                    dlm: Tue Oct 16 13:02:45 2012
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 18 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 20 52 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,6 +15,9 @@
 #	Nov 14, 2011: - added file layout check
 #	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 #   Apr 12, 2012: - made re-entrant
+#	Oct 12, 2012: - split dc/uc time lagging
+#				  - reduced number of xtic labels 
+#	Oct 16, 2012: - renamed elapsed to elapsed.LADCP
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
@@ -29,12 +32,14 @@ do
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_elapsed" ] && min_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.min{\([^}]*\)}`
 	[ -z "$max_elapsed" ] && max_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.max{\([^}]*\)}`
-	[ -z "$best_scan_offset" ] && best_scan_offset=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset{\([^}]*\)}`
+	[ -z "$bot_elapsed" ] && bot_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.bot{\([^}]*\)}`
+	[ -z "$best_scan_offset_dc" ] && best_scan_offset_dc=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset\.dc{\([^}]*\)}`
+	[ -z "$best_scan_offset_uc" ] && best_scan_offset_uc=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset\.uc{\([^}]*\)}`
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
 done
 
 set -- $fields
-[ "$1" = elapsed -a "$2" = scan_offset -a "$4" = downcast ] || {
+[ "$1" = elapsed.LADCP -a "$2" = scan_offset -a "$4" = downcast ] || {
 	echo "$0: file layout error ($1,$2,$4)" >&2
 	exit 1
 }
@@ -63,7 +68,7 @@ J=-JX10
 
 awk '{if ($4 == 1) { print $1/60,$2; }}' $TMPFILE \
 	| psxy -P -K $J $R \
-		   -Bf1a15:"Elapsed Time [min]":/f1a5:"Best Offset [scans]":WeSn \
+		   -Bf1a30:"Elapsed Time [min]":/f1a5:"Best Offset [scans]":WeSn \
 		   -Sc0.1 -Gcoral \
 	> "$eps_file"		   
 	
@@ -73,8 +78,10 @@ awk '{if ($4 == 0) { print $1/60,$2; }}' $TMPFILE \
 	
 echo 0.02 0.98 12 0 0 TL $out_basename $run_label | pstext -O -K $U $J >> "$eps_file"
 
-echo -e "`echo $min_elapsed/60|bc` $best_scan_offset\n`echo $max_elapsed/60+1|bc` $best_scan_offset" \
-	| psxy -O $R $J >> "$eps_file"
+echo -e "`echo $min_elapsed/60|bc` $best_scan_offset_dc\n`echo $bot_elapsed/60+1|bc` $best_scan_offset_dc" \
+	| psxy -O -K $R $J -W4/coral >> "$eps_file"
+echo -e "`echo $bot_elapsed/60|bc` $best_scan_offset_uc\n`echo $max_elapsed/60+1|bc` $best_scan_offset_uc" \
+	| psxy -O $R $J -W4/SeaGreen >> "$eps_file"
 
 rm $TMPFILE
 fixbb "$eps_file"

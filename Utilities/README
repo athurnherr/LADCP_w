@@ -1,0 +1,13 @@
+======================================================================
+                    R E A D M E 
+                    doc: Wed Oct 17 11:57:40 2012
+                    dlm: Wed Oct 17 11:57:40 2012
+                    (c) 2012 A.M. Thurnherr
+                    uE-Info: 5 38 NIL 0 0 72 0 2 4 NIL ofnI
+======================================================================
+
+In oder to use the utilities in this directory, include something like this:
+
+	require "$WCALC/Utilities/post_merge_TL_check.pl";
+
+in the relevant ProcessingParams file.

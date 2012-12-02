@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon Oct 15 09:43:38 2012
+#                    dlm: Wed Oct 17 12:03:12 2012
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 116 10 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 121 63 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -114,6 +114,11 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - added correctAttitude()
 #	May 22, 2012: - adapted to ANTS V5
 #	Oct 15, 2012: - added $edit_data_hook
+#--- hg commit
+#				  - separated dc/uc time lagging
+#				  - removed support for TLhist
+#	Oct 16, 2012: - added support for dc/uc only solutions
+#	Oct 17, 2012: - renamed $edit_data_hook to $post_merge_hook
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -141,6 +146,8 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	  file; this is required in order to be able to compare the times
 #	  from the uplooker and downlooker-derived vertical velocity
 #	  profiles
+#	- the .TL files use the LADCP elapsed time in output; as a result,
+#	  the DL/UL .TL files have different time axes!
 #	- as a result, a profile only starts with elapsed==0 if the CTD
 #	  is turned on when the LADCP is already in the water
 
@@ -229,7 +236,6 @@ croak("$0: \$out_basename undefined\n")								# all plotting routines use this
 $out_w 	    	= ">$out_w" 		 unless ($out_w =~ /^$|^\s*\|/);	# make sure O_CREAT is set unless it's a pipe
 $out_BR 	    = ">$out_BR" 		 unless ($out_BR =~ /^$|^\s*\|/);
 $out_TL 	    = ">$out_TL" 		 unless ($out_TL =~ /^$|^\s*\|/);
-$out_TLhist    	= ">$out_TLhist" 	 unless ($out_TLhist =~ /^$|^\s*\|/);
 $out_LADCPtis  	= ">$out_LADCPtis"   unless ($out_LADCPtis =~ /^$|^\s*\|/);
 $out_profile    = ">$out_profile" 	 unless ($out_profile =~ /^$|^\s*\|/);
 $out_timeseries = ">$out_timeseries" unless ($out_timeseries =~ /^$|^\s*\|/);
@@ -607,14 +613,28 @@ if (defined($first_guess_timelag)) {
 if ($opt_u) {
 	progress("\tskipping time lagging (-u)\n");
 } else {
-	$CTD{TIME_LAG} = calc_lag($number_of_timelag_windows[0],$length_of_timelag_windows[0],int(1/$CTD{DT}+0.5));
+	$CTD{TIME_LAG} =													# stage 1: dc/uc combined
+		calc_lag($number_of_timelag_windows[0],$length_of_timelag_windows[0],int(1/$CTD{DT}+0.5),0);
+	croak("$0: Cannot proceed without valid lag!\n") unless defined($CTD{TIME_LAG});
 	progress("\telapsed(CTD) ~ elapsed(LADCP) + %.2fs\n",$CTD{TIME_LAG});
 	
-	$CTD{TIME_LAG} = calc_lag($number_of_timelag_windows[1],$length_of_timelag_windows[1],1);
-	progress("\telapsed(CTD) = elapsed(LADCP) + %.2fs\n",$CTD{TIME_LAG});
+	$CTD{TIME_LAG_DC} = calc_lag($number_of_timelag_windows[1],$length_of_timelag_windows[1],1,1);
+	progress("\tdowncast: elapsed(CTD) = elapsed(LADCP) + %.2fs\n",$CTD{TIME_LAG_DC})
+		if defined($CTD{TIME_LAG_DC});
+	$CTD{TIME_LAG_UC} = calc_lag($number_of_timelag_windows[1],$length_of_timelag_windows[1],1,-1);
+	progress("\tupcast  : elapsed(CTD) = elapsed(LADCP) + %.2fs\n",$CTD{TIME_LAG_UC})
+		if defined($CTD{TIME_LAG_UC});
+
+	croak("$0: Cannot proceed without either down- or upcast time-lag!\n")
+		unless defined($CTD{TIME_LAG_DC}) || defined($CTD{TIME_LAG_UC});
+	$CTD_time_lag_dc = $CTD{TIME_LAG_DC};									# if one lag is missing ...
+	$CTD_time_lag_uc = $CTD{TIME_LAG_UC};									# use other for entire ...
+	$CTD_time_lag_dc = $CTD_time_lag_uc unless defined($CTD_time_lag_dc);	# cast
+	$CTD_time_lag_uc = $CTD_time_lag_dc unless defined($CTD_time_lag_uc);
 }
 
-&antsAddParams('CTD_time_lag',$CTD{TIME_LAG});
+&antsAddParams('CTD_time_lag_dc',$CTD{TIME_LAG_DC},'CTD_time_lag_uc',$CTD{TIME_LAG_UC});
+undef($CTD{TIME_LAG}); 													# to avoid confusion
 
 #------------------------------------------------
 # Merge CTD with LADCP data
@@ -624,7 +644,9 @@ if ($opt_u) {
 progress("Merging CTD with LADCP data...\n");
 
 for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
-	my($scan) = int(($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
+	my($scan) = ($ens < $LADCP_atbottom) ?
+		int(($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD_time_lag_dc - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5) :
+		int(($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD_time_lag_uc - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
 	if ($scan <= 0) {	# NB: must be <=, rather than <, or assertion below sometimes fails
 		$skipped++;
 		$firstGoodEns = $ens+1;
@@ -644,13 +666,23 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 		last;
 	}
 
-	die("assertion failed!\n" .
-		"\ttest: abs($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$scan]) <= $CTD{DT}/2\n" .
-		"\tens = $ens, scan = $scan\n" .
-		sprintf("\tadjusted LADCP time = %f\n",$LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD{TIME_LAG}) .
-		sprintf("\tCTD($scan) time = %f\n",$CTD{ELAPSED}[$scan]) .
-		"=> Did you use SeaBird elapsed time? Don't!"
-	) unless (abs($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$scan]) <= $CTD{DT}/2 + 1e-10);
+	if ($ens < $LADCP_atbottom) {
+		die("assertion failed!\n" .
+			"\ttest: abs($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD_time_lag_dc - $CTD{ELAPSED}[$scan]) <= $CTD{DT}/2\n" .
+			"\tens = $ens, scan = $scan\n" .
+			sprintf("\tadjusted LADCP time = %f\n",$LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD_time_lag_dc) .
+			sprintf("\tCTD($scan) time = %f\n",$CTD{ELAPSED}[$scan]) .
+			"=> Did you use SeaBird elapsed time? Don't!"
+	    ) unless (abs($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD_time_lag_dc - $CTD{ELAPSED}[$scan]) <= $CTD{DT}/2 + 1e-10);
+	} else {
+		die("assertion failed!\n" .
+			"\ttest: abs($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD_time_lag_uc - $CTD{ELAPSED}[$scan]) <= $CTD{DT}/2\n" .
+			"\tens = $ens, scan = $scan\n" .
+			sprintf("\tadjusted LADCP time = %f\n",$LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD_time_lag_uc) .
+			sprintf("\tCTD($scan) time = %f\n",$CTD{ELAPSED}[$scan]) .
+			"=> Did you use SeaBird elapsed time? Don't!"
+	    ) unless (abs($LADCP{ENSEMBLE}[$ens]->{ELAPSED} + $CTD_time_lag_uc - $CTD{ELAPSED}[$scan]) <= $CTD{DT}/2 + 1e-10);
+	}
 
 	$LADCP{ENSEMBLE}[$ens]->{CTD_ELAPSED} = $CTD{ELAPSED}[$scan];		# elapsed field for output
 
@@ -764,9 +796,9 @@ progress("Removing data from instrument at surface...\n");
 $nerm = editSurfLayer($firstGoodEns,$lastGoodEns,$surface_layer_depth);
 progress("\t$nerm ensembles removed\n");
 
-if (defined($edit_data_hook)) {
-	progress("Executing user-supplied \$edit_data_hook...\n");
-	&{$edit_data_hook}($firstGoodEns,$lastGoodEns);
+if (defined($post_merge_hook)) {
+	progress("Executing user-supplied \$post_merge_hook...\n");
+	&{$post_merge_hook}($firstGoodEns,$lastGoodEns);
 }
 
 #---------------------------------------------------------------------------
@@ -837,7 +869,6 @@ for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {							# bin data into profi
 	$DNCAST{N_SAMP}[$bi]		= @{$DNCAST{W}[$bi]};
 }
 
-
 progress("\tupcast...\n");														# upcast
 
 my($realLastGoodEns);
@@ -904,7 +935,10 @@ for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 unless ($opt_q) {
 	progress("Removing single-ping residual noise...\n");
 	
-	for ($ens=$firstGoodEns; $ens<=$realLastGoodEns; $ens++) {
+	my($fe) = defined($CTD{TIME_LAG_DC}) ? $firstGoodEns    : $LADCP_atbottom;
+	my($le) = defined($CTD{TIME_LAG_UC}) ? $realLastGoodEns : $LADCP_atbottom;
+
+	for ($ens=$fe; $ens<=$le; $ens++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 		my(@residuals) = ();
 		my(@bindepth) = calc_binDepths($ens);
@@ -1023,7 +1057,9 @@ if (defined($out_w)) {
 					  'pitch','roll','tilt','heading','3_beam','svel');
 
 	open(STDOUT,"$out_w") || croak("$out_w: $!\n");
-	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
+
+	if (defined($CTD{TIME_LAG_DC})) {
+	  for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 		my(@bindepth) = calc_binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
@@ -1053,10 +1089,12 @@ if (defined($out_w)) {
 				 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
 				$CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 			);
-		}
-	}
+		} # for $bin
+	  } # for $ens
+	} # if defined dc time lag
 	
-	for ($ens=$LADCP_atbottom; $ens<=$realLastGoodEns; $ens++) {						# upcast 
+	if (defined($CTD{TIME_LAG_UC})) {
+	  for ($ens=$LADCP_atbottom; $ens<=$realLastGoodEns; $ens++) {						# upcast 
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 		my(@bindepth) = calc_binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
@@ -1086,8 +1124,9 @@ if (defined($out_w)) {
 				 defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
 				$CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 			);
-		}
-	}
+		} # for $bin
+	  } # for $ens
+	} # if defined uc time-lag
 
 	&antsOut('EOF'); open(STDOUT,">&2");
 }
@@ -1106,6 +1145,8 @@ if (defined($out_profile)) {
 
 	open(STDOUT,"$out_profile") || croak("$out_profile: $!\n");
 
+	undef(%DNCAST) unless defined($CTD{TIME_LAG_DC});
+	undef(%UPCAST) unless defined($CTD{TIME_LAG_UC});
 	for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
 		&antsOut(($bi+0.5)*$output_bin_size,					# nominal depth
 				 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
