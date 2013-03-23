@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Wed Oct 17 12:03:12 2012
+#                    dlm: Sat Mar 23 13:44:57 2013
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 121 63 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 126 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -114,11 +114,15 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - added correctAttitude()
 #	May 22, 2012: - adapted to ANTS V5
 #	Oct 15, 2012: - added $edit_data_hook
-#--- hg commit
+#				  - HG COMMIT
 #				  - separated dc/uc time lagging
 #				  - removed support for TLhist
 #	Oct 16, 2012: - added support for dc/uc only solutions
 #	Oct 17, 2012: - renamed $edit_data_hook to $post_merge_hook
+#				  - HG COMMIT
+#	Feb 13, 2013: - BUG: CTD_neg_press_offset did not work for CTD time series with -ve starting depth
+#	Mar 23, 2013: - cosmetics
+#				  - HG COMMIT
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -559,8 +563,9 @@ progress("\t%d scans at %.1fHz\n",scalar(@{$CTD{DEPTH}}),1/$CTD{DT});
 
 croak("$0: CTD start depth must be numeric\n")
 	unless numberp($CTD{DEPTH}[0]);
-$CTD_neg_press_offset = -1 * round($CTD{DEPTH}[0])
-	if ($CTD{DEPTH}[0] < -$CTD_neg_press_offset);
+if (($CTD{DEPTH}[0] < -$CTD_neg_press_offset) && !defined($CTD_neg_press_offset)) {
+	$CTD_neg_press_offset = -1 * round($CTD{DEPTH}[0]);
+}
 if ($CTD_neg_press_offset > 0) {
 	progress("\tadding $CTD_neg_press_offset dbar offset to pressure data\n");
 	for (my($i)=0; $i<@{$CTD{DEPTH}}; $i++) { $CTD{DEPTH}[$i] += $CTD_neg_press_offset; }
@@ -613,11 +618,11 @@ if (defined($first_guess_timelag)) {
 if ($opt_u) {
 	progress("\tskipping time lagging (-u)\n");
 } else {
-	$CTD{TIME_LAG} =													# stage 1: dc/uc combined
+	$CTD{TIME_LAG} =														# stage 1: 1Hz; full cast
 		calc_lag($number_of_timelag_windows[0],$length_of_timelag_windows[0],int(1/$CTD{DT}+0.5),0);
 	croak("$0: Cannot proceed without valid lag!\n") unless defined($CTD{TIME_LAG});
 	progress("\telapsed(CTD) ~ elapsed(LADCP) + %.2fs\n",$CTD{TIME_LAG});
-	
+																			# stage 2: 24Hz; piece-wise
 	$CTD{TIME_LAG_DC} = calc_lag($number_of_timelag_windows[1],$length_of_timelag_windows[1],1,1);
 	progress("\tdowncast: elapsed(CTD) = elapsed(LADCP) + %.2fs\n",$CTD{TIME_LAG_DC})
 		if defined($CTD{TIME_LAG_DC});
