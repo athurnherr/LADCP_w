@@ -1,9 +1,9 @@
 #======================================================================
 #                    B O T T O M _ T R A C K I N G . P L 
 #                    doc: Wed Oct 20 21:05:37 2010
-#                    dlm: Mon Oct 24 10:10:09 2011
+#                    dlm: Thu May 16 22:03:15 2013
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 144 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 79 111 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -11,6 +11,7 @@
 #	Dec 30, 2010: - adapted for use with LADCP_w
 #	Oct 11, 2011: - moved defaults to [defaults.pl]
 #	Oct 24, 2011: - disabled not-very-useful %BT-params
+#	Apr 22, 2013: - replace output_bin_size by opt_o
 
 # This code is essentially identical to the one used in LADCPproc. Differences:
 #	1) velocity editing is simpler: no wake editing, no PPI editing, no shear
@@ -75,7 +76,8 @@ sub binBTprof($$$)
 	my($seafloor_u,$seafloor_v,$seafloor_w);
 
 	# determine which of the three trial bins is most consistent with reflr vertical velocities
-	die("assertion failed") unless numberp($LADCP{ENSEMBLE}[$ens]->{REFLR_W});
+	return													# can happen when no MEDIAN_RESIDUAL_W is available
+		unless numberp($LADCP{ENSEMBLE}[$ens]->{REFLR_W});
 	if (abs($LADCP{ENSEMBLE}[$ens]->{REFLR_W}-$w1) < abs($LADCP{ENSEMBLE}[$ens]->{REFLR_W}-$w2) &&
 		abs($LADCP{ENSEMBLE}[$ens]->{REFLR_W}-$w1) < abs($LADCP{ENSEMBLE}[$ens]->{REFLR_W}-$w3)) {
 			$seafloor_u = $LADCP{ENSEMBLE}[$ens]->{U_UNEDITED}[$seafloor_bin-1];
@@ -103,7 +105,7 @@ sub binBTprof($$$)
 
 	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		my($gi) = int($bd[$bin]) / $output_bin_size;
+		my($gi) = int($bd[$bin]) / $opt_o;
 		push(@{$BTw[$gi]},$LADCP{ENSEMBLE}[$ens]->{W}[$bin]-$seafloor_w);
 	}
 }

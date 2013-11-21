@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ S V 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Wed Apr 18 10:32:58 2012
+#                    dlm: Thu May 16 15:22:39 2013
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 16 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 83 26 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,7 @@
 #	Nov 14, 2011: - added file layout check
 #	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 #   Apr 12, 2012: - made re-entrant
+#	May 16, 2013: - adapted to file-layout changes
 
 #--------------------------------------------------
 # Usage
@@ -43,7 +44,7 @@ do
 done
 
 set -- $fields
-[ "$1" = ensemble -a "$4" = depth -a "${16}" = volume_scattering_coeff ] || {
+[ "$1" = ensemble -a "$4" = depth -a "${17}" = volume_scattering_coeff ] || {
 	echo "$0: file layout error" >&2
 	exit 1
 }
@@ -79,7 +80,7 @@ C=-C`which LWplot_Sv | sed 's@LWplot_Sv$@Sv.cpt@'`
 ens_width=`echo "scale=5;10/($max_ens-$min_ens+1)"|bc`
 bin_length=`echo "scale=5;10*$ADCP_bin_length/($max_depth-$min_depth+$ADCP_bin_length)"|bc`
 
-awk "{print \$1, \$4, \$16, $ens_width, $bin_length}" $TMPFILE \
+awk "{print \$1, \$4, \$17, $ens_width, $bin_length}" $TMPFILE \
 	| psxy -P -K $R $X $C -Sr > "$eps_file"
 	
 echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$eps_file"

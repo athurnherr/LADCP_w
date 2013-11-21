@@ -1,23 +1,18 @@
 #!/bin/ksh
 #======================================================================
-#					 L W P L O T _ P R O F 
+#					 L W P L O T _ P R O F _ 2 B E A M 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Wed Oct 30 00:39:48 2013
+#                    dlm: Wed Oct 30 00:36:31 2013
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 89 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 12 51 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
-#	Oct 14, 2011: - created
-#	Oct 15, 2011: - added nsamp
-#	Oct 16, 2011: - made depth tic-marks range dependent
-#	Oct 17, 2011: - turned into filter
-#				  - added %run_label
-#	Nov 14, 2011: - added file layout check
-#	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
-#   Apr 12, 2012: - made re-entrant
-#	May 15, 2013: - BUG: plot separation lines/shading did not work any more
-#   Oct 30, 2103: - got rid of non-portable echo -e
+#	May 15, 2013: - created from [LWplot_prof]
+#	Oct 30, 2103: - got rid of non-portable echo -e
+
+# NOTES:
+#	- this version plots 2-beam solutions instead of final w
 
 #--------------------------------------------------
 # Usage
@@ -44,8 +39,8 @@ do
 done
 
 set -- $fields
-[ "$1" = depth -a "$4" = dc_w -a "$5" = dc_w.mad -a "$6" = dc_w.nsamp -a \
-  "${11}" = uc_w  -a "${12}" = uc_w.mad -a "${13}" = uc_w.nsamp -a \
+[ "$1" = depth -a "$7" = dc_w12 -a "$8" = dc_w34 -a "$5" = dc_w.mad -a "$6" = dc_w.nsamp -a \
+  "${14}" = uc_w12 -a "${15}" = uc_w34 -a "${12}" = uc_w.mad -a "${13}" = uc_w.nsamp -a \
   "${20}" = BT_w  -a "${21}" = BT_w.mad -a "${22}" = BT_w.nsamp ] || {
 		echo "$0: file layout error" >&2
 		exit 1
@@ -85,10 +80,12 @@ X=-JX10/-10
 { echo 100 $min_depth; echo 100 $max_depth; } | psxy -O -K $R2 $X >> "$eps_file"
 { echo 150 $min_depth; echo 150 $max_depth; } | psxy -O -K $R2 $X >> "$eps_file"
 
-# VERTICAL VELOCITIES
-awk '{print $4, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/coral >> "$eps_file"
-awk '{print $11,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/SeaGreen >> "$eps_file"
-awk '{print $20,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4/black >> "$eps_file"
+# VERTICAL VELOCITIES (2-BEAM SOLUTIONS)
+awk '{print $7, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,coral,6_2:0 >> "$eps_file"
+awk '{print $8, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,coral,4_6:0 >> "$eps_file"
+awk '{print $14,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,SeaGreen,6_2:0 >> "$eps_file"
+awk '{print $15,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,SeaGreen,4_6:0 >> "$eps_file"
+awk '{print $20,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,black >> "$eps_file"
 	
 # MEAN ABSOLUTE DEVIATIONS (COMBINED SOLUTION)
 awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gcoral >> "$eps_file"
@@ -104,6 +101,7 @@ awk '{print $22,$1,$20}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2
 echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$eps_file"
 echo 0.6 0.98 12 0 0 BR m.a.d. | pstext -O -K $U $X >> "$eps_file"
 
+# AXES
 if [ 0 -eq `echo "($max_depth-$min_depth)>1000"|bc` ]
 then
 	depth_tics=f10a100

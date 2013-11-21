@@ -1,0 +1,133 @@
+#!/bin/ksh
+#======================================================================
+#					 L W P L O T _ S P E C 
+#                    doc: Thu Sep  5 18:23:41 2013
+#                    dlm: Wed Nov  6 23:33:40 2013
+#                    (c) 2013 A.M. Thurnherr
+#                    uE-Info: 120 10 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+# HISTORY:
+#	Sep  5, 2013: - created from LWplot_prof
+#   Oct 30, 2103: - got rid of non-portable echo -e
+#	Nov  6, 2013: - add interpolation of missing values
+
+#--------------------------------------------------
+# Usage
+#--------------------------------------------------
+
+USAGE="Usage: $0 <eps-file> [in-file]"
+	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
+	[ $# -ne 1 ] && { echo $USAGE >&2; exit 1; }
+eps_file="$1"
+
+#--------------------------------------------------
+# Read Header Data
+#--------------------------------------------------
+
+while [ -z "$fields" ]
+do
+	read line
+    [ ! -t 1 ] && echo "$line"
+	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
+	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
+	[ -z "$max_depth" ] && max_depth=`expr -- "$line" : '#ANTS#PARAMS#.*max_depth{\([^}]*\)}`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
+done
+
+set -- $fields
+[ "$1" = depth -a "$4" = dc_w -a "$5" = dc_w.mad -a "$6" = dc_w.nsamp -a \
+  "${11}" = uc_w  -a "${12}" = uc_w.mad -a "${13}" = uc_w.nsamp ] || {
+		echo "$0: file layout error" >&2
+		exit 1
+}
+
+#--------------------------------------------------
+# Plot Data
+#--------------------------------------------------
+
+eps_file="$PWD/$eps_file"	# make outfile name absolute (hopefully, it is not already...)
+mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
+cd /tmp/$$
+
+TMPFILE=/tmp/$$.LWplot_spec
+if [ ! -t 1 ]
+then
+	tee $TMPFILE
+else
+	cat > $TMPFILE
+fi
+
+[ -f .gmtdefaults4 ] ||
+	gmtset	PAPER_MEDIA letter+ \
+			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
+			WANT_EURO_FONT true \
+	        PLOT_DEGREE_FORMAT ddd:mm:ssF
+
+R=-R10/2000/1e-6/0.1
+U=-R0/1/0/1
+X=-JX10l
+
+# 1 & 3MM/S ERROR LEVELS
+err=`awk '{print $4, $1}' $TMPFILE |
+	   fillgaps -Qi linear -f '$1' '$2' |
+	   pgram -S'$2>80' -b4 -d '$2' '$1' 2>/dev/null |
+	   list -Q =1e-6/%pgram_resolution_bandwidth`
+{ echo 15 $err; echo 500 $err; } | psxy -P -X4 -K $R $X > "$eps_file"
+echo 500 $err 10 0 0 ML 1mm s@+-1@+ | pstext -O -K $R $X >> "$eps_file"
+err=`abc "9*$err"`
+{ echo 15 $err; echo 500 $err; } | psxy -O -K $R $X >> "$eps_file"
+echo 500 $err 10 0 0 ML 3mm s@+-1@+ | pstext -O -K $R $X >> "$eps_file"
+
+# EPS PARAMETERIZATION
+c1=`abc '10**(-1.754)/(4*$pi**2)'`
+l1=20; l2=1000; eps=-10;
+{ echo $l1 `abc "$c1*sqrt(1e$eps)*$l1**2"`; echo $l2 `abc "$c1*sqrt(1e$eps)*$l2**2"`; } |
+	psxy -O -K $R $X -W2/blue >> "$eps_file"
+echo `abc $l1*0.99` `abc "$c1*sqrt(1e$eps)*$l1**2"` 10 0 0 MR 10@+$eps@+ |
+	pstext -O -K $R $X -Gblue >> "$eps_file"
+echo `abc $l1*1.13` `abc "$c1*sqrt(1e$eps)*$l1**2"` 10 0 0 ML W kg@+-1@+ |
+	pstext -O -K $R $X -Gblue >> "$eps_file"
+l1=20; l2=1000; eps=-9;
+{ echo $l1 `abc "$c1*sqrt(1e$eps)*$l1**2"`; echo $l2 `abc "$c1*sqrt(1e$eps)*$l2**2"`; } |
+	psxy -O -K $R $X -W2/blue >> "$eps_file"
+echo `abc $l1*0.99` `abc "$c1*sqrt(1e$eps)*$l1**2"` 10 0 0 MR 10@+$eps@+ |
+	pstext -O -K $R $X -Gblue >> "$eps_file"
+l1=20; l2=1000; eps=-8;
+{ echo $l1 `abc "$c1*sqrt(1e$eps)*$l1**2"`; echo $l2 `abc "$c1*sqrt(1e$eps)*$l2**2"`; } |
+	psxy -O -K $R $X -W2/blue >> "$eps_file"
+echo `abc $l1*0.99` `abc "$c1*sqrt(1e$eps)*$l1**2"` 10 0 0 MR 10@+$eps@+ |
+	pstext -O -K $R $X -Gblue >> "$eps_file"
+l1=20; l2=1000; eps=-7;
+{ echo $l1 `abc "$c1*sqrt(1e$eps)*$l1**2"`; echo $l2 `abc "$c1*sqrt(1e$eps)*$l2**2"`; } |
+	psxy -O -K $R $X -W2/blue >> "$eps_file"
+echo `abc $l1*0.99` `abc "$c1*sqrt(1e$eps)*$l1**2"` 10 0 0 MR 10@+$eps@+ |
+	pstext -O -K $R $X -Gblue >> "$eps_file"
+l1=20; l2=1000; eps=-6;
+{ echo $l1 `abc "$c1*sqrt(1e$eps)*$l1**2"`; echo $l2 `abc "$c1*sqrt(1e$eps)*$l2**2"`; } |
+	psxy -O -K $R $X -W2/blue >> "$eps_file"
+echo `abc $l1*0.99` `abc "$c1*sqrt(1e$eps)*$l1**2"` 10 0 0 MR 10@+$eps@+ |
+	pstext -O -K $R $X -Gblue >> "$eps_file"
+
+# SPECTRA
+awk '{print $4, $1}' $TMPFILE |
+    fillgaps -Qi linear -f '$1' '$2' |
+	pgram -S'$2>80' -b4 -dQFT,pwrdens '$2' '$1' |
+	psxy -O -K -N -Mn $R $X -W8/coral >> "$eps_file"
+awk '{print $11,$1}' $TMPFILE |
+    fillgaps -Qi linear -f '$1' '$2' |
+	pgram -S'$2>80' -b4 -dQFT,pwrdens '$2' '$1' |
+	psxy -O -K -N -Mn $R $X -W8/SeaGreen >> "$eps_file"
+
+# LABELS
+echo 0.98 0.05 12 0 0 TR $out_basename $run_label | pstext -O -K $U -JX10/10 >> "$eps_file"
+
+psbasemap -O -K $R $X -Bf3a2:"Vertical Wavelength [m]":/f3a1:"w Power Density [m@+2@+s@+-2@+/(rad m@+-1@+)]":WeSn >> "$eps_file"
+
+rm $TMPFILE
+fixbb "$eps_file"
+
+cd "$PWD"
+rm -rf /tmp/$$
+

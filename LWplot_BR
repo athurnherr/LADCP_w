@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ B R 
 #                    doc: Mon Oct 17 10:57:12 2011
-#                    dlm: Wed Apr 18 10:32:12 2012
+#                    dlm: Wed Oct 30 00:37:51 2013
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 15 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 16 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,6 +12,7 @@
 #	Nov 14, 2011: - added file layout check
 #	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 #	Apr 12, 2012: - made re-entrant
+#   Oct 30, 2103: - got rid of non-portable echo -e
 
 #--------------------------------------------------
 # Usage
@@ -70,7 +71,7 @@ R=-R-0.07/0.07/0.5/`echo $max_bin+0.5|bc`
 U=-R0/1/0/1
 X=-JX10/-10
 
-echo -e "0 0.5\n0 `echo $max_bin+0.5|bc`" | psxy -P -K $R $X > "$eps_file"
+{ echo 0 0.5; echo 0 `echo $max_bin+0.5|bc`; } | psxy -P -K $R $X > "$eps_file"
 
 awk '{print $2, $1}' $TMPFILE | psxy -O -K -Mn $R $X -W4/coral >> "$eps_file"
 awk '{print $5, $1}' $TMPFILE | psxy -O -K -Mn $R $X -W4/SeaGreen >> "$eps_file"

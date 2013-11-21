@@ -2,9 +2,9 @@
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Tue Oct 16 13:02:45 2012
+#                    dlm: Wed Oct 30 00:38:34 2013
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 20 52 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 23 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -18,6 +18,8 @@
 #	Oct 12, 2012: - split dc/uc time lagging
 #				  - reduced number of xtic labels 
 #	Oct 16, 2012: - renamed elapsed to elapsed.LADCP
+#	Mar 23, 2013: - adapted to piece-wice time lagging
+#   Oct 30, 2103: - got rid of non-portable echo -e
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
@@ -33,8 +35,8 @@ do
 	[ -z "$min_elapsed" ] && min_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.min{\([^}]*\)}`
 	[ -z "$max_elapsed" ] && max_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.max{\([^}]*\)}`
 	[ -z "$bot_elapsed" ] && bot_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.bot{\([^}]*\)}`
-	[ -z "$best_scan_offset_dc" ] && best_scan_offset_dc=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset\.dc{\([^}]*\)}`
-	[ -z "$best_scan_offset_uc" ] && best_scan_offset_uc=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offset\.uc{\([^}]*\)}`
+	[ -z "$best_scan_offsets" ] && best_scan_offsets=`expr -- "$line" : '#ANTS#PARAMS#.*best_scan_offsets{\([^}]*\)}`
+	[ -z "$to_elapsed_limits" ] && to_elapsed_limits=`expr -- "$line" : '#ANTS#PARAMS#.*to_elapsed_limits{\([^}]*\)}`
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
 done
 
@@ -78,11 +80,26 @@ awk '{if ($4 == 0) { print $1/60,$2; }}' $TMPFILE \
 	
 echo 0.02 0.98 12 0 0 TL $out_basename $run_label | pstext -O -K $U $J >> "$eps_file"
 
-echo -e "`echo $min_elapsed/60|bc` $best_scan_offset_dc\n`echo $bot_elapsed/60+1|bc` $best_scan_offset_dc" \
-	| psxy -O -K $R $J -W4/coral >> "$eps_file"
-echo -e "`echo $bot_elapsed/60|bc` $best_scan_offset_uc\n`echo $max_elapsed/60+1|bc` $best_scan_offset_uc" \
-	| psxy -O $R $J -W4/SeaGreen >> "$eps_file"
+fel=$min_elapsed			# from-elapsed limit
+set -- $best_scan_offsets
+while [ -n "$1" ]
+do
+	bso=$1
+	shift
+	best_scan_offsets=$@
+	
+	set -- $to_elapsed_limits
+	tel=$1
+	shift
+	to_elapsed_limits=$@
 
+	{ echo `echo $fel/60|bc` $bso; echo `echo $tel/60+1|bc` $bso; } \
+		| psxy -O -K $R $J -W4/grey20 >> "$eps_file"
+
+	fel=$tel
+	set -- $best_scan_offsets
+done
+	
 rm $TMPFILE
 fixbb "$eps_file"
 

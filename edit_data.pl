@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Mon Oct 15 10:03:13 2012
+#                    dlm: Tue Nov 12 03:09:49 2013
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 28 81 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 33 29 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -26,8 +26,11 @@
 #	Oct 27, 2011: - adapted editTilt() to new call location
 #				  - added correctAttitude()
 #	Oct 15, 2012: - BUG: editSurfLayer() counted also ensembles without CTD depth
+#	Nov 12, 2013: - added comments on editCorr_Earthcoords()
 
 # NOTES:
+#	- editCorr_Earthcoords() is overly conservative and removed most
+#	  or all 3-beam solutions
 #	- all bins must be edited (not just the ones between $LADCP_firstBin
 #	  and $LADCP_lastBin to allow reflr calculations to use bins outside
 #	  this range (ONLY FOR BEAM-COORD EDITS)
@@ -86,6 +89,18 @@ sub editCorr($$)
 	}
 	return $nrm;
 }
+
+#======================================================================
+# $removed = editCorr_Earthcoords($ens,$threshold)
+#
+# NOTES:
+#	- if any of the 4 beam correlations is below the threshold,
+#	  the entire velocity is removed
+#	- this implies that (most? all?) three-beam solutions will
+#	  be edited out, which is overly conserative
+#	- a potentially better algorithm (used in LADCPproc) ignores the
+#	  lowest correlation in all 3-beam solutions
+#======================================================================
 
 sub editCorr_Earthcoords($$)
 {

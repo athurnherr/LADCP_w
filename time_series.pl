@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ S E R I E S . P L 
 #                    doc: Sun May 23 16:40:53 2010
-#                    dlm: Wed Oct 12 12:36:46 2011
+#                    dlm: Wed Apr 17 17:05:16 2013
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 102 23 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 20 63 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -17,6 +17,7 @@
 #	Oct 11, 2011: - BUG: {DEPTH} had not been set at start of profile
 #	Oct 12, 2011: - re-worked ref_lr_w()
 #				  - stopped depth integration across gaps >= 5s
+#	Apr 17, 2013: - improved gap message (added ensemble range)
 
 # NOTES:
 #	- resulting DEPTH field based on integrated w without any sound speed correction
@@ -90,10 +91,10 @@ sub calcLADCPts($$$$)
 				next;
 			}
 			if ($dta->{ENSEMBLE}[$e]->{ELAPSED} < 200) {
-				warning(1,"long gap (%ds) at ensemble #$dta->{ENSEMBLE}[$e]->{NUMBER}, %ds into the profile\n",
+				warning(1,"long gap (%ds) at ensembles #$dta->{ENSEMBLE}[$lastgood]->{NUMBER}-$dta->{ENSEMBLE}[$e]->{NUMBER}, %ds into the profile\n",
 					$dt,$dta->{ENSEMBLE}[$e]->{ELAPSED});
 			} else {
-				warning(1,"long gap (%ds) at ensemble #$dta->{ENSEMBLE}[$e]->{NUMBER}, %.1fmin into the profile\n",
+				warning(1,"long gap (%ds) at ensembles #$dta->{ENSEMBLE}[$lastgood]->{NUMBER}-$dta->{ENSEMBLE}[$e]->{NUMBER}, %.1fmin into the profile\n",
 					$dt,$dta->{ENSEMBLE}[$e]->{ELAPSED}/60);
 			}
 		}

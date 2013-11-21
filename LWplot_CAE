@@ -1,0 +1,104 @@
+#!/bin/ksh
+#======================================================================
+#                    L W P L O T _ C A E 
+#                    doc: Wed May 15 19:35:58 2013
+#                    dlm: Wed Oct 30 00:47:39 2013
+#                    (c) 2013 A.M. Thurnherr
+#                    uE-Info: 80 28 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+# HISTORY:
+#	May 15, 2013: - created from [LWplot_BR]
+#	May 16, 2013: - fiddled
+#	Oct 30, 2013: - BUG: debug statement had been left in code
+#   Oct 30, 2103: - got rid of non-portable echo -e
+
+#--------------------------------------------------
+# Usage
+#--------------------------------------------------
+
+USAGE="Usage: $0 <eps-file> [in-file]"
+	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
+	[ $# -ne 1 ] && { echo $USAGE >&2; exit 1; }
+eps_file="$1"
+
+#--------------------------------------------------
+# Read Header Data
+#--------------------------------------------------
+
+while [ -z "$fields" ]
+do
+	read line
+    [ ! -t 1 ] && echo "$line"
+	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
+	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
+	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
+done
+
+set -- $fields
+[ "$3" = downcast -a "${12}" = CTD_w_tt -a "${15}" = reflr_ocean_w ] || {
+		echo "$0: file layout error" >&2
+		exit 1
+}
+
+#--------------------------------------------------
+# Plot Data
+#--------------------------------------------------
+
+eps_file="$PWD/$eps_file"	# make outfile name absolute (hopefully, it is not already...)
+mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
+cd /tmp/$$
+
+TMPFILE=/tmp/$$.LWplot_BR
+if [ ! -t 1 ]
+then
+	tee $TMPFILE
+else
+	cat > $TMPFILE
+fi
+
+[ -f .gmtdefaults4 ] ||
+	gmtset	PAPER_MEDIA letter+ \
+			LABEL_FONT_SIZE 14 ANNOT_FONT_SIZE_PRIMARY 14 \
+			WANT_EURO_FONT true \
+	        PLOT_DEGREE_FORMAT ddd:mm:ssF
+
+#R=-R-0.8/0.8/-0.3/0.3
+R=-R-2.0/2.0/-0.3/0.3
+U=-R0/1/0/1
+X=-JX10/10
+
+awk '{print $3, $12, $15}' $TMPFILE |
+	Cat -QS1:1 -F'$2,$3' |
+	psxy -P -K -Mn $R $X -Sc0.1 -Gcoral > "$eps_file"
+	
+awk '{print $3, $12, $15}' $TMPFILE |
+	Cat -QS1:0 -F'$2,$3' |
+	psxy -O -K -Mn $R $X -Sc0.1 -GSeaGreen >> "$eps_file"
+	
+{ echo -2.0 0; echo 2.0 0; } | psxy -O -K $R $X -W2/gray30 >> "$eps_file"
+{ echo 0 -0.3; echo 0 0.3; } | psxy -O -K $R $X -W2/gray30 >> "$eps_file"
+
+{ echo -2.0 -0.2; echo 2.0 -0.2; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+{ echo -2.0 -0.1; echo 2.0 -0.1; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+{ echo -2.0  0.1; echo 2.0  0.1; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+{ echo -2.0  0.2; echo 2.0  0.2; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+
+{ echo -1.5 -0.3; echo -1.5 0.3; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+{ echo -1.0 -0.3; echo -1.0 0.3; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+{ echo -0.5 -0.3; echo -0.5 0.3; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+{ echo  0.5 -0.3; echo  0.5 0.3; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+{ echo  1.0 -0.3; echo  1.0 0.3; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+{ echo  1.5 -0.3; echo  1.5 0.3; } | psxy -O -K $R $X -W1/gray70 >> "$eps_file"
+
+echo 0.047 0.965 12 0 0 TL $out_basename $run_label| pstext -O -K $U $X >> "$eps_file"
+
+psbasemap -O -K $R $X -Bf0.1a1:"CTD d@+2@+z/dt@+2@+ [ms@+-3@+]":/f0.01a0.1:"reference-layer ocean w [ms@+-1@+]":WeSn >> "$eps_file"
+psbasemap -O $R $X -B/a100-99W >> "$eps_file"
+
+rm $TMPFILE
+fixbb "$eps_file"
+
+cd "$PWD"
+rm -rf /tmp/$$
+
