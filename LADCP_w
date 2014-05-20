@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Thu Sep  5 16:23:16 2013
+#                    dlm: Mon May 19 22:21:35 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 495 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 932 27 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -136,6 +136,8 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - BUG: $bad_beam did not discard BT_VELOCITY data
 #	Jun  6, 2013: - BUG: error message had -a instead of -d
 #	Sep  5, 2013: - BUG: w12/w34 do not work for earth-coordinate data, of course
+#	Apr 17, 2014: - BUG: edit_tilt was never called when all recorded bins are valid
+#	Apr 21, 2014: - updated comments
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -589,17 +591,15 @@ for (my($bin)=$LADCP_firstBin-1; $bin<$LADCP_lastBin-1; $bin++) {
 	last;
 }
 
-if (defined($first_bad_bin)) {
-	$fprm = $pte = 0;
-	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
-		$pte += editTilt($ens,$opt_t);
-		$fprm += editFarBins($ens,$first_bad_bin) if defined($first_bad_bin);
-	}
-	progress("\tattitude threshold (max_tilt = %d deg): %d velocites removed (%d%% of total)\n",
-		$opt_t,$pte,round(100*$pte/$nvv));
-	progress("\tvelocities beyond bin $first_bad_bin (<%d%% valid values): %d velocites removed (%d%% of total in bins $LADCP_firstBin-$LADCP_lastBin)\n",
-		round(100*$per_bin_valid_frac_lim),$fprm,round(100*$fprm/$nvw));
+$fprm = $pte = 0;
+for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
+	$pte += editTilt($ens,$opt_t);
+	$fprm += editFarBins($ens,$first_bad_bin) if defined($first_bad_bin);
 }
+progress("\tattitude threshold (max_tilt = %d deg): %d velocites removed (%d%% of total)\n",
+	$opt_t,$pte,round(100*$pte/$nvv));
+progress("\tvelocities beyond bin $first_bad_bin (<%d%% valid values): %d velocites removed (%d%% of total in bins $LADCP_firstBin-$LADCP_lastBin)\n",
+	round(100*$per_bin_valid_frac_lim),$fprm,round(100*$fprm/$nvw));
 
 #--------------
 # Read CTD data
@@ -658,14 +658,22 @@ progress("\tmax depth   = %dm (# $CTD_atbottom)\n",$CTD_maxdepth);
 # Construct sound-speed correction profile from CTD 1Hz downcast data
 #	very simple algorithm that stores the last value found
 #	in each 1m bin
+# For PPI filtering, a sound speed profile to the surface is required.
+# 	This is ensured by extrapolating the first value up to zero
 #--------------------------------------------------------------------
 
 progress("Constructing sound-speed correction profile\n");
 
 my($scans_per_sec) = int(1/$CTD{DT}+0.5);
+my($min_depth) = 9e99;
 for (my($s)=0; $s<=$CTD_atbottom; $s+=$scans_per_sec) {
 	next unless ($CTD{DEPTH}[$s] >= 0 && numberp($CTD{SVEL}[$s]));
+	$min_depth = $s if ($s < $min_depth);
 	$sVelProf[int($CTD{DEPTH}[$s])] = $CTD{SVEL}[$s];
+}
+while ($min_depth > 0) {
+	$sVelProf[$min_depth-1] = $sVelProf[$min_depth];
+	$min_depth--;
 }
 
 #-------------------
@@ -855,7 +863,9 @@ progress("Calculating volume-scattering coefficients...\n");
 calc_backscatter_profs($firstGoodEns,$lastGoodEns);
 
 #----------------------------------------------------------------------------
-# Remove data contaminated by sidelobe reflection from seabed and sea surface
+# Edit data
+#	1) contaminated by sidelobe reflection from seabed and sea surface
+#	2) PPI 
 #----------------------------------------------------------------------------
 
 if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
@@ -894,14 +904,36 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 		($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,$water_depth);
 		progress("\t$nvrm velocities from $nerm ensembles removed\n");
 
+		progress("Editing data to remove PPI from seabed...\n");
+		  progress("\tConstructing travel-time profile...\n");
+		  my($tt) = ($water_depth - $#sVelProf) / $sVelProf[$#sVelProf];  # $#sVelProf = max_depth(profile) in meters
+		  $ttProf[$#sVelProf] = $tt;
+		  for (my($d)=$#sVelProf-1; $d>=0; $d--) {
+			  $tt += 1 / $sVelProf[$d];
+			  $ttProf[$d] = $tt;
+          }
+		($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,$water_depth);
+		progress("\t$nvrm velocities from $nerm ensembles removed\n");
 	} else {
-		info("no seabed found in backscatter profiles --- no sidelobe editing done\n");
+		info("no seabed found in backscatter profiles --- cannot edit sidelobe or PPI\n");
 	}
 	
 } else {
 	&antsAddParams('ADCP_orientation','uplooker');
+
 	progress("Editing data to remove sidelobe interference from sea surface...\n");
 	($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,undef);
+	progress("\t$nvrm velocities from $nerm ensembles removed\n");
+
+	progress("Editing data to remove PPI from sea surface...\n");
+	  progress("\tConstructing travel-time profile...\n");
+	  my($tt) = 0;
+	  $ttProf[0] = $tt;
+	  for (my($d)=1; $d<=$#sVelProf; $d++) {
+		  $tt += 1 / $sVelProf[$d];
+		  $ttProf[$d] = $tt;
+      }
+	($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,undef);
 	progress("\t$nvrm velocities from $nerm ensembles removed\n");
 }
 

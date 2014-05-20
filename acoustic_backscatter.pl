@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Fri Oct 21 11:29:13 2011
+#                    dlm: Thu Apr 17 08:49:21 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 17 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 19 34 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,6 +15,8 @@
 #				  - BUG: acoustic-backscatter assumed 0 deg C
 #				  - SV now saved in ensemble
 #	Oct 21, 2011: - BUG: made code work for uplooker again
+#	Mar  4, 2014: - added support for missing PITCH/ROLL (TILT)
+#	Apr 17, 2017: - BUG: missing ;
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -76,7 +78,7 @@ sub calc_backscatter_profs($$)
 		my(@bd) = calc_binDepths($ens);
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			my($depth) = int($bd[$bin]);
-			next if ($depth < 0);
+			next if ($depth<0 || !defined($LADCP{ENSEMBLE}[$ens]->{TILT}));
 			my($range_to_bin) = abs($bd[$bin] - $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH})
 									/ cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}))
 									/ $cosBeamAngle;

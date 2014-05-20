@@ -1,9 +1,9 @@
 #======================================================================
 #                    S V E L _ C O R R E C T I O N S . P L 
 #                    doc: Thu Dec 30 01:35:18 2010
-#                    dlm: Wed Oct 26 21:54:12 2011
+#                    dlm: Thu Apr 17 09:02:29 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 15 69 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 49 24 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,7 @@
 #	Oct 26, 2011: - BUG? in calc_binDepth() on very shallow station 38 in
 #					2010 Gom Spill data set the uplooker code did not stop
 #				 	at the surface, requiring additon of another test
+#	Mar  4, 2014: - added support for missing TILT (PITCH/ROLL)
 
 # NOTES:
 #	In an effort to track down the scale bias, NBP0901 stn 160 was reprocessed with various
@@ -42,6 +43,10 @@ sub calc_binDepths($)											# see RDI Coord Trans manual sec. 4.2
 {
 	my($ens) = @_;
 	my(@bindz);
+
+	# if the following assertion fails, the entire code needs to be searched for
+	# each call of calc_binDepths() needs to be protected by a test
+	die("ensemble $ens") unless defined($LADCP{ENSEMBLE}[$ens]->{TILT});
 
 	my($tanSqBeamAngle) = tan(rad($LADCP{BEAM_ANGLE}))**2;
 	my($curdz) = 0;												# calc avg sndspeed btw transducer & 1st bin

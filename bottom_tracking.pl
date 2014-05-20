@@ -1,9 +1,9 @@
 #======================================================================
 #                    B O T T O M _ T R A C K I N G . P L 
 #                    doc: Wed Oct 20 21:05:37 2010
-#                    dlm: Thu May 16 22:03:15 2013
+#                    dlm: Tue Mar  4 13:54:15 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 79 111 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 15 43 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,6 +12,7 @@
 #	Oct 11, 2011: - moved defaults to [defaults.pl]
 #	Oct 24, 2011: - disabled not-very-useful %BT-params
 #	Apr 22, 2013: - replace output_bin_size by opt_o
+#	Mar  4, 2014: - removed old unused code
 
 # This code is essentially identical to the one used in LADCPproc. Differences:
 #	1) velocity editing is simpler: no wake editing, no PPI editing, no shear
@@ -24,7 +25,6 @@
 #	input:	ensemble number, water depth (with uncertainty)
 #	output:	@BTu,@BTv,@BTw				main result
 #			editflags 					for information
-#			@BTbtmu, @BTbtmv, @BTtilt 	stats to find reasons for quality differences
 #----------------------------------------------------------------------
 
 my($nBTfound,$nBTdepthFlag,$nBTvalidVelFlag,$nBTwFlag) = (0,0,0,0);
@@ -98,11 +98,6 @@ sub binBTprof($$$)
 	$nBTwFlag++,return										# velocity error is too great
 		if (abs($seafloor_w-$LADCP{ENSEMBLE}[$ens]->{REFLR_W}) > $BT_max_w_error);
 
-	push(@BTbtmu,$seafloor_u);								# calc stats to try to find reasons for quality
-	push(@BTbtmv,$seafloor_v);
-	push(@BTbtmw,$seafloor_w);
-	push(@BTtilt,$LADCP{ENSEMBLE}[$ens]->{TILT});
-
 	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		my($gi) = int($bd[$bin]) / $opt_o;
@@ -135,14 +130,6 @@ sub calc_BTprof($$$$)
 		$BT{MEDIAN_W}[$gi] = median(@{$BTw[$gi]});
         $BT{MAD_W}[$gi] = mad2($BT{W}[$gi],@{$BTw[$gi]});
 	}
-
-#	&antsAddParams('BT_rms_seafloor_u',round(rms(@BTbtmu),0.01),
-#				   'BT_rms_seafloor_v',round(rms(@BTbtmv),0.01),
-#				   'BT_rms_seafloor_w',round(rms(@BTbtmw),0.01),
-#				   'BT_avg_seafloor_u',round(avg(@BTbtmu),0.01),
-#				   'BT_avg_seafloor_v',round(avg(@BTbtmv),0.01),
-#				   'BT_avg_seafloor_w',round(avg(@BTbtmw),0.01),
-#				   'BT_rms_tilt',round(rms(@BTtilt),0.1));
 }
 
 1;

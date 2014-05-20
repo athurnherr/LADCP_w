@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Tue Nov 12 03:09:49 2013
+#                    dlm: Mon May 19 22:24:40 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 33 29 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 285 28 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -27,6 +27,7 @@
 #				  - added correctAttitude()
 #	Oct 15, 2012: - BUG: editSurfLayer() counted also ensembles without CTD depth
 #	Nov 12, 2013: - added comments on editCorr_Earthcoords()
+#	Mar  4, 2013: - added support for missing PITCH/ROLL (TILT) & HEADING
 
 # NOTES:
 #	- editCorr_Earthcoords() is overly conservative and removed most
@@ -44,9 +45,9 @@
 sub correctAttitude($$$$)
 {
 	my($ens,$pitch_bias,$roll_bias,$heading_bias) = @_;
-	$LADCP{ENSEMBLE}[$ens]->{PITCH}   -= $pitch_bias;
-	$LADCP{ENSEMBLE}[$ens]->{ROLL}    -= $roll_bias;
-	$LADCP{ENSEMBLE}[$ens]->{HEADING} -= $heading_bias;
+	$LADCP{ENSEMBLE}[$ens]->{PITCH}   -= $pitch_bias 	if defined($LADCP{ENSEMBLE}[$ens]->{PITCH});
+	$LADCP{ENSEMBLE}[$ens]->{ROLL}    -= $roll_bias		if defined($LADCP{ENSEMBLE}[$ens]->{ROLL});
+	$LADCP{ENSEMBLE}[$ens]->{HEADING} -= $heading_bias	if defined($LADCP{ENSEMBLE}[$ens]->{HEADING});
 }
 
 #======================================================================
@@ -138,18 +139,13 @@ sub editTilt($$)
 	$LADCP{ENSEMBLE}[$ens]->{TILT} =
 		&angle_from_vertical($LADCP{ENSEMBLE}[$ens]->{PITCH},$LADCP{ENSEMBLE}[$ens]->{ROLL});
 
-	return 0 if ($LADCP{ENSEMBLE}[$ens]->{TILT} <= $lim);
+	return 0 unless ($LADCP{ENSEMBLE}[$ens]->{TILT} > $lim);
 
 	my($nrm) = 0;
 	for (my($bin)=0; $bin<$LADCP{N_BINS}; $bin++) {
 		next unless defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		undef($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		$nrm++;
-#		for (my($beam)=0; $beam<4; $beam++) {
-#			next unless defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$beam]);
-#			undef($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$beam]);
-#			$nrm++;
-#		}
 	}
 	return $nrm;
 }
@@ -253,6 +249,43 @@ sub editFarBins($$)
 #======================================================================
 
 sub editSideLobes($$$)
+{
+	my($fe,$te,$wd) = @_;	# first & last ens to process, water depth for downlooker
+	my($nvrm) = 0;			# of velocities removed
+	my($nerm) = 0;			# of ensembles affected
+	for (my($e)=$fe; $e<=$te; $e++) {
+		next unless numberp($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH});
+		my($range) = $LADCP{ENSEMBLE}[$e]->{XDUCER_FACING_UP}
+				   ? $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}
+				   : $wd - $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH};
+		my($sscorr) = $CTD{SVEL}[$LADCP{ENSEMBLE}[$e]->{CTD_SCAN}] / 1500;
+		my($goodBins) =   ($range - $sscorr*$LADCP{DISTANCE_TO_BIN1_CENTER}) * cos(rad($LADCP{BEAM_ANGLE}))
+						/ ($sscorr*$LADCP{BIN_LENGTH})
+						- 1.5;
+
+		my($dirty) = 0;
+		for (my($bin)=int($goodBins); $bin<$LADCP{N_BINS}; $bin++) { 	# NB: 2 good bins implies that bin 2 is bad
+			next unless ($bin>=0 && defined($LADCP{ENSEMBLE}[$e]->{W}[$bin]));
+			$dirty = 1;
+			$nvrm++;
+			undef($LADCP{ENSEMBLE}[$e]->{W}[$bin]);
+		}
+
+		$nerm += $dirty;
+	}
+	return ($nvrm,$nerm);
+}
+
+
+#======================================================================
+# ($nvrm,$nerm) = editPPI($fromEns,$toEns,$range)
+#
+# NOTES:
+#	1) When this code is executed the travel-time profile (@ttProf at 1m resolution)
+#	   has been constructed.
+#======================================================================
+
+sub editPPI($$$)
 {
 	my($fe,$te,$wd) = @_;	# first & last ens to process, water depth for downlooker
 	my($nvrm) = 0;			# of velocities removed

@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Sat May 18 11:35:50 2013
+#                    dlm: Thu Apr 17 08:54:30 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 60 15 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 74 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -50,6 +50,7 @@
 #	Mar 23, 2012: - adapted to piece-wise time lagging
 #	Apr 22, 2013: - replaced $max_allowed_w by $opt_m, $TL_required_top_three_fraction by $opt_3
 #	May 14, 2013: - opt_m => w_max_lim
+#	Mar  3, 2014: - BUG: var-name typo
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -226,7 +227,7 @@ RETRY:
 		} else {
 			warning(0,"lag too close to edge of search --- trying again after doubling the search radius\n");
 			$search_radius *= 2;
-			$search_raidus =- $w_size if ($search_radius > $w_size);
+			$search_radius =- $w_size if ($search_radius > $w_size);
 		}
 		undef(%nBest); undef(%madBest); undef(@best_lag);
 		goto RETRY;
@@ -238,7 +239,7 @@ RETRY:
 		} else {
 			warning(0,"lag too close to edge of search --- trying again after doubling the search radius\n");
 			$search_radius *= 2;
-			$search_raidus =- $w_size if ($search_radius > $w_size);
+			$search_radius =- $w_size if ($search_radius > $w_size);
 		}
 		undef(%nBest); undef(%madBest); undef(@best_lag);
 		goto RETRY;
