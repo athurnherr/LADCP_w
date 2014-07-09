@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ S V 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Thu May 16 15:22:39 2013
+#                    dlm: Tue May 20 10:57:56 2014
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 83 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 17 57 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 #   Apr 12, 2012: - made re-entrant
 #	May 16, 2013: - adapted to file-layout changes
+#	May 20, 2013: - renamed volume_scattering_coeff to Sv
 
 #--------------------------------------------------
 # Usage
@@ -44,7 +45,7 @@ do
 done
 
 set -- $fields
-[ "$1" = ensemble -a "$4" = depth -a "${17}" = volume_scattering_coeff ] || {
+[ "$1" = ensemble -a "$4" = depth -a "${17}" = Sv ] || {
 	echo "$0: file layout error" >&2
 	exit 1
 }

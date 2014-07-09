@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon May 19 22:21:35 2014
+#                    dlm: Wed May 21 08:50:29 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 932 27 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 680 96 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -138,6 +138,9 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Sep  5, 2013: - BUG: w12/w34 do not work for earth-coordinate data, of course
 #	Apr 17, 2014: - BUG: edit_tilt was never called when all recorded bins are valid
 #	Apr 21, 2014: - updated comments
+#	May 19, 2014: - began adding support for PPI filtering
+#	May 20, 2014: - changed volume_scattering_coeff to Sv in output
+#				  - added editPPI()
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -658,8 +661,7 @@ progress("\tmax depth   = %dm (# $CTD_atbottom)\n",$CTD_maxdepth);
 # Construct sound-speed correction profile from CTD 1Hz downcast data
 #	very simple algorithm that stores the last value found
 #	in each 1m bin
-# For PPI filtering, a sound speed profile to the surface is required.
-# 	This is ensured by extrapolating the first value up to zero
+# For PPI filtering, a sound speed profile without gaps is required.
 #--------------------------------------------------------------------
 
 progress("Constructing sound-speed correction profile\n");
@@ -671,10 +673,15 @@ for (my($s)=0; $s<=$CTD_atbottom; $s+=$scans_per_sec) {
 	$min_depth = $s if ($s < $min_depth);
 	$sVelProf[int($CTD{DEPTH}[$s])] = $CTD{SVEL}[$s];
 }
-while ($min_depth > 0) {
+while ($min_depth > 0) {													# fill surface gap
 	$sVelProf[$min_depth-1] = $sVelProf[$min_depth];
 	$min_depth--;
 }
+for (my($d)=$min_depth+1; $d<=$#sVelProf; $d++) {							# fill interior gaps
+	$sVelProf[$d] = $sVelProf[$d-1]
+		unless defined($sVelProf[$d]);
+}
+	
 
 #-------------------
 # Determine time lag
@@ -904,16 +911,20 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 		($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,$water_depth);
 		progress("\t$nvrm velocities from $nerm ensembles removed\n");
 
-		progress("Editing data to remove PPI from seabed...\n");
-		  progress("\tConstructing travel-time profile...\n");
-		  my($tt) = ($water_depth - $#sVelProf) / $sVelProf[$#sVelProf];  # $#sVelProf = max_depth(profile) in meters
-		  $ttProf[$#sVelProf] = $tt;
-		  for (my($d)=$#sVelProf-1; $d>=0; $d--) {
-			  $tt += 1 / $sVelProf[$d];
-			  $ttProf[$d] = $tt;
-          }
-		($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,$water_depth);
-		progress("\t$nvrm velocities from $nerm ensembles removed\n");
+		if ($PPI_editing) {
+			progress("Editing data to remove PPI from seabed...\n");
+			  progress("\tConstructing depth-average soundspeed profile...\n");
+			  my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
+			  my($sum) = $dz * $sVelProf[$#sVelProf];
+			  $DASSprof[$#sVelProf] = $sum/$dz;
+			  for (my($d)=$#sVelProf-1; $d>=0; $d--) {
+			  	$sum += $sVelProf[$d];
+			  	$dz++;
+				$DASSprof[$d] = $sum/$dz;
+			  }
+			($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,$water_depth);
+	        progress("\t$nvrm velocities from $nerm ensembles removed\n");
+	    }
 	} else {
 		info("no seabed found in backscatter profiles --- cannot edit sidelobe or PPI\n");
 	}
@@ -925,16 +936,17 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 	($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,undef);
 	progress("\t$nvrm velocities from $nerm ensembles removed\n");
 
-	progress("Editing data to remove PPI from sea surface...\n");
-	  progress("\tConstructing travel-time profile...\n");
-	  my($tt) = 0;
-	  $ttProf[0] = $tt;
-	  for (my($d)=1; $d<=$#sVelProf; $d++) {
-		  $tt += 1 / $sVelProf[$d];
-		  $ttProf[$d] = $tt;
-      }
-	($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,undef);
-	progress("\t$nvrm velocities from $nerm ensembles removed\n");
+	if ($PPI_editing) {
+		progress("Editing data to remove PPI from sea surface...\n");
+		  progress("\tConstructing depth-average soundspeed profile...\n");
+		  $DASSprof[0] = my($sum) = 0;
+		  for (my($d)=1; $d<=$#sVelProf; $d++) {
+		  	$sum += $sVelProf[$d];
+			$DASSprof[$d] = $sum/$d;
+		  }
+		($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,undef);
+	    progress("\t$nvrm velocities from $nerm ensembles removed\n");
+	}
 }
 
 #----------------------------------------------------------------------
@@ -1264,7 +1276,7 @@ if (defined($out_w)) {
 
 	@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
 					  'w','w12','w34','residual','CTD_w','CTD_w_tt','LADCP_w','errvel',
-					  'correlation','echo_amplitude','volume_scattering_coeff',
+					  'correlation','echo_amplitude','Sv',
 					  'pitch','roll','tilt','heading','3_beam','svel');
 
 	open(STDOUT,"$out_w") || croak("$out_w: $!\n");

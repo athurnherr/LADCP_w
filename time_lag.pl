@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Thu Apr 17 08:54:30 2014
+#                    dlm: Fri May 23 09:24:38 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 74 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 54 59 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -51,6 +51,7 @@
 #	Apr 22, 2013: - replaced $max_allowed_w by $opt_m, $TL_required_top_three_fraction by $opt_3
 #	May 14, 2013: - opt_m => w_max_lim
 #	Mar  3, 2014: - BUG: var-name typo
+#	May 23, 2014: - BUG: $s range check required in mad_w()
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -68,6 +69,7 @@ sub mad_w($$$)									# mean absolute deviation
 	my($LADCP_mean_w,$CTD_mean_w,$nsamp) = (0,0,0);
 	for (my($e)=$fe; $e<=$le; $e++) {			# first, calculate mean w in window
 		my($s) = int(($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
+		next unless ($s>=0 && $s<=$#{$CTD{ELAPSED}});
 		die("assertion failed\n" .
 			"\ttest: abs($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$s]) <= $CTD{DT}/2\n" .
 			"\te = $e, s = $s, ensemble = $LADCP{ENSEMBLE}[$e]->{NUMBER}"

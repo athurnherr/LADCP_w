@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Mon May 19 22:24:40 2014
+#                    dlm: Wed May 21 13:00:35 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 285 28 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 339 74 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -28,6 +28,8 @@
 #	Oct 15, 2012: - BUG: editSurfLayer() counted also ensembles without CTD depth
 #	Nov 12, 2013: - added comments on editCorr_Earthcoords()
 #	Mar  4, 2013: - added support for missing PITCH/ROLL (TILT) & HEADING
+#	May 20, 2014: - added editPPI()
+#	May 21, 2014: - got it to work correctly
 
 # NOTES:
 #	- editCorr_Earthcoords() is overly conservative and removed most
@@ -241,11 +243,12 @@ sub editFarBins($$)
 }
 
 #======================================================================
-# ($nvrm,$nerm) = editSideLobes($fromEns,$toEns,$range)
+# ($nvrm,$nerm) = editSideLobes($fromEns,$toEns,$water_depth)
 #
 # NOTES:
 #	1) When this code is executed the sound speed is known. No attempt is made to correct for
 #	   along-beam soundspeed variation, but the soundspeed at the transducer is accounted for.
+#	2) for UL, water_depth == undef
 #======================================================================
 
 sub editSideLobes($$$)
@@ -278,31 +281,103 @@ sub editSideLobes($$$)
 
 
 #======================================================================
-# ($nvrm,$nerm) = editPPI($fromEns,$toEns,$range)
+# ($nvrm,$nerm) = editPPI($fromEns,$toEns,$water_depth)
 #
 # NOTES:
-#	1) When this code is executed the travel-time profile (@ttProf at 1m resolution)
-#	   has been constructed.
+#	- for UL, water_depth == undef; for DL water_depth is always defined,
+#	  or else editPPI is not called
+#	- when this code is executed a suitable UL or DL depth-average-soundspeed
+#	  profile (@DASSprof at 1m resolution) is available
+#	- PPI layer is defined by the shortest and longest acoustic paths
+#	  between transducer and seabed that contribute significantly to the
+#	  backscatter
+#		- shortest path (shallow limit):
+#			- distance to seabed => sidelobe
+#			- min_lim = water_depth - DASSprof[CTD_depth]*DeltaT/2
+#		- longest path (deep limit):
+#			- outer edge of main lobe of one of the beams (depending on 
+#			  instrument tilt)
+#			- nominal half-beam apertures at half peak signal strength
+#			  (-3dB), RDI BB Primer, pp. 35f (2ND COLUMN)
+#				WH1200	1.4		2.4
+#				WH600	1.5		2.5
+#				WH300	2.2		3.7
+#				WH150	4.0		6.7
+#				WH75	5.0	    8.4
+#			- for WH150, Fig. 23 indicates that half-beam-width 
+#			  at -5dB (<1% peak signal strength) is about 5/3 of same
+#			  at -3dB => PPI limit choice (3rd column above)
+#		- [Plots/2014_P16_043.eps]:
+#			- mean tilt of 2 degrees included in effects
+#			- finite pulse length means that there actually
+#			  is less elapsed time between the end of the sending
+#			  and the beginning of the reception than the ping
+#			  interval suggests; without it, the PPI peak depth
+#			  does not agree with the prediction
+#			- note that there is no PPI effect possible above
+#			  the dark blue line --- this is a hard limit
+#			  (I checked ping interval to within 0.001,
+#			  water depth is known better than 2m, sound
+#			  speed is accurately accounted for (as indicated
+#			  by the cyan line), so the variability above
+#			  is due to background variability, which is
+#			  consistent with the shape of the curve outside
+#			  the PPI layer
+#		  	=> PPI peak can be tightly bracketed but care has to
+#			   be taken to account for finite beam width & 
+#			   instrument beam_tilt = max(|pitch|,|roll|)
+#	- while the upper limit of the PPI layer is unambiguous, this
+#	  is only true if the recorded ping intervals are accurate
+#		- 2014 CLIVAR P16 #47 shows a slight discontinuity in dc_w near
+#		  the middle of the upper PPI layer (4000m)
+#		- the discontinuity is slightly more pronounced with PPI editing
+#	      enabled
+#		- setting $PPI_extend_upper_limit = 1.03 (or 1.04, 1.05, 1.1)
+#		  reduces the discontinuity to the level without PPI filtering, but
+#		  not any better
+#		- overall I am not convinced that the discontinuity is related
+#		  to PPI; therefore, $PPI_extend_upper_limit is not set by default
 #======================================================================
+
+{ my($bha);					# beam half aperture (static scope)
 
 sub editPPI($$$)
 {
 	my($fe,$te,$wd) = @_;	# first & last ens to process, water depth for downlooker
 	my($nvrm) = 0;			# of velocities removed
 	my($nerm) = 0;			# of ensembles affected
+
+	unless (defined($bha)) {
+		if    ($LADCP{BEAM_FREQUENCY} == 1200) { $bha = 2.4; }
+		elsif ($LADCP{BEAM_FREQUENCY} ==  600) { $bha = 2.5; }
+		elsif ($LADCP{BEAM_FREQUENCY} ==  300) { $bha = 3.7; }
+		elsif ($LADCP{BEAM_FREQUENCY} ==  150) { $bha = 6.7; }
+		elsif ($LADCP{BEAM_FREQUENCY} ==   75) { $bha = 8.4; }
+		else { croak("$0: unexpected transducer frequency $LADCP{BEAM_FREQUENCY}\n"); }
+	}
+	
 	for (my($e)=$fe; $e<=$te; $e++) {
 		next unless numberp($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH});
-		my($range) = $LADCP{ENSEMBLE}[$e]->{XDUCER_FACING_UP}
-				   ? $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}
-				   : $wd - $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH};
-		my($sscorr) = $CTD{SVEL}[$LADCP{ENSEMBLE}[$e]->{CTD_SCAN}] / 1500;
-		my($goodBins) =   ($range - $sscorr*$LADCP{DISTANCE_TO_BIN1_CENTER}) * cos(rad($LADCP{BEAM_ANGLE}))
-						/ ($sscorr*$LADCP{BIN_LENGTH})
-						- 1.5;
+		next unless ($e > 0);
+		
+		my($delta_t)   = $LADCP{ENSEMBLE}[$e]->{UNIX_TIME} - $LADCP{ENSEMBLE}[$e-1]->{UNIX_TIME};
+		my($dz_max)    = $DASSprof[int($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH})]*$delta_t / 2;
+		my($beam_tilt) = max(abs($LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH}),
+							 abs($LADCP{ENSEMBLE}[$e]->{ROLL}));
+		my($dz_min)    = $dz_max * cos(rad($LADCP{BEAM_ANGLE} + $beam_tilt + $bha));
+		my(@bd) = calc_binDepths($e);
+
+		$dz_max *= $PPI_extend_upper_limit
+			if numberp($PPI_extend_upper_limit);
 
 		my($dirty) = 0;
-		for (my($bin)=int($goodBins); $bin<$LADCP{N_BINS}; $bin++) { 	# NB: 2 good bins implies that bin 2 is bad
-			next unless ($bin>=0 && defined($LADCP{ENSEMBLE}[$e]->{W}[$bin]));
+		for (my($bin)=$LADCP_firstBin-1; $bin<$LADCP_lastBin; $bin++) {
+			next unless (defined($LADCP{ENSEMBLE}[$e]->{W}[$bin]));
+			if (defined($wd)) {															# DL
+				next unless ($bd[$bin] >= $wd-$dz_max && $bd[$bin] <= $wd-$dz_min);
+			} else {																	# UL
+				next unless ($bd[$bin] <= $dz_max && $bd[$bin] >= $dz_min);
+			}
 			$dirty = 1;
 			$nvrm++;
 			undef($LADCP{ENSEMBLE}[$e]->{W}[$bin]);
@@ -312,6 +387,8 @@ sub editPPI($$$)
 	}
 	return ($nvrm,$nerm);
 }
+
+} # static scope for $bha
 
 
 #======================================================================

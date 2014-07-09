@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Thu Sep  5 22:46:45 2013
+#                    dlm: Wed May 21 12:59:09 2014
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 37 55 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 233 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -23,7 +23,6 @@
 #	Oct 27, 2011: - modified ProcessingParam file loading
 #				  - added ${pitch,roll,heading}_bias
 #	Oct 11, 2012: - added .TL output to defaults
-#--- hg commit
 #	Oct 15, 2012: - removed support for TLhist
 #	Apr 22, 2013: - removed option variable aliases
 #	May 14, 2013: - opt_m => w_max_lim
@@ -35,6 +34,8 @@
 #	Jun  5, 2013: - made ProcessingParams (without .profiles) default file
 #	Sep  5, 2013: - also allow ProcessingParams.default
 #				  - added LWplot_spec to default output
+#	May 20, 2014: - added support for $PPI_editing
+#	May 21, 2014: - added $PPI_extend_upper_limit
 
 # Variable Names:
 #	- variables that are only used in a particular library are
@@ -212,6 +213,23 @@ $per_bin_valid_frac_lim = 0.15;
 # Inspired by 2011_IWISE station 8
 
 $surface_layer_depth = 25;
+
+
+# PPI editing as described in [edit_data.pl]
+#	- enabled by default for WH150 data
+#	- 2014 CLIVAR P16 #47 has a slight discontinuity at 4000m; this
+#	  discontinuity is there without PPI filtering but gets slightly
+#	  worse with PPI filtering. Setting $PPI_extend_upper_limit to 
+#	  1.03-1.05 partially removes the discontinuity but the profile
+#	  never gets better than the profile wihtout PPI editing. Note
+#	  the only reason why the upper PPI should be extended is if the
+#	  recorded ping intervals are inaccurate as the upper limit is
+#	  set by the shortest acoustic path between the ADCP and the 
+#	  seabed.
+
+$PPI_editing = ($LADCP{BEAM_FREQUENCY} < 300);
+
+#$PPI_extend_upper_limit = 1.03;		# arbitrarily increase calculated max dist from seabed by 3%
 
 #======================================================================
 # Time Lagging
