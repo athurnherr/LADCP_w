@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Wed May 21 12:59:09 2014
+#                    dlm: Wed Oct 15 23:21:48 2014
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 233 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 39 68 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -36,6 +36,7 @@
 #				  - added LWplot_spec to default output
 #	May 20, 2014: - added support for $PPI_editing
 #	May 21, 2014: - added $PPI_extend_upper_limit
+#	Oct 15, 2014: - investigated, modified and documented -t default
 
 # Variable Names:
 #	- variables that are only used in a particular library are
@@ -164,9 +165,24 @@ $out_TL 	= "| LWplot_TL $plot_subdir/${out_basename}_TL.eps" .
 &antsFloatOpt(\$opt_c,70);
 
 
-# max tilt (pitch/roll)
+# max tilt (pitch/roll) 
+# 
+# The default value was established with IWISE profiles 004, 005, 045
+# and 049, which all show considerabe tilt-related discrepancies between
+# the corresponding 2-beam solutions. The first and second pair of
+# profiles were collected with 8 and 6m bins, respectively, without
+# bin re-mapping. The original default of 15 degrees led to large
+# beam-pair differences. Based on diagnostic plots it appears that
+# only tilt angles smaller than 9 degrees or so are satisfactory. 
+# In case of the IWISE data set, such a tight constraint causes
+# too many data gaps. The compromise of 12 degrees seems to work
+# quite well, based on the p0 vs epsilon correlation across 5
+# data sets.
+#
+# NB: if this default is changed, the usage message in [LADCP_w]
+#	  needs to be updated as well.
 
-&antsFloatOpt(\$opt_t,15);
+&antsFloatOpt(\$opt_t,12);
 
 
 # max err vel

@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Wed May 21 08:50:29 2014
+#                    dlm: Wed Oct 15 23:22:34 2014
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 680 96 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 232 46 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -141,6 +141,10 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	May 19, 2014: - began adding support for PPI filtering
 #	May 20, 2014: - changed volume_scattering_coeff to Sv in output
 #				  - added editPPI()
+#	Oct 15, 2014: - BUG [*_prof.eps]: w12 & w34 had not respected -k
+#				  - BUG: soundspeed profile extrapolation code could bomb when seabed
+#						 is shallower than profile depth
+#				  - BUG: usage message had wrong -t default value
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -225,7 +229,7 @@ $antsParseHeader = 0;
 	'[-q)uick (no single-ping denoising)]',
     '[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]',
 	'[valid LADCP -b)ins <bin[2],bin[*]>',
-	'[-c)orrelation <min[70]>] [-t)ilt <max[10deg]> [-e)rr-vel <max[0.1m/s]>]',
+	'[-c)orrelation <min[70]>] [-t)ilt <max[12deg]> [-e)rr-vel <max[0.1m/s]>]',
 	'[-h water <depth>]',
 	'[max LADCP time-series -g)ap <length[60s]>]',
 	'[offset CTD -d)epth <by[0m]>]',
@@ -913,15 +917,17 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 
 		if ($PPI_editing) {
 			progress("Editing data to remove PPI from seabed...\n");
-			  progress("\tConstructing depth-average soundspeed profile...\n");
-			  my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
-			  my($sum) = $dz * $sVelProf[$#sVelProf];
-			  $DASSprof[$#sVelProf] = $sum/$dz;
-			  for (my($d)=$#sVelProf-1; $d>=0; $d--) {
-			  	$sum += $sVelProf[$d];
-			  	$dz++;
-				$DASSprof[$d] = $sum/$dz;
-			  }
+			progress("\tConstructing depth-average soundspeed profile...\n");
+			my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
+			if ($dz > 0) {
+				my($sum) = $dz * $sVelProf[$#sVelProf];
+				$DASSprof[$#sVelProf] = $sum/$dz;
+				for (my($d)=$#sVelProf-1; $d>=0; $d--) {
+					$sum += $sVelProf[$d];
+					$dz++;
+					$DASSprof[$d] = $sum/$dz;
+	            }
+			}
 			($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,$water_depth);
 	        progress("\t$nvrm velocities from $nerm ensembles removed\n");
 	    }
@@ -1368,14 +1374,19 @@ if (defined($out_profile)) {
 
 	for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
 		&antsOut(($bi+0.5)*$opt_o,					# nominal depth
+#			DOWNCAST
 				 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
 				 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W}[$bi]:nan,
 				 $DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
-				 $DNCAST{MEDIAN_W12}[$bi],$DNCAST{MEDIAN_W34}[$bi],
+				 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W12}[$bi]:nan,
+				 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W34}[$bi]:nan,
+#			UPCAST
 				 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],
 				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
 				 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
-				 $UPCAST{MEDIAN_W12}[$bi],$UPCAST{MEDIAN_W34}[$bi],
+				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W12}[$bi]:nan,
+				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W34}[$bi]:nan,
+#			COMBINED
 				 $DNCAST{MEAN_ELAPSED}[$bi]/2+$UPCAST{MEAN_ELAPSED}[$bi]/2,
 				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_k ?
 					($DNCAST{MEDIAN_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MEDIAN_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
