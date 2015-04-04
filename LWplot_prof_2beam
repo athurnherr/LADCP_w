@@ -2,14 +2,15 @@
 #======================================================================
 #					 L W P L O T _ P R O F _ 2 B E A M 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Thu Nov 21 10:22:15 2013
+#                    dlm: Mon Nov  3 22:01:45 2014
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 82 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 13 59 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	May 15, 2013: - created from [LWplot_prof]
 #	Oct 30, 2103: - got rid of non-portable echo -e
+#	Nov  3, 2014: - adapted to updated layout of .prof file
 
 # NOTES:
 #	- this version plots 2-beam solutions instead of final w
@@ -41,7 +42,7 @@ done
 set -- $fields
 [ "$1" = depth -a "$7" = dc_w12 -a "$8" = dc_w34 -a "$5" = dc_w.mad -a "$6" = dc_w.nsamp -a \
   "${14}" = uc_w12 -a "${15}" = uc_w34 -a "${12}" = uc_w.mad -a "${13}" = uc_w.nsamp -a \
-  "${20}" = BT_w  -a "${21}" = BT_w.mad -a "${22}" = BT_w.nsamp ] || {
+  "${16}" = BT_w  -a "${17}" = BT_w.mad -a "${18}" = BT_w.nsamp ] || {
 		echo "$0: file layout error" >&2
 		exit 1
 }
@@ -85,17 +86,17 @@ awk '{print $7, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,coral,6_2:0 >> "$eps
 awk '{print $8, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,coral,4_6:0 >> "$eps_file"
 awk '{print $14,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,SeaGreen,6_2:0 >> "$eps_file"
 awk '{print $15,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,SeaGreen,4_6:0 >> "$eps_file"
-awk '{print $20,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,black >> "$eps_file"
+awk '{print $16,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,black >> "$eps_file"
 	
 # MEAN ABSOLUTE DEVIATIONS (COMBINED SOLUTION)
 awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gcoral >> "$eps_file"
 awk '{print $12,$1,$11}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -GSeaGreen >> "$eps_file"
-awk '{print $21,$1,$20}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gblack >> "$eps_file"
+awk '{print $17,$1,$20}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gblack >> "$eps_file"
 
 # NUMBER OF SAMPLES (COMBINED SOLUTION)
 awk '{print  $6,$1, $4}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/coral >> "$eps_file"
 awk '{print $13,$1,$11}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/SeaGreen >> "$eps_file"
-awk '{print $22,$1,$20}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/black >> "$eps_file"
+awk '{print $18,$1,$20}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/black >> "$eps_file"
 
 # LABELS
 echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$eps_file"

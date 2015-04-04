@@ -1,0 +1,214 @@
+#!/usr/bin/perl
+#======================================================================
+#                    L A D C P _ V K E 
+#                    doc: Tue Oct 14 11:05:16 2014 
+#                    dlm: Fri Nov  7 13:54:06 2014
+#                    (c) 2012 A.M. Thurnherr
+#                    uE-Info: 33 15 NIL 0 0 72 2 2 4 NIL ofnI
+#======================================================================
+
+$antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
+$antsMinLibVersion = 6.0;
+
+# HISTORY:
+#	Oct 14, 2014: - created from [LADCPfs]
+#	Oct 15, 2014: - added parameterization output
+#	Oct 17, 2014: - changed parameterization constant $c to 0.021
+#	Nov  6, 2014: - restored from backup and adapted to ANTS V6.0
+#	Nov  7, 2014: - changed parameterization constant $c to 0.0215
+
+# NOTES:
+#	- requires power densities
+#	- output spectra (-s) have ADCP-related corrections applied unless -c is set
+
+($ANTSBIN) = ($0 =~ m{^(.*)/[^/]*$});
+($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
+require "$ANTSLIB/ants.pl";
+require "$ANTSLIB/libLADCP.pl";
+
+#----------------------------------------------------------------------
+# Usage
+#----------------------------------------------------------------------
+
+my($c) = 0.0215;
+
+&antsUsage('cne:r:s:',2,
+			'[suppress spectral -c)orrection] [tilt-correction -r)ange <max[0m]>]',
+			'[output -s)pectra <basename>]',
+			"[-e)ps-parameterization <scale[$c]>",
+			'<lambda.min> <lambda.max> [file...]');
+
+$lmin = &antsFloatArg();									# wavelength limits
+$lmax = &antsFloatArg();
+
+&antsFloatOpt(\$opt_e,$c);									# default parameterization
+
+$imin = 0;													# find frequency bin limits
+for ($nfreq=1; defined($P{"binpgrams::lambda.$nfreq"}); $nfreq++) {
+	$imin = $nfreq if ($imin==0 && $P{"binpgrams::lambda.$nfreq"}<=$lmax);
+	$imax = $nfreq if ($P{"binpgrams::lambda.$nfreq"} >= $lmin);
+}
+croak("$0: <lambda.min=$lmin> < min(lambda)")
+	unless defined($imax);
+
+$pg_fmin = fnr('pwrdens.0');								# first power field in spectra
+$fs_fmin = $pg_fmin + $imin;								# first power field in finescale range
+$fs_fmax = $pg_fmin + $imax;								# last power field in finescale range
+
+$mindf = fnr('depth.min');
+$maxdf = fnr('depth.max');
+
+#----------------------------------------------------------------------
+# Calculate Finescale Quantities (depending on input quantity)
+#----------------------------------------------------------------------
+
+sub integrate_fs_power($)																# integrate fs spectrum (always done)
+{
+	my($r) = @_;
+	
+	$ants_[$r][$fspwrf] = 0;
+	for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
+		$ants_[$r][$fspwrf] += $ants_[0][$f];
+	}
+	$ants_[$r][$fspwrf] *= $P{'binpgrams::resolution_bandwidth'};
+}
+
+
+sub fit_universal_w_spec($)																# vertical velocity => p0
+{
+	my($r) = @_;
+	my($nsamp) = $fs_fmax - $fs_fmin + 1;
+
+	#---------------------------------------------------
+	# fit slope-2 line in log-log space (main estimator)
+	#---------------------------------------------------
+
+	if ($nsamp >= 2) {																	# require min 2 wavenumber samples
+
+		my($sumd,$sumx,$sumy) = (0,0,0);
+		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {										# loop over wavenumbers
+			my($i) = $f - $pg_fmin;
+			$sumd += log10($ants_[$r][$f]) + 2*log10($P{"binpgrams::k.$i"});
+			$sumx += log10($P{"binpgrams::k.$i"});
+			$sumy += log10($ants_[$r][$f]);
+		}
+		my($p0) = $sumd/$nsamp;
+		$ants_[$r][$p0f] = 10**$p0;
+
+		my($avgx) = $sumx/$nsamp;													# avg for r calc
+		my($avgy) = $sumy/$nsamp;
+
+		my($sumsq,$sxx,$syy,$sxy) = (0,0,0,0);										# calc rms misfit & correlation coeff
+		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {								
+			my($i) = $f - $pg_fmin;
+			my($xt) = log10($P{"binpgrams::k.$i"}) - $avgx;
+            my($yt) = log10($ants_[$r][$f]) - $avgy;
+			$sumsq += ($p0 - 2*log10($P{"binpgrams::k.$i"}) - log10($ants_[$r][$f]))**2;
+			$sxx += $xt * $xt; $syy += $yt * $yt; $sxy += $xt * $yt;
+        }
+        $ants_[$r][$rmsf] = sqrt($sumsq/$nsamp);
+        $ants_[$r][$rf] = $sxy/(sqrt($sxx * $syy) + $SMALL_AMOUNT);
+
+	} else {
+		&antsInfo("WARNING: no fit --- need min 2 samples");
+	}
+	$ants_[$r][$sampf] = $nsamp;
+}
+
+#----------------------------------------------------------------------
+# Process File
+#----------------------------------------------------------------------
+
+$fspwrf = &antsNewField('fs_pwr');							# derived fields
+
+if ($P{binpgrams::yfname} eq 'dc_w' ||						# w-finestructure parameterization
+	$P{binpgrams::yfname} eq 'uc_w') {
+	$p0f	 = &antsNewField('p0');
+	$rmsf	 = &antsNewField('p0fit.rms');
+	$sampf	 = &antsNewField('p0fit.nsamp');
+	$rf      = &antsNewField('p0fit.r');
+	$wepsf   = &antsNewField('eps.w');
+}
+
+my(@outLayout) = @antsNewLayout;							# save for later
+for ($f=0; $f<@outLayout; $f++) {							# determine last spectral field in input
+	$totf = $f if ($outLayout[$f] eq 'pwr.tot');
+	$tnsf = $f if ($outLayout[$f] eq 'pwr.tot.nsamp');
+}
+croak("$0: cannot find fields 'pwr.tot' or 'pwr.tot.nsamp' in input\n")
+	unless defined($totf) || defined($tnsf);
+$lsf = defined($tnsf) ? $tnsf : $totf;	
+
+&antsInstallBufFull(0);										# load entire file
+&antsIn();
+my($Hbuf) = $antsOldHeaders;								# save for later
+
+for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
+
+	#--------------------------
+	# apply spectral correction
+	#--------------------------
+
+	unless ($opt_c) {
+		for (my($i)=0; $i<$nfreq; $i++) {										# loop over wavenumbers
+			if ($P{binpgrams::yfname} eq 'dc_w' ||	 							# vertical velocity
+				$P{binpgrams::yfname} eq 'uc_w') {
+				$ants_[$r][$i+$pg_fmin] *= T_w($P{"binpgrams::k.$i"},$P{ADCP_bin_length},$P{binpgrams::depth_resolution},$opt_r);
+			} elsif ($P{binpgrams::yfname} eq 'dc_w_depth'||	 				# dw/dz
+					 $P{binpgrams::yfname} eq 'uc_w_depth') {
+				$ants_[$r][$i+$pg_fmin] *= T_w_z($P{"binpgrams::k.$i"},$P{ADCP_bin_length},$P{binpgrams::depth_resolution},$opt_r);
+			} else {
+				croak("$0: cannot calculate finescale $P{'binpgrams::yfname'} spectra (implementation restriction)\n");
+			}
+	    }
+	}
+
+	#------------------------
+	# calculate fs quantities
+	#------------------------
+
+	integrate_fs_power($r);														# always integrate spectra
+	fit_universal_w_spec($r)
+		if (($P{binpgrams::yfname} eq 'dc_w') || ($P{binpgrams::yfname} eq 'uc_w'));
+	$ants_[$r][$wepsf] = ($ants_[$r][$p0f] / $opt_e)**2;
+	
+	#---------------
+	# produce output
+	#---------------
+
+	if (defined($opt_s)) {														# output individual spectra
+		open(STDOUT_DUP,">&",STDOUT) || croak("$0: cannot dup STDOUT\n");
+		@antsNewLayout = ('k','lambda','pwrdens','finescale','pwrdens_fit');
+		$ofname = sprintf("${opt_s}_%02d.wspec",$r+1);
+		open(STDOUT,">$ofname") || croak("$ofname: $!\n");
+		undef($antsOldHeaders);
+		&antsActivateOut();
+
+		my($saveParams) = $antsCurParams;										# add all extra input fields as %PARAMs
+		&antsAddParams('binpgrams::depth.min',$ants_[$r][$mindf],
+					   'binpgrams::depth.max',$ants_[$r][$maxdf]);
+		for (my($f)=$lsf+1; $f<@outLayout; $f++) {
+			&antsAddParams($outLayout[$f],$ants_[$r][$f]);
+        }
+					   
+		for (my($f)=$pg_fmin; $f<$pg_fmin+$nfreq; $f++) {
+			my($k) = eval(sprintf('$P{"binpgrams::k.%d"}',$f-$pg_fmin));
+			my($l) = eval(sprintf('$P{"binpgrams::lambda.%d"}',$f-$pg_fmin));
+			&antsOut($k,$l,$ants_[$r][$f],
+					 ($f>=$fs_fmin && $f<=$fs_fmax),
+					 numberp($ants_[$r][$p0f]) ? $ants_[$r][$p0f] * $k**(-2) : nan);
+	    }
+
+		&antsOut('EOF'); 
+		open(STDOUT,">&",STDOUT_DUP) || croak("$0: cannot restore STDOUT\n");
+		close(STDOUT_DUP);
+		$antsCurParams = $saveParams;
+	}
+}
+
+@antsNewLayout = @outLayout;
+$antsOldHeaders = $Hbuf;
+$antsHeadersPrinted = 0;
+
+&antsFlush();																	# output record with results
+&antsExit();

@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Wed Oct 15 23:22:34 2014
+#                    dlm: Thu Mar 26 15:57:53 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 232 46 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 988 33 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -18,6 +18,7 @@
 #	? use instrument tilt in sidelobe editing?
 
 $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
+$antsMinLibVersion = 6.0;
 
 # HISTORY:
 #	Dec 17, 2010: - created from [mergeCTD+LADCP]
@@ -145,14 +146,28 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - BUG: soundspeed profile extrapolation code could bomb when seabed
 #						 is shallower than profile depth
 #				  - BUG: usage message had wrong -t default value
+#	Oct 27, 2014: - removed dc/uc averaged w from profile output
+#	Oct 30, 2014: - adapted to V6.0
+#	Oct 31, 2014: - BUG: wrong -v default in usage message
+#				  - cosmetics
+#	Nov  3, 2014: - removed unnecessary var @ARGS
+#				  - renamed CTD sound speed var to sspd
+#	Nov  4, 2014: - BUG: PPI filtering was enabled by default for 300kHz instruments
+#				  - BUG: non-existing bottom was used to do sidelobe filtering
+#	Nov  6, 2014: - added number of bins to diagnostic output
+#	Nov  7, 2014: - added consistency check to make sure sound-speed profiles is complete
+#				  - BUG: soundspeed extrapolation to surface was not executed
+#	Mar 19, 2015: - added %start_time from CTD params
+#	Mar 26, 2015: - BUG: debug die() statement left in place
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
 #	- depth
-#	- ss			sound speed
+#	- sspd			sound speed
 #	- w				ddepth/dt
 #	- temp			OPTIONAL; used for backscatter calculation (i.e. not very important)
 #	- %lat/%lon		OPTIONAL
+#	- %start_time	OPTIONAL
 
 # 2-BEAM SOLUTIONS
 #	- for beam-coordinate data, two separate two-beam solutions (w12 & w34) are calculated
@@ -161,7 +176,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 
 # NUMERICAL OPTIONS
 #	- the first option in the list cannot be numerical!
-#	- if need be, use -v 1 as a dummy option
+#	- if need be, use -v 2 as a dummy option
 
 # ELAPSED TIMES
 #	- there are 2 different elapsed times used in this program:
@@ -221,11 +236,9 @@ my($TINY) = 1e-16;
 # Usage
 #------
 
-@ARGS = @ARGV;														# save opts & arguments
-
 $antsParseHeader = 0;
 &antsUsage('3:4a:b:c:e:g:h:i:k:m:n:o:p:qs:t:uv:w:x:',1,
-	'[-v)erbosity <level[1]>]',
+	'[-v)erbosity <level[2]>]',
 	'[-q)uick (no single-ping denoising)]',
     '[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]',
 	'[valid LADCP -b)ins <bin[2],bin[*]>',
@@ -239,7 +252,7 @@ $antsParseHeader = 0;
 	'[pressure-sensor -a)cceleration correction <residual/CTD_w_tt>]',
 	'[-o)utput bin <resolution[10m]>] [-k) require <min[20]> samples]',
 	'[e-x)ecute <perl-expr>]',
-	'<station-id> [run-label]');
+	'<profile id> [run-label]');
 
 &antsUsageError() if ($opt_u && !defined($opt_i));
 
@@ -341,7 +354,7 @@ sub debugmsg(@)
 
 progress("Reading LADCP data from <$LADCP_file>...\n");
 readData($LADCP_file,\%LADCP);
-progress("\t%d ensembles\n",scalar(@{$LADCP{ENSEMBLE}}));
+progress("\t%d ensembles with %d bins each\n",scalar(@{$LADCP{ENSEMBLE}}),$LADCP{N_BINS});
 
 croak("$LADCP_file: not enough LADCP bins ($LADCP{N_BINS}) for choice of -r\n")
 	unless ($LADCP{N_BINS} >= $refLr_lastBin);
@@ -616,10 +629,15 @@ progress("Reading CTD data from <$CTD_file>...\n");
 open(STDIN,$CTD_file) || croak("$CTD_file: $!\n");
 croak("$CTD_file: no data\n") unless (&antsIn());
 undef($antsOldHeaders);
-($CTD_elapsed,$CTD_depth,$CTD_svel,$CTD_w) = &fnr('elapsed','depth','ss','w');
+
+($CTD_elapsed,$CTD_depth,$CTD_w) = &fnr('elapsed','depth','w');				# required fields
+$CTD_svel = &fnrNoErr('sspd');												# optional fields
+$CTD_svel = &fnr('ss') unless defined($CTD_svel);							# backward compatibility
 $CTD_temp = &fnrNoErr('temp');
-&antsAddParams('lat',$P{lat}) if defined($P{lat});
+
+&antsAddParams('lat',$P{lat}) if defined($P{lat});							# optional %PARAMs
 &antsAddParams('lon',$P{lon}) if defined($P{lon});
+&antsAddParams('start_time',$P{start_time}) if defined($P{start_time});
 
 $CTD_maxdepth = -1;
 
@@ -674,7 +692,7 @@ my($scans_per_sec) = int(1/$CTD{DT}+0.5);
 my($min_depth) = 9e99;
 for (my($s)=0; $s<=$CTD_atbottom; $s+=$scans_per_sec) {
 	next unless ($CTD{DEPTH}[$s] >= 0 && numberp($CTD{SVEL}[$s]));
-	$min_depth = $s if ($s < $min_depth);
+	$min_depth = $CTD{DEPTH}[$s] if ($CTD{DEPTH}[$s] < $min_depth);
 	$sVelProf[int($CTD{DEPTH}[$s])] = $CTD{SVEL}[$s];
 }
 while ($min_depth > 0) {													# fill surface gap
@@ -685,8 +703,15 @@ for (my($d)=$min_depth+1; $d<=$#sVelProf; $d++) {							# fill interior gaps
 	$sVelProf[$d] = $sVelProf[$d-1]
 		unless defined($sVelProf[$d]);
 }
-	
 
+if (abs($#sVelProf - $CTD_maxdepth) > 10) {
+	croak(sprintf("$0: max CTD depth = %d m, bottom of sound-speed profile = %d m\n",
+		$CTD_maxdepth,$#sVelProf));
+} elsif (abs($#sVelProf - $CTD_maxdepth) > 1) {
+	warning(2,sprintf("max CTD depth = %d m, bottom of sound-speed profile = %d m",
+		$CTD_maxdepth,$#sVelProf));
+}
+	
 #-------------------
 # Determine time lag
 #-------------------
@@ -896,6 +921,8 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 			my($dd) = abs($water_depth_BT - $water_depth);
 			warning(2,sprintf("Large RDI vs. own water-depth difference (%.1fm)\n",$dd))
 				if ($dd > 5);
+		} else {
+			$water_depth = $sig_water_depth = undef;
 		}
 	}
 	
@@ -915,7 +942,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 		($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,$water_depth);
 		progress("\t$nvrm velocities from $nerm ensembles removed\n");
 
-		if ($PPI_editing) {
+		if (eval($PPI_editing_required)) {
 			progress("Editing data to remove PPI from seabed...\n");
 			progress("\tConstructing depth-average soundspeed profile...\n");
 			my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
@@ -958,7 +985,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 #----------------------------------------------------------------------
 # Data Editing after LADCP and CTD data have been merged
 #	1) surface layer editing
-#	2) user-supplied $edit_data_hook
+#	2) user-supplied $post_merge_hook
 #----------------------------------------------------------------------
 
 progress("Removing data from instrument at surface...\n");
@@ -1279,6 +1306,7 @@ if (defined($water_depth)) {
 
 if (defined($out_w)) {
 	progress("Writing vertical-velocity data to $out_w...\n");
+	@k = keys(%P);
 
 	@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
 					  'w','w12','w34','residual','CTD_w','CTD_w_tt','LADCP_w','errvel',
@@ -1367,36 +1395,27 @@ if (defined($out_profile)) {
 
 	@antsNewLayout = ('depth','dc_depth','dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp','dc_w12','dc_w34',
 							  'uc_depth','uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp','uc_w12','uc_w34',
-							  'elapsed','w','w.mad','w.nsamp',
-	                          'BT_w','BT_w.mad','BT_w.nsamp');
+							  'BT_w','BT_w.mad','BT_w.nsamp');
 
 	open(STDOUT,"$out_profile") || croak("$out_profile: $!\n");
 
 	for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
-		&antsOut(($bi+0.5)*$opt_o,					# nominal depth
-#			DOWNCAST
-				 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
-				 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W}[$bi]:nan,
-				 $DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
-				 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W12}[$bi]:nan,
-				 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W34}[$bi]:nan,
-#			UPCAST
-				 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],
-				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
-				 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
-				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W12}[$bi]:nan,
-				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W34}[$bi]:nan,
-#			COMBINED
-				 $DNCAST{MEAN_ELAPSED}[$bi]/2+$UPCAST{MEAN_ELAPSED}[$bi]/2,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_k ?
-					($DNCAST{MEDIAN_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MEDIAN_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
-					nan,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_k ?
-					 ($DNCAST{MAD_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MAD_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
-					 nan,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi],
-				 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,
-				 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
+			&antsOut(($bi+0.5)*$opt_o,					# nominal depth
+#		DOWNCAST
+			$DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
+			$DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W}[$bi]:nan,
+			$DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
+			$DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W12}[$bi]:nan,
+			$DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W34}[$bi]:nan,
+#		UPCAST
+			$UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],
+			$UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
+			$UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
+			$UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W12}[$bi]:nan,
+			$UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W34}[$bi]:nan,
+#		BOTTOM TRACK
+			$BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,
+			$BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
 		);
 	}
 	&antsOut('EOF'); open(STDOUT,">&2");

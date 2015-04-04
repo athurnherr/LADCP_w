@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Wed Oct 15 23:21:48 2014
+#                    dlm: Tue Nov  4 10:35:07 2014
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 39 68 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 44 63 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -37,26 +37,15 @@
 #	May 20, 2014: - added support for $PPI_editing
 #	May 21, 2014: - added $PPI_extend_upper_limit
 #	Oct 15, 2014: - investigated, modified and documented -t default
-
-# Variable Names:
-#	- variables that are only used in a particular library are
-#	  prefixed with a 2-caps code
+#	Oct 27, 2014: - removed CTD-acceleration-effects and w spectral plots
+#				  - removed time-lagging stats output file by default
+#	Oct 31, 2014: - re-arranged order of things
+#				  - .w => .samp output
+#	Nov  4, 2014: - BUG: PPI_editing did not work as advertised
 
 #======================================================================
 # Data Input 
 #======================================================================
-
-# File to load cruise/cast-specific processing parameters from
-
-if (-r "ProcessingParams.$RUN") {
-	$processing_param_file = "ProcessingParams.$RUN";
-} elsif (-r "ProcessingParams.default") {
-	$processing_param_file = "ProcessingParams.default";
-} elsif (-r "ProcessingParams") {
-	$processing_param_file = "ProcessingParams";
-} else {
-	croak("$0: cannot find either <ProcessingParams.$RUN> or <ProcessingParams[.default]>\n");
-}
 
 # CTD depth adjustment
 #	- set with -d (-a up to 2013/05/16)
@@ -115,46 +104,6 @@ $out_basename = sprintf('%03d',$STN);
 croak("$RUN: no such directory\n") unless (-d $RUN);
 $data_subdir = $plot_subdir = $log_subdir = $RUN;
 
-
-# main w output and all its plots:
-#	_w.eps			vertical velocities
-#	_residuals.eps	residual vertical velocities
-#	_Sv.eps			volume scattering coefficient after Deimes (1999)
-#	_corr.eps		correlation [DISABLED 2013/05/16]
-
-$out_w = "| LWplot_residuals $plot_subdir/${out_basename}_residuals.eps" .
-		 "| LWplot_Sv $plot_subdir/${out_basename}_Sv.eps" .
-#		 "| LWplot_corr $plot_subdir/${out_basename}_corr.eps" .
-		 "| LWplot_w $plot_subdir/${out_basename}_w.eps" .
-		 "> $data_subdir/$out_basename.w";
-
-
-# w profile output
-
-$out_profile = "| LWplot_prof_2beam $plot_subdir/${out_basename}_prof.eps" .
-			   "| LWplot_spec $plot_subdir/${out_basename}_spec.eps" .
-			   "> $data_subdir/$out_basename.prof";
-
-# log output
-
-$out_log = "$log_subdir/$out_basename.log";
-
-
-# time-series output (CTD acceleration effect)
-
-$out_timeseries = "| LWplot_CAE $plot_subdir/${out_basename}_CAE.eps" .
-				  "> $data_subdir/$out_basename.tis";
-
-
-# per-bin residual output (plot only)
-
-$out_BR		= "| LWplot_BR $plot_subdir/${out_basename}_BR.eps";
-
-
-# time-lagging output
-
-$out_TL 	= "| LWplot_TL $plot_subdir/${out_basename}_TL.eps" .
-			  "> $data_subdir/$out_basename.TL";
 
 #======================================================================
 # Data Editing
@@ -233,6 +182,8 @@ $surface_layer_depth = 25;
 
 # PPI editing as described in [edit_data.pl]
 #	- enabled by default for WH150 data
+#	- variable sets an expression, to be evaluated once the data 
+#	  have been loaded
 #	- 2014 CLIVAR P16 #47 has a slight discontinuity at 4000m; this
 #	  discontinuity is there without PPI filtering but gets slightly
 #	  worse with PPI filtering. Setting $PPI_extend_upper_limit to 
@@ -243,7 +194,7 @@ $surface_layer_depth = 25;
 #	  set by the shortest acoustic path between the ADCP and the 
 #	  seabed.
 
-$PPI_editing = ($LADCP{BEAM_FREQUENCY} < 300);
+$PPI_editing_required = '($LADCP{BEAM_FREQUENCY} < 300)';
 
 #$PPI_extend_upper_limit = 1.03;		# arbitrarily increase calculated max dist from seabed by 3%
 
@@ -337,5 +288,84 @@ $BT_max_bin_range_diff = 3;
 $BT_max_w_error = 0.03;
 
 #======================================================================
+# ProcessingParams file selection
+#======================================================================
+
+if (-r "ProcessingParams.$RUN") {
+	$processing_param_file = "ProcessingParams.$RUN";
+} elsif (-r "ProcessingParams.default") {
+	$processing_param_file = "ProcessingParams.default";
+} elsif (-r "ProcessingParams") {
+	$processing_param_file = "ProcessingParams";
+} else {
+	croak("$0: cannot find either <ProcessingParams.$RUN> or <ProcessingParams[.default]>\n");
+}
+
+#----------------------------------------------------------------------
+# Processing log (diagnostic messages) output
+#----------------------------------------------------------------------
+
+$out_log = "$log_subdir/$out_basename.log";
+
+
+#----------------------------------------------------------------------
+# Vertical-velocity profile output and plots:
+# Data:
+#	*.prof				vertical velocity profiles
+# Standard Plots:
+# 	*_prof.eps			vertical velocity profiles (main output plot)
+# Optional Plots:
+#	*_wspec.eps			vertical-velocity wavenumber spectra
+#----------------------------------------------------------------------
+
+$out_profile = "| LWplot_prof_2beam $plot_subdir/${out_basename}_prof.eps" .
+#			   "| LWplot_spec $plot_subdir/${out_basename}_spec.eps" .
+			   "> $data_subdir/$out_basename.prof";
+
+
+#----------------------------------------------------------------------
+# Vertical-velocity sample data output and plots:
+# Data:
+#	*.samp				w sample data
+# Standard Plots:
+#	*_w.eps				vertical velocity time-depth plot
+#	*_residuals.eps		residual vertical velocity time-depth plot
+#	*_Sv.eps			volume scattering coefficient time-depth plot
+# Optional Plots:
+#	*_corr.eps			correlation time-depth plot [REMOVED FROM DEFAULTS 2013/05/16]
+#----------------------------------------------------------------------
+
+$out_w = "| LWplot_residuals $plot_subdir/${out_basename}_residuals.eps" .
+		 "| LWplot_Sv $plot_subdir/${out_basename}_Sv.eps" .
+#		 "| LWplot_corr $plot_subdir/${out_basename}_corr.eps" .
+		 "| LWplot_w $plot_subdir/${out_basename}_w.eps" .
+		 "> $data_subdir/$out_basename.samp";
+
+
+#----------------------------------------------------------------------
+# Time-series output
+# Data:
+#	*.tis			combined CTD/LADCP time-series data, including 
+#					package- and LADCP reference layer w
+# Optional Plots:
+#	*_CAE.eps		plot of CTD acceleration effects on reference-layer w
+#----------------------------------------------------------------------
+
+$out_timeseries = 
+#				  "| LWplot_CAE $plot_subdir/${out_basename}_CAE.eps" .
+				  "> $data_subdir/$out_basename.tis";
+
+#----------------------------------------------------------------------
+# Per-bin vertical-velocity residuals (plot only)
+#----------------------------------------------------------------------
+
+$out_BR		= "| LWplot_BR $plot_subdir/${out_basename}_BR.eps";
+
+
+#----------------------------------------------------------------------
+# Time-lagging correlation statistics (plot only)
+#----------------------------------------------------------------------
+
+$out_TL 	= "| LWplot_TL $plot_subdir/${out_basename}_TL.eps";
 
 1;	# return true
