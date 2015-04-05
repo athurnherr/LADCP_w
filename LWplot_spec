@@ -2,15 +2,16 @@
 #======================================================================
 #					 L W P L O T _ S P E C 
 #                    doc: Thu Sep  5 18:23:41 2013
-#                    dlm: Thu Nov 21 10:23:46 2013
+#                    dlm: Sat Jul 12 12:33:13 2014
 #                    (c) 2013 A.M. Thurnherr
-#                    uE-Info: 121 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 14 80 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Sep  5, 2013: - created from LWplot_prof
 #   Oct 30, 2103: - got rid of non-portable echo -e
 #	Nov  6, 2013: - add interpolation of missing values
+#	Jul 12, 2013: - added a -N to pgram to make it work with partial-depth casts
 
 #--------------------------------------------------
 # Usage
@@ -72,7 +73,7 @@ X=-JX10l
 # 1 & 3MM/S ERROR LEVELS
 err=`awk '{print $4, $1}' $TMPFILE |
 	   fillgaps -Qi linear -f '$1' '$2' |
-	   pgram -S'$2>80' -b4 -d '$2' '$1' 2>/dev/null |
+	   pgram -N'$1' -S'$2>80' -b4 -d '$2' '$1' 2>/dev/null |
 	   list -Q =1e-6/%pgram_resolution_bandwidth`
 { echo 15 $err; echo 500 $err; } | psxy -P -X4 -K $R $X > "$eps_file"
 echo 500 $err 10 0 0 ML 1mm s@+-1@+ | pstext -O -K $R $X >> "$eps_file"
@@ -113,11 +114,11 @@ echo `abc $l1*0.99` `abc "$c1*sqrt(1e$eps)*$l1**2"` 10 0 0 MR 10@+$eps@+ |
 # SPECTRA
 awk '{print $4, $1}' $TMPFILE |
     fillgaps -Qi linear -f '$1' '$2' |
-	pgram -S'$2>80' -b4 -dQFT,pwrdens '$2' '$1' |
+	pgram -N'$1' -S'$2>80' -b4 -dQFT,pwrdens '$2' '$1' |
 	psxy -O -K -N -Mn $R $X -W8/coral >> "$eps_file"
 awk '{print $11,$1}' $TMPFILE |
     fillgaps -Qi linear -f '$1' '$2' |
-	pgram -S'$2>80' -b4 -dQFT,pwrdens '$2' '$1' |
+	pgram -N'$1' -S'$2>80' -b4 -dQFT,pwrdens '$2' '$1' |
 	psxy -O -K -N -Mn $R $X -W8/SeaGreen >> "$eps_file"
 
 # LABELS
