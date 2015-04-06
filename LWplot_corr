@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ C O R R 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Thu May 16 15:23:26 2013
+#                    dlm: Sun Apr  5 22:10:16 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 82 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 102 26 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 #   Apr 12, 2012: - made re-entrant
 #	May 16, 2013: - adapted to file layout change
+#	Apr  5, 2015: - made fixbb optional
 
 #--------------------------------------------------
 # Usage
@@ -98,7 +99,7 @@ cat `which LWplot_corr | sed 's@LWplot_corr$@corr_scale.skel@'` >> "$eps_file"
 psbasemap -O $R $X -B$ens_tics:"Ensemble":/$depth_tics:"Depth [m]":WeSn >> "$eps_file"
 
 rm $TMPFILE
-fixbb "$eps_file"
+[ -n "`which fixbb`" ] && fixbb "$eps_file"
 
 cd "$PWD"
 rm -rf /tmp/$$

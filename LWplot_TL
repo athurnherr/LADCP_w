@@ -2,9 +2,9 @@
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Thu Nov 21 10:20:38 2013
+#                    dlm: Sun Apr  5 22:10:06 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 97 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 105 26 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -20,6 +20,7 @@
 #	Oct 16, 2012: - renamed elapsed to elapsed.LADCP
 #	Mar 23, 2013: - adapted to piece-wice time lagging
 #   Oct 30, 2103: - got rid of non-portable echo -e
+#	Apr  5, 2015: - made fixbb optional
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
@@ -101,7 +102,7 @@ do
 done
 	
 rm $TMPFILE
-fixbb "$eps_file"
+[ -n "`which fixbb`" ] && fixbb "$eps_file"
 
 cd "$PWD"
 rm -rf /tmp/$$

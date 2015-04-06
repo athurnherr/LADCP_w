@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ S P E C 
 #                    doc: Thu Sep  5 18:23:41 2013
-#                    dlm: Sat Jul 12 12:33:13 2014
+#                    dlm: Sun Apr  5 22:10:53 2015
 #                    (c) 2013 A.M. Thurnherr
-#                    uE-Info: 14 80 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 131 26 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,6 +12,7 @@
 #   Oct 30, 2103: - got rid of non-portable echo -e
 #	Nov  6, 2013: - add interpolation of missing values
 #	Jul 12, 2013: - added a -N to pgram to make it work with partial-depth casts
+#	Apr  5, 2015: - made fixbb optional
 
 #--------------------------------------------------
 # Usage
@@ -127,7 +128,7 @@ echo 0.98 0.05 12 0 0 TR $out_basename $run_label | pstext -O -K $U -JX10/10 >> 
 psbasemap -O -K $R $X -Bf3a2:"Vertical Wavelength [m]":/f3a1:"w Power Density [m@+2@+s@+-2@+/(rad m@+-1@+)]":WeSn >> "$eps_file"
 
 rm $TMPFILE
-fixbb "$eps_file"
+[ -n "`which fixbb`" ] && fixbb "$eps_file"
 
 cd "$PWD"
 rm -rf /tmp/$$

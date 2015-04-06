@@ -2,15 +2,16 @@
 #======================================================================
 #					 L W P L O T _ P R O F _ 2 B E A M 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Mon Nov  3 22:01:45 2014
+#                    dlm: Sun Apr  5 22:10:38 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 13 59 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 123 26 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	May 15, 2013: - created from [LWplot_prof]
 #	Oct 30, 2103: - got rid of non-portable echo -e
 #	Nov  3, 2014: - adapted to updated layout of .prof file
+#	Apr  5, 2015: - made fixbb optional
 
 # NOTES:
 #	- this version plots 2-beam solutions instead of final w
@@ -119,7 +120,7 @@ psbasemap -O -K $R2 $X -Ba1000-900N >> "$eps_file"
 psbasemap -O $R2 $X -Ba1000-850N >> "$eps_file"
 		 
 rm $TMPFILE
-fixbb "$eps_file"
+[ -n "`which fixbb`" ] && fixbb "$eps_file"
 
 cd "$PWD"
 rm -rf /tmp/$$

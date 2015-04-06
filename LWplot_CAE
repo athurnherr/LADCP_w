@@ -2,9 +2,9 @@
 #======================================================================
 #                    L W P L O T _ C A E 
 #                    doc: Wed May 15 19:35:58 2013
-#                    dlm: Thu Nov 21 10:19:31 2013
+#                    dlm: Sun Apr  5 22:09:30 2015
 #                    (c) 2013 A.M. Thurnherr
-#                    uE-Info: 93 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 101 26 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,6 +12,7 @@
 #	May 16, 2013: - fiddled
 #	Oct 30, 2013: - BUG: debug statement had been left in code
 #   Oct 30, 2013: - got rid of non-portable echo -e
+#	Apr  5, 2015: - made fixbb optional
 
 #--------------------------------------------------
 # Usage
@@ -97,7 +98,7 @@ psbasemap -O -K $R $X -Bf0.1a1:"CTD d@+2@+z/dt@+2@+ [ms@+-3@+]":/f0.01a0.1:"refe
 psbasemap -O $R $X -B/a100-99W >> "$eps_file"
 
 rm $TMPFILE
-fixbb "$eps_file"
+[ -n "`which fixbb`" ] && fixbb "$eps_file"
 
 cd "$PWD"
 rm -rf /tmp/$$

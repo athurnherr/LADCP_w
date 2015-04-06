@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ B R 
 #                    doc: Mon Oct 17 10:57:12 2011
-#                    dlm: Wed Oct 30 00:37:51 2013
+#                    dlm: Sun Apr  5 22:08:49 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 16 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 16 39 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,7 @@
 #	Mar 12, 2012: - sh -> ksh as this does not work with /bin/sh on MacOSX 10.6.4
 #	Apr 12, 2012: - made re-entrant
 #   Oct 30, 2103: - got rid of non-portable echo -e
+#	Apr  5, 2015: - made fixbb optional
 
 #--------------------------------------------------
 # Usage
@@ -84,7 +85,7 @@ psbasemap -O -K $R $X -Bf0.005a0.05:"Residual Vertical Velocity [m/s]":/f1a5:"Bi
 psbasemap -O $R $X -B/a100-99W >> "$eps_file"
 
 rm $TMPFILE
-fixbb "$eps_file"
+[ -n "`which fixbb`" ] && fixbb "$eps_file"
 
 cd "$PWD"
 rm -rf /tmp/$$
