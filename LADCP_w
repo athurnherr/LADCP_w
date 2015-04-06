@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Sun Apr  5 18:23:27 2015
+#                    dlm: Sun Apr  5 22:34:45 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 151 53 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 152 69 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -149,6 +149,7 @@ $antsMinLibVersion = 6.0;
 #				  - BUG: code meant to ensure gap-freee svel profiles did not work correctly
 #	Jul 12, 2014: - finally made output files executable
 #	Apr  5, 2015: - added check for required software
+#				  - BUG: removed dc/uc mean w fields from .prof again
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -1385,7 +1386,6 @@ if (defined($out_profile)) {
 
 	@antsNewLayout = ('depth','dc_depth','dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp','dc_w12','dc_w34',
 							  'uc_depth','uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp','uc_w12','uc_w34',
-							  'elapsed','w','w.mad','w.nsamp',
 	                          'BT_w','BT_w.mad','BT_w.nsamp');
 
 	open(STDOUT,"$out_profile") || croak("$out_profile: $!\n");
@@ -1401,14 +1401,6 @@ if (defined($out_profile)) {
 				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
 				 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
 				 $UPCAST{MEDIAN_W12}[$bi],$UPCAST{MEDIAN_W34}[$bi],
-				 $DNCAST{MEAN_ELAPSED}[$bi]/2+$UPCAST{MEAN_ELAPSED}[$bi]/2,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_k ?
-					($DNCAST{MEDIAN_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MEDIAN_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
-					nan,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]>=$opt_k ?
-					 ($DNCAST{MAD_W}[$bi]*$DNCAST{N_SAMP}[$bi]+$UPCAST{MAD_W}[$bi]*$UPCAST{N_SAMP}[$bi]) / ($DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi]) :
-					 nan,
-				 $DNCAST{N_SAMP}[$bi]+$UPCAST{N_SAMP}[$bi],
 				 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,
 				 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
 		);
