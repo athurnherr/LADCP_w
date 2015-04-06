@@ -2,9 +2,9 @@
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Sun Apr  5 22:10:06 2015
+#                    dlm: Sun Apr  5 22:54:26 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 105 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 24 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -21,6 +21,7 @@
 #	Mar 23, 2013: - adapted to piece-wice time lagging
 #   Oct 30, 2103: - got rid of non-portable echo -e
 #	Apr  5, 2015: - made fixbb optional
+#				  - BUG: ps file had not been closed properly (fixbb took care of that)
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
@@ -79,8 +80,6 @@ awk '{if ($4 == 0) { print $1/60,$2; }}' $TMPFILE \
 	| psxy -O -K $J $R -Sc0.1 -GSeaGreen \
 	>> "$eps_file"		   
 	
-echo 0.02 0.98 12 0 0 TL $out_basename $run_label | pstext -O -K $U $J >> "$eps_file"
-
 fel=$min_elapsed			# from-elapsed limit
 set -- $best_scan_offsets
 while [ -n "$1" ]
@@ -101,6 +100,8 @@ do
 	set -- $best_scan_offsets
 done
 	
+echo 0.02 0.98 12 0 0 TL $out_basename $run_label | pstext -O $U $J >> "$eps_file"
+
 rm $TMPFILE
 [ -n "`which fixbb`" ] && fixbb "$eps_file"
 
