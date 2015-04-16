@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Sun Apr  5 22:34:45 2015
+#                    dlm: Tue Apr  7 23:45:46 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 152 69 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 155 64 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -150,6 +150,9 @@ $antsMinLibVersion = 6.0;
 #	Jul 12, 2014: - finally made output files executable
 #	Apr  5, 2015: - added check for required software
 #				  - BUG: removed dc/uc mean w fields from .prof again
+#	Apr  7, 2015: - made LADCP_w callable from installation directory
+#				  - BUG: -v default was wrong in usage message
+#				  - replaced 'ens' in output files by 'ensemble'
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -202,18 +205,19 @@ $antsMinLibVersion = 6.0;
 #	- even when the errors are not filtered with -m 1, they do not
 #	  affect the w profiles, as long as the median bin values are used
 
+($ANTS) 	  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
+($ADCP_TOOLS) = (`which mkProfile` =~ m{^(.*)/[^/]*$});
+($WCALC) 	  = ($0                =~ m{^(.*)/[^/]*$});
+$WCALC = '.' if ($WCALC eq '');
+
 die("$0: Korn shell (/bin/ksh) required but not found\n")
 	unless (-x '/bin/ksh');
 die("$0: Generic Mapping Tools (GMT) required but not found (bad \$PATH?)\n")
 	unless (`which psxy` ne '');
 die("$0: ANTSlib required but not found (bad \$PATH?)\n")
-	unless (`which ANTSlib` ne '');
+	unless ($ANTS ne '');
 die("$0: ADCP Tools required but not found (bad \$PATH?)\n")
-	unless (`which mkProfile` ne '');
-
-($WCALC) 	  = ($0                =~ m{^(.*)/[^/]*$});
-($ANTS) 	  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
-($PERL_TOOLS) = (`which mkProfile` =~ m{^(.*)/[^/]*$});
+	unless ($ADCP_TOOLS ne '');
 
 require "$ANTS/ants.pl";
 require "$ANTS/libstats.pl";
@@ -224,8 +228,8 @@ require "$WCALC/find_seabed.pl";
 require "$WCALC/svel_corrections.pl";
 require "$WCALC/acoustic_backscatter.pl";
 require "$WCALC/bottom_tracking.pl";
-require "$PERL_TOOLS/RDI_BB_Read.pl";
-require "$PERL_TOOLS/RDI_Coords.pl";
+require "$ADCP_TOOLS/RDI_BB_Read.pl";
+require "$ADCP_TOOLS/RDI_Coords.pl";
 
 use IO::Handle;
 
@@ -239,7 +243,7 @@ my($TINY) = 1e-16;
 
 $antsParseHeader = 0;
 &antsUsage('3:4a:b:c:e:g:h:i:k:m:n:o:p:qs:t:uv:w:x:',1,
-	'[-v)erbosity <level[1]>]',
+	'[-v)erbosity <level[2]>]',
 	'[-q)uick (no single-ping denoising)]',
     '[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]',
 	'[valid LADCP -b)ins <bin[2],bin[*]>',
@@ -584,7 +588,7 @@ progress("\tMean ping interval: %.1f seconds\n",$LADCP{MEAN_DT});
 if (defined($out_LADCPtis)) {
 	progress("Writing LADCP-timeseries to <$out_LADCPtis>...\n");
 
-	@antsNewLayout = ('ens','elapsed','reflr_w','reflr_w.stddev','reflr_w.nsamp','depth');
+	@antsNewLayout = ('ensemble','elapsed','reflr_w','reflr_w.stddev','reflr_w.nsamp','depth');
 	open(STDOUT,"$out_LADCPtis") || croak("$out_LADCPtis: $!\n");
     chmod(0777&~umask,*STDOUT);
 	for (my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
@@ -1415,7 +1419,7 @@ if (defined($out_profile)) {
 if (defined($out_timeseries)) {
 	progress("Writing time-series data to <$out_timeseries>...\n");
 
-	@antsNewLayout = ('ens','elapsed','downcast',
+	@antsNewLayout = ('ensemble','elapsed','downcast',
 					  'depth','xducer_sound_speed','pitch','gimbal_pitch','roll','tilt','heading',
 					  'CTD_w','CTD_w_tt','LADCP_reflr_w','LADCP_reflr_w.sig',
 					  'reflr_ocean_w');

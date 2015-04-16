@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Tue Nov  4 10:35:07 2014
+#                    dlm: Tue Apr  7 19:27:36 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 44 63 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 58 21 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -54,7 +54,8 @@
 
 &antsFloatOpt(\$opt_d,0);
 
-# suppress 3-beam LADCP solutions
+
+# set $opt_4 to 1 to suppress 3-beam LADCP solutions
 
 #$opt_4 = 1;
 
