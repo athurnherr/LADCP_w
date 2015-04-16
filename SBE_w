@@ -2,9 +2,9 @@
 #======================================================================
 #                    S B E _ W 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Fri Nov  7 15:52:27 2014
+#                    dlm: Thu Apr 16 10:29:18 2015
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 22 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 24 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -20,8 +20,10 @@ $antsMinLibVersion = 6.0;
 #				  - added no-valid-data error message
 #				  - modified binning criterion to allow any sampling
 #					frequency (not just divisors of 24)
+#	Apr 16, 2015: - disabled output activation unless ANTS tools are available
 
 ($ANTS) = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
+$ANTS_TOOLS_AVAILABLE = (`which list` ne '');
 
 require "$ANTS/ants.pl";
 require "$ANTS/fft.pl";
@@ -43,7 +45,8 @@ $antsParseHeader = 0;											# usage
 
 $CNVfile = $ARGV[0];											# open CNV file
 open(F,&antsFileArg());
-&antsActivateOut();												# activate ANTS file
+&antsActivateOut()												# activate ANTS file
+	if ($ANTS_TOOLS_AVAILABLE);
 
 #----------------------------------------------------------------------
 # Read Data

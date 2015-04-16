@@ -2,9 +2,9 @@
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Sun Apr  5 22:54:26 2015
+#                    dlm: Thu Apr 16 08:09:32 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 24 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 57 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -22,6 +22,7 @@
 #   Oct 30, 2103: - got rid of non-portable echo -e
 #	Apr  5, 2015: - made fixbb optional
 #				  - BUG: ps file had not been closed properly (fixbb took care of that)
+#   Apr 16, 2015: - removed copy of input on stdout
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"
@@ -31,7 +32,6 @@ eps_file="$1"
 while [ -z "$fields" ]
 do
 	read line
-    [ ! -t 1 ] && echo "$line"
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_elapsed" ] && min_elapsed=`expr -- "$line" : '#ANTS#PARAMS#.*elapsed.min{\([^}]*\)}`
@@ -53,12 +53,7 @@ mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
 cd /tmp/$$
 
 TMPFILE=/tmp/$$.LWplot_TL
-if [ ! -t 1 ]
-then
-	tee $TMPFILE
-else
-	cat > $TMPFILE
-fi
+cat > $TMPFILE
 
 [ -f .gmtdefaults4 ] ||
 	gmtset	PAPER_MEDIA letter+ \

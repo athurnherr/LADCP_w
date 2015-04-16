@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ B R 
 #                    doc: Mon Oct 17 10:57:12 2011
-#                    dlm: Sun Apr  5 22:08:49 2015
+#                    dlm: Thu Apr 16 08:08:23 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 16 39 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 17 51 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #	Apr 12, 2012: - made re-entrant
 #   Oct 30, 2103: - got rid of non-portable echo -e
 #	Apr  5, 2015: - made fixbb optional
+#	Apr 16, 2015: - removed copy of input on stdout
 
 #--------------------------------------------------
 # Usage
@@ -31,7 +32,6 @@ eps_file="$1"
 while [ -z "$fields" ]
 do
 	read line
-    [ ! -t 1 ] && echo "$line"
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$max_bin" ] && max_bin=`expr -- "$line" : '#ANTS#PARAMS#.*max_bin{\([^}]*\)}`
@@ -55,12 +55,7 @@ mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
 cd /tmp/$$
 
 TMPFILE=/tmp/$$.LWplot_BR
-if [ ! -t 1 ]
-then
-	tee $TMPFILE
-else
-	cat > $TMPFILE
-fi
+cat > $TMPFILE
 
 [ -f .gmtdefaults4 ] ||
 	gmtset	PAPER_MEDIA letter+ \

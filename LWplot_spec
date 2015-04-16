@@ -2,10 +2,12 @@
 #======================================================================
 #					 L W P L O T _ S P E C 
 #                    doc: Thu Sep  5 18:23:41 2013
-#                    dlm: Sun Apr  5 22:10:53 2015
+#                    dlm: Thu Apr 16 08:12:02 2015
 #                    (c) 2013 A.M. Thurnherr
-#                    uE-Info: 131 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 10 58 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
+
+# NB: THIS PLOTTING ROUTINE REQUIRES NON-PUBLIC ANTS TOOLS
 
 # HISTORY:
 #	Sep  5, 2013: - created from LWplot_prof
@@ -13,6 +15,7 @@
 #	Nov  6, 2013: - add interpolation of missing values
 #	Jul 12, 2013: - added a -N to pgram to make it work with partial-depth casts
 #	Apr  5, 2015: - made fixbb optional
+#   Apr 16, 2015: - removed copy of input on stdout
 
 #--------------------------------------------------
 # Usage
@@ -30,7 +33,6 @@ eps_file="$1"
 while [ -z "$fields" ]
 do
 	read line
-    [ ! -t 1 ] && echo "$line"
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
@@ -54,12 +56,7 @@ mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
 cd /tmp/$$
 
 TMPFILE=/tmp/$$.LWplot_spec
-if [ ! -t 1 ]
-then
-	tee $TMPFILE
-else
-	cat > $TMPFILE
-fi
+cat > $TMPFILE
 
 [ -f .gmtdefaults4 ] ||
 	gmtset	PAPER_MEDIA letter+ \

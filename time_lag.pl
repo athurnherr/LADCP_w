@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Thu Apr 16 08:35:37 2015
+#                    dlm: Thu Apr 16 10:25:37 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 286 27 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 63 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -54,6 +54,8 @@
 #	May 23, 2014: - BUG: $s range check required in mad_w()
 #   Apr 16, 2015: - turned output specifies into lists (re-design of
 #                   plotting sub-system)
+#				  - BUG: executable flag was not set on file output
+#				  - disabled active output when ANTS are not available
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -249,9 +251,7 @@ RETRY:
 		goto RETRY;
 	}
 
-	if (@out_TL) && $scan_increment==1) {
-		progress("\tWriting time-lagging time series to ");
-	
+	if (@out_TL && $scan_increment==1) {
 		push(@elapsed_buf,@elapsed);								# buffer elapsed data in static scope
 		push(@so_buf,@so);											# scan offset
 		push(@mad_buf,@mad);										# mean absolute deviation
@@ -261,6 +261,7 @@ RETRY:
 			unless defined($elapsed_min_buf);
 
 		if ($last_lag_piece) {										# output all data
+			progress("\tWriting time-lagging time series to ");
 			my($saveParams) = $antsCurParams;
 			@antsNewLayout = ('elapsed.LADCP','scan_offset','mad','downcast');
 	
@@ -271,9 +272,10 @@ RETRY:
 			&antsAddParams('elapsed.bot',$LADCP{ENSEMBLE}[$LADCP_atbottom]->{ELAPSED});
 
 			foreach my $of (@out_TL) {
-				progress("$of ");
-				$of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+				progress("<$of> ");
+				$of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		        open(STDOUT,$of) || croak("$of: $!\n");
+				undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 
 				for (my($wi)=0; $wi<@elapsed_buf; $wi++) {
 					&antsOut($elapsed_buf[$wi],$so_buf[$wi],$mad_buf[$wi],

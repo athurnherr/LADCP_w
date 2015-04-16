@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ P R O F _ 2 B E A M 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Sun Apr  5 22:10:38 2015
+#                    dlm: Thu Apr 16 08:10:32 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 123 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 61 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,6 +12,7 @@
 #	Oct 30, 2103: - got rid of non-portable echo -e
 #	Nov  3, 2014: - adapted to updated layout of .prof file
 #	Apr  5, 2015: - made fixbb optional
+#   Apr 16, 2015: - removed copy of input on stdout
 
 # NOTES:
 #	- this version plots 2-beam solutions instead of final w
@@ -32,7 +33,6 @@ eps_file="$1"
 while [ -z "$fields" ]
 do
 	read line
-    [ ! -t 1 ] && echo "$line"
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
@@ -57,12 +57,7 @@ mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
 cd /tmp/$$
 
 TMPFILE=/tmp/$$.LWplot_prof
-if [ ! -t 1 ]
-then
-	tee $TMPFILE
-else
-	cat > $TMPFILE
-fi
+cat > $TMPFILE
 
 [ -f .gmtdefaults4 ] ||
 	gmtset	PAPER_MEDIA letter+ \

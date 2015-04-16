@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Thu Apr 16 08:36:02 2015
+#                    dlm: Thu Apr 16 10:24:42 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 308 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 159 70 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -156,6 +156,7 @@ $antsMinLibVersion = 6.0;
 #	Apr 16, 2015: - turned output specifies into lists (re-design of
 #					plotting sub-system)
 #				  - removed 30s sleep from PostProcess.sh call
+#				  - disabled active output when ANTS are not available
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -212,6 +213,7 @@ $antsMinLibVersion = 6.0;
 ($ADCP_TOOLS) = (`which mkProfile` =~ m{^(.*)/[^/]*$});
 ($WCALC) 	  = ($0                =~ m{^(.*)/[^/]*$});
 $WCALC = '.' if ($WCALC eq '');
+$ANTS_TOOLS_AVAILABLE = (`which list` ne '');
 
 die("$0: Korn shell (/bin/ksh) required but not found\n")
 	unless (-x '/bin/ksh');
@@ -586,10 +588,10 @@ if (@out_LADCPtis) {
 	@antsNewLayout = ('ensemble','elapsed','reflr_w','reflr_w.stddev','reflr_w.nsamp','depth');
 	
 	foreach my $of (@out_LADCP) {
-	    progress("$of ");
-	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+	    progress("<$of> ");
+	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || croak("$of: $!\n");
-		chmod(0777&~umask,*STDOUT);
+		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 		for (my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 			&antsOut($LADCP{ENSEMBLE}[$ens]->{NUMBER},
 					 $LADCP{ENSEMBLE}[$ens]->{ELAPSED},
@@ -1262,10 +1264,10 @@ if (@out_BR) {
 	&antsAddParams('BR_max_bin',max(scalar(@dc_bres),scalar(@uc_bres)));
 
 	foreach my $of (@out_BR) {
-	    progress("$of ");
-	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+	    progress("<$of> ");
+	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || croak("$of: $!\n");
-		chmod(0777&~umask,*STDOUT);
+		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 		for (my($bin)=0; $bin<max(scalar(@dc_bres),scalar(@uc_bres)); $bin++) {
 			my($dc_avg) = avg(@{$dc_bres[$bin]});
 			my($uc_avg) = avg(@{$uc_bres[$bin]});
@@ -1314,10 +1316,10 @@ if (@out_w) {
 					  'pitch','roll','tilt','heading','3_beam','svel');
 
 	foreach my $of (@out_w) {
-	    progress("$of ");
-	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+	    progress("<$of> ");
+	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || croak("$of: $!\n");
-		chmod(0777&~umask,*STDOUT);
+		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 	    
 		for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
@@ -1403,10 +1405,10 @@ if (@out_profile) {
 	                          'BT_w','BT_w.mad','BT_w.nsamp');
 
 	foreach my $of (@out_profile) {
-	    progress("$of ");
-	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+	    progress("<$of> ");
+	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || croak("$of: $!\n");
-		chmod(0777&~umask,*STDOUT);
+		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 	    
 		for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
 			&antsOut(($bi+0.5)*$opt_o,					# nominal depth
@@ -1439,10 +1441,10 @@ if (@out_timeseries) {
 					  'reflr_ocean_w');
 					  
 	foreach my $of (@out_timeseries) {
-	    progress("$of ");
-	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+	    progress("<$of> ");
+	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || croak("$of: $!\n");
-		chmod(0777&~umask,*STDOUT);
+		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 		 
 		for ($ens=$firstGoodEns; $ens<=$realLastGoodEns; $ens++) {
 			next unless defined($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});

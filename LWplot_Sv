@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ S V 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Sun Apr  5 22:09:54 2015
+#                    dlm: Thu Apr 16 08:09:17 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 104 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 64 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -16,6 +16,7 @@
 #	May 16, 2013: - adapted to file-layout changes
 #	May 20, 2013: - renamed volume_scattering_coeff to Sv
 #	Apr  5, 2015: - made fixbb optional
+#   Apr 16, 2015: - removed copy of input on stdout
 
 #--------------------------------------------------
 # Usage
@@ -34,7 +35,6 @@ eps_file="$1"
 while [ -z "$fields" ]
 do
 	read line
-	[ ! -t 1 ] && echo "$line"
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
@@ -60,12 +60,7 @@ mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
 cd /tmp/$$
 
 TMPFILE=/tmp/$$.LWplot_Sv
-if [ ! -t 1 ]
-then
-	tee $TMPFILE
-else
-	cat > $TMPFILE
-fi
+cat > $TMPFILE
 
 [ -f .gmtdefaults4 ] ||
 	gmtset	PAPER_MEDIA letter+ \

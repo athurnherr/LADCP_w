@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Fri Nov  7 13:54:06 2014
+#                    dlm: Thu Apr 16 10:29:45 2015
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 33 15 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 188 54 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -16,13 +16,16 @@ $antsMinLibVersion = 6.0;
 #	Oct 17, 2014: - changed parameterization constant $c to 0.021
 #	Nov  6, 2014: - restored from backup and adapted to ANTS V6.0
 #	Nov  7, 2014: - changed parameterization constant $c to 0.0215
+#	Apr 16, 2015: - disabled output activation unless ANTS tools are available
+#				  - removed superfluous $ANTSBIN definition
 
 # NOTES:
 #	- requires power densities
 #	- output spectra (-s) have ADCP-related corrections applied unless -c is set
 
-($ANTSBIN) = ($0 =~ m{^(.*)/[^/]*$});
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
+$ANTS_TOOLS_AVAILABLE = (`which list` ne '');
+
 require "$ANTSLIB/ants.pl";
 require "$ANTSLIB/libLADCP.pl";
 
@@ -182,7 +185,7 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 		$ofname = sprintf("${opt_s}_%02d.wspec",$r+1);
 		open(STDOUT,">$ofname") || croak("$ofname: $!\n");
 		undef($antsOldHeaders);
-		&antsActivateOut();
+		&antsActivateOut() if ($ANTS_TOOLS_AVAILABLE);
 
 		my($saveParams) = $antsCurParams;										# add all extra input fields as %PARAMs
 		&antsAddParams('binpgrams::depth.min',$ants_[$r][$mindf],
