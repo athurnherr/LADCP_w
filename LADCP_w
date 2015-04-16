@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Tue Apr  7 23:45:46 2015
+#                    dlm: Thu Apr 16 08:36:02 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 155 64 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 308 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -153,6 +153,9 @@ $antsMinLibVersion = 6.0;
 #	Apr  7, 2015: - made LADCP_w callable from installation directory
 #				  - BUG: -v default was wrong in usage message
 #				  - replaced 'ens' in output files by 'ensemble'
+#	Apr 16, 2015: - turned output specifies into lists (re-design of
+#					plotting sub-system)
+#				  - removed 30s sleep from PostProcess.sh call
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -301,13 +304,6 @@ croak("$0: \$out_basename undefined\n")									# all plotting routines use this
 	unless defined($out_basename);
 &antsAddParams('out_basename',$out_basename);
 &antsAddParams('run_label',$RUN);
-
-$out_w 	    	= ">$out_w" 		 unless ($out_w =~ /^$|^\s*\|/);	# make sure O_CREAT is set unless it's a pipe
-$out_BR 	    = ">$out_BR" 		 unless ($out_BR =~ /^$|^\s*\|/);
-$out_TL 	    = ">$out_TL" 		 unless ($out_TL =~ /^$|^\s*\|/);
-$out_LADCPtis  	= ">$out_LADCPtis"   unless ($out_LADCPtis =~ /^$|^\s*\|/);
-$out_profile    = ">$out_profile" 	 unless ($out_profile =~ /^$|^\s*\|/);
-$out_timeseries = ">$out_timeseries" unless ($out_timeseries =~ /^$|^\s*\|/);
 
 #----------------------------------------------------------------------
 # Screen Logging
@@ -585,21 +581,26 @@ progress("\tCast duration     : %.1f hours (pinging for %.1f hours)\n",
 						$LADCP{ENSEMBLE}[0]->{UNIX_TIME}) / 3600);
 progress("\tMean ping interval: %.1f seconds\n",$LADCP{MEAN_DT});
 
-if (defined($out_LADCPtis)) {
-	progress("Writing LADCP-timeseries to <$out_LADCPtis>...\n");
-
+if (@out_LADCPtis) {
+	progress("Writing LADCP-timeseries to ");
 	@antsNewLayout = ('ensemble','elapsed','reflr_w','reflr_w.stddev','reflr_w.nsamp','depth');
-	open(STDOUT,"$out_LADCPtis") || croak("$out_LADCPtis: $!\n");
-    chmod(0777&~umask,*STDOUT);
-	for (my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
-		&antsOut($LADCP{ENSEMBLE}[$ens]->{NUMBER},
-				 $LADCP{ENSEMBLE}[$ens]->{ELAPSED},
-				 $LADCP{ENSEMBLE}[$ens]->{REFLR_W},
-				 $LADCP{ENSEMBLE}[$ens]->{REFLR_W_STDDEV},
-				 $LADCP{ENSEMBLE}[$ens]->{REFLR_W_NSAMP},
-				 $LADCP{ENSEMBLE}[$ens]->{DEPTH});
+	
+	foreach my $of (@out_LADCP) {
+	    progress("$of ");
+	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+		open(STDOUT,$of) || croak("$of: $!\n");
+		chmod(0777&~umask,*STDOUT);
+		for (my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
+			&antsOut($LADCP{ENSEMBLE}[$ens]->{NUMBER},
+					 $LADCP{ENSEMBLE}[$ens]->{ELAPSED},
+					 $LADCP{ENSEMBLE}[$ens]->{REFLR_W},
+					 $LADCP{ENSEMBLE}[$ens]->{REFLR_W_STDDEV},
+					 $LADCP{ENSEMBLE}[$ens]->{REFLR_W_NSAMP},
+					 $LADCP{ENSEMBLE}[$ens]->{DEPTH});
+		}
+	    &antsOut('EOF'); open(STDOUT,'>&2');
 	}
-	&antsOut('EOF'); open(STDOUT,">&2");
+	progress("\n");
 }
 
 #----------------------------------------------------------------------
@@ -1229,10 +1230,10 @@ unless ($opt_q) {
 # Output Per-Bin Resiudals
 #-------------------------
 
-if (defined($out_BR)) {
+if (@out_BR) {
 	my(@dc_nres,@uc_nres,@dc_bres,@uc_bres);
 
-	progress("Writing per-bin residual data to $out_BR...\n");
+	progress("Writing per-bin residual data to ");
 
 	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
@@ -1258,17 +1259,23 @@ if (defined($out_BR)) {
 	my($saveParams) = $antsCurParams;
 	@antsNewLayout = ('bin','dc_residual','dc_residual.sig','dc_residual.nsamp',
 						   ,'uc_residual','uc_residual.sig','uc_residual.nsamp');
-	open(STDOUT,"$out_BR") || croak("$out_BR: $!\n");
-    chmod(0777&~umask,*STDOUT);
 	&antsAddParams('BR_max_bin',max(scalar(@dc_bres),scalar(@uc_bres)));
-	for (my($bin)=0; $bin<max(scalar(@dc_bres),scalar(@uc_bres)); $bin++) {
-		my($dc_avg) = avg(@{$dc_bres[$bin]});
-		my($uc_avg) = avg(@{$uc_bres[$bin]});
-		&antsOut($bin+1,$dc_avg,stddev2($dc_avg,@{$dc_bres[$bin]}),scalar(@{$dc_bres[$bin]}),
-						$uc_avg,stddev2($uc_avg,@{$uc_bres[$bin]}),scalar(@{$uc_bres[$bin]}));
+
+	foreach my $of (@out_BR) {
+	    progress("$of ");
+	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+		open(STDOUT,$of) || croak("$of: $!\n");
+		chmod(0777&~umask,*STDOUT);
+		for (my($bin)=0; $bin<max(scalar(@dc_bres),scalar(@uc_bres)); $bin++) {
+			my($dc_avg) = avg(@{$dc_bres[$bin]});
+			my($uc_avg) = avg(@{$uc_bres[$bin]});
+			&antsOut($bin+1,$dc_avg,stddev2($dc_avg,@{$dc_bres[$bin]}),scalar(@{$dc_bres[$bin]}),
+							$uc_avg,stddev2($uc_avg,@{$uc_bres[$bin]}),scalar(@{$uc_bres[$bin]}));
+		}
+	    &antsOut('EOF'); open(STDOUT,">&2");
 	}
-	&antsOut('EOF'); open(STDOUT,">&2");
 	$antsCurParams = $saveParams;
+	progress("\n");
 }
 
 #--------------------------------------------------
@@ -1299,159 +1306,172 @@ if (defined($water_depth)) {
 
 # NB: residual field is calculated with respect to down-/upcast medians in -o-size bins
 
-if (defined($out_w)) {
-	progress("Writing vertical-velocity data to $out_w...\n");
-
+if (@out_w) {
+	progress("Writing vertical-velocity data to ");
 	@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
 					  'w','w12','w34','residual','CTD_w','CTD_w_tt','LADCP_w','errvel',
 					  'correlation','echo_amplitude','Sv',
 					  'pitch','roll','tilt','heading','3_beam','svel');
 
-	open(STDOUT,"$out_w") || croak("$out_w: $!\n");
-    chmod(0777&~umask,*STDOUT);
-    
-	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
-	  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-	  my(@bindepth) = calc_binDepths($ens);
-	  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
-		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		  my($bi) = $bindepth[$bin]/$opt_o;
-		  &antsOut(
-			  $LADCP{ENSEMBLE}[$ens]->{NUMBER},$bin+1,
-			  $CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			  $bindepth[$bin],$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},1,
-			  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
-			  $LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] : nan,
-			  $LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] : nan,
-			  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $DNCAST{MEDIAN_W}[$bi],
-			  $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			  $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin],
-			  $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
-			  median(@{$LADCP{ENSEMBLE}[$ens]->{CORRELATION}[$bin]}),
-			  median(@{$LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin]}),
-			  $LADCP{ENSEMBLE}[$ens]->{SV}[$bin],
-			  $LADCP{ENSEMBLE}[$ens]->{PITCH},
-			  $LADCP{ENSEMBLE}[$ens]->{ROLL},
-			  $LADCP{ENSEMBLE}[$ens]->{TILT},
-			  $LADCP{ENSEMBLE}[$ens]->{HEADING},
-			  (defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][0]) +			  # only works for beam coords
-			   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][1]) +
-			   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
-			   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
-			  $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-		  );
-	  } # for $bin
-	} # for $ens
-  
-	for ($ens=$LADCP_atbottom; $ens<=$realLastGoodEns; $ens++) {					  # upcast 
-	  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-	  my(@bindepth) = calc_binDepths($ens);
-	  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
-		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		  my($bi) = $bindepth[$bin]/$opt_o;
-		  &antsOut(
-			  $LADCP{ENSEMBLE}[$ens]->{NUMBER},$bin+1,
-			  $CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			  $bindepth[$bin],$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},0,
-			  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
-			  $LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] : nan,
-			  $LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] : nan,
-			  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $UPCAST{MEDIAN_W}[$bi],
-			  $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			  $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-			  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin],
-			  $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
-			  median(@{$LADCP{ENSEMBLE}[$ens]->{CORRELATION}[$bin]}),
-			  median(@{$LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin]}),
-			  $LADCP{ENSEMBLE}[$ens]->{SV}[$bin],
-			  $LADCP{ENSEMBLE}[$ens]->{PITCH},
-			  $LADCP{ENSEMBLE}[$ens]->{ROLL},
-			  $LADCP{ENSEMBLE}[$ens]->{TILT},
-			  $LADCP{ENSEMBLE}[$ens]->{HEADING},
-			  (defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][0]) +			  # only works for beam coords
-			   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][1]) +
-			   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
-			   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
-			  $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-		  );
-	  } # for $bin
-	} # for $ens
-
-	&antsOut('EOF'); open(STDOUT,">&2");
+	foreach my $of (@out_w) {
+	    progress("$of ");
+	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+		open(STDOUT,$of) || croak("$of: $!\n");
+		chmod(0777&~umask,*STDOUT);
+	    
+		for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
+		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+		  my(@bindepth) = calc_binDepths($ens);
+		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+			  my($bi) = $bindepth[$bin]/$opt_o;
+			  &antsOut(
+				  $LADCP{ENSEMBLE}[$ens]->{NUMBER},$bin+1,
+				  $CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				  $bindepth[$bin],$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},1,
+				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
+				  $LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] : nan,
+				  $LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] : nan,
+				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $DNCAST{MEDIAN_W}[$bi],
+				  $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				  $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin],
+				  $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
+				  median(@{$LADCP{ENSEMBLE}[$ens]->{CORRELATION}[$bin]}),
+				  median(@{$LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin]}),
+				  $LADCP{ENSEMBLE}[$ens]->{SV}[$bin],
+				  $LADCP{ENSEMBLE}[$ens]->{PITCH},
+				  $LADCP{ENSEMBLE}[$ens]->{ROLL},
+				  $LADCP{ENSEMBLE}[$ens]->{TILT},
+				  $LADCP{ENSEMBLE}[$ens]->{HEADING},
+				  (defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][0]) +			  # only works for beam coords
+				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][1]) +
+				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
+				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
+				  $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+			  );
+		  } # for $bin
+		} # for $ens
+	  
+		for ($ens=$LADCP_atbottom; $ens<=$realLastGoodEns; $ens++) {					  # upcast 
+		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+		  my(@bindepth) = calc_binDepths($ens);
+		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+			  my($bi) = $bindepth[$bin]/$opt_o;
+			  &antsOut(
+				  $LADCP{ENSEMBLE}[$ens]->{NUMBER},$bin+1,
+				  $CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				  $bindepth[$bin],$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},0,
+				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],
+				  $LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] : nan,
+				  $LADCP{BEAM_COORDINATES} ? $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] : nan,
+				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $UPCAST{MEDIAN_W}[$bi],
+				  $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				  $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin],
+				  $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
+				  median(@{$LADCP{ENSEMBLE}[$ens]->{CORRELATION}[$bin]}),
+				  median(@{$LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin]}),
+				  $LADCP{ENSEMBLE}[$ens]->{SV}[$bin],
+				  $LADCP{ENSEMBLE}[$ens]->{PITCH},
+				  $LADCP{ENSEMBLE}[$ens]->{ROLL},
+				  $LADCP{ENSEMBLE}[$ens]->{TILT},
+				  $LADCP{ENSEMBLE}[$ens]->{HEADING},
+				  (defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][0]) +			  # only works for beam coords
+				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][1]) +
+				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
+				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
+				  $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+			  );
+		  } # for $bin
+		} # for $ens
+	
+	    &antsOut('EOF'); open(STDOUT,">&2");
+	}
+	progress("\n");
 }
 	
 #----------------------------
 # Output depth-binned profile
 #----------------------------
 
-if (defined($out_profile)) {
-	progress("Writing vertical-velocity profiles to <$out_profile>...\n");
-
+if (@out_profile) {
+	progress("Writing vertical-velocity profiles to ");
 	@antsNewLayout = ('depth','dc_depth','dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp','dc_w12','dc_w34',
 							  'uc_depth','uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp','uc_w12','uc_w34',
 	                          'BT_w','BT_w.mad','BT_w.nsamp');
 
-	open(STDOUT,"$out_profile") || croak("$out_profile: $!\n");
-	chmod(0777&~umask,*STDOUT);
-	
-	for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
-		&antsOut(($bi+0.5)*$opt_o,					# nominal depth
-				 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
-				 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W}[$bi]:nan,
-				 $DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
-				 $DNCAST{MEDIAN_W12}[$bi],$DNCAST{MEDIAN_W34}[$bi],
-				 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],
-				 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
-				 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
-				 $UPCAST{MEDIAN_W12}[$bi],$UPCAST{MEDIAN_W34}[$bi],
-				 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,
-				 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
-		);
+	foreach my $of (@out_profile) {
+	    progress("$of ");
+	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+		open(STDOUT,$of) || croak("$of: $!\n");
+		chmod(0777&~umask,*STDOUT);
+	    
+		for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
+			&antsOut(($bi+0.5)*$opt_o,					# nominal depth
+					 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
+					 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W}[$bi]:nan,
+					 $DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
+					 $DNCAST{MEDIAN_W12}[$bi],$DNCAST{MEDIAN_W34}[$bi],
+					 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],
+					 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
+					 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
+					 $UPCAST{MEDIAN_W12}[$bi],$UPCAST{MEDIAN_W34}[$bi],
+					 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,
+					 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
+			);
+		}
+	    &antsOut('EOF'); open(STDOUT,">&2");
 	}
-	&antsOut('EOF'); open(STDOUT,">&2");
+	progress("\n");
 }
 
 #--------------------------------------
 # write time-series output if requested
 #--------------------------------------
 
-if (defined($out_timeseries)) {
-	progress("Writing time-series data to <$out_timeseries>...\n");
-
+if (@out_timeseries) {
+	progress("Writing time-series data to ");
 	@antsNewLayout = ('ensemble','elapsed','downcast',
 					  'depth','xducer_sound_speed','pitch','gimbal_pitch','roll','tilt','heading',
 					  'CTD_w','CTD_w_tt','LADCP_reflr_w','LADCP_reflr_w.sig',
 					  'reflr_ocean_w');
-	open(STDOUT,"$out_timeseries") || croak("$out_timeseries: $!\n");
-    chmod(0777&~umask,*STDOUT);
-	 
-	for ($ens=$firstGoodEns; $ens<=$realLastGoodEns; $ens++) {
-		next unless defined($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-		my($reflr_oc_w) = defined($LADCP{ENSEMBLE}[$ens]->{REFLR_W})
-			   		    ? $LADCP{ENSEMBLE}[$ens]->{REFLR_W} - $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]
-			   		    : undef;
-		&antsOut($LADCP{ENSEMBLE}[$ens]->{NUMBER},
-				 $CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-				 ($ens < $LADCP_atbottom) ? 1 : 0,
-				 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
-				 $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-				 $LADCP{ENSEMBLE}[$ens]->{PITCH},
-				 $LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH},
-				 $LADCP{ENSEMBLE}[$ens]->{ROLL},
-				 $LADCP{ENSEMBLE}[$ens]->{TILT},
-				 $LADCP{ENSEMBLE}[$ens]->{HEADING},
-				 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-				 $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
-				 $LADCP{ENSEMBLE}[$ens]->{REFLR_W},
-				 $LADCP{ENSEMBLE}[$ens]->{REFLR_W_STDDEV},
-				 $reflr_oc_w);
+					  
+	foreach my $of (@out_timeseries) {
+	    progress("$of ");
+	    $of = ">$of" unless unless ($of =~ /^$|^\s*\|/);
+		open(STDOUT,$of) || croak("$of: $!\n");
+		chmod(0777&~umask,*STDOUT);
+		 
+		for ($ens=$firstGoodEns; $ens<=$realLastGoodEns; $ens++) {
+			next unless defined($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+			my($reflr_oc_w) = defined($LADCP{ENSEMBLE}[$ens]->{REFLR_W})
+							? $LADCP{ENSEMBLE}[$ens]->{REFLR_W} - $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]
+							: undef;
+			&antsOut($LADCP{ENSEMBLE}[$ens]->{NUMBER},
+					 $CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+					 ($ens < $LADCP_atbottom) ? 1 : 0,
+					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
+					 $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+					 $LADCP{ENSEMBLE}[$ens]->{PITCH},
+					 $LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH},
+					 $LADCP{ENSEMBLE}[$ens]->{ROLL},
+					 $LADCP{ENSEMBLE}[$ens]->{TILT},
+					 $LADCP{ENSEMBLE}[$ens]->{HEADING},
+					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+					 $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+					 $LADCP{ENSEMBLE}[$ens]->{REFLR_W},
+					 $LADCP{ENSEMBLE}[$ens]->{REFLR_W_STDDEV},
+					 $reflr_oc_w);
+		}
+	
+	    &antsOut('EOF'); open(STDOUT,">&2");
 	}
-
-	&antsOut('EOF'); open(STDOUT,">&2");
+	progress("\n");
 }
 
-system("{ sleep 30; ./PostProcess.sh $out_basename $RUN $data_subdir $plot_subdir $log_subdir; }&")
+system("{ ./PostProcess.sh $out_basename $RUN $data_subdir $plot_subdir $log_subdir; }&")
 	if (-x 'PostProcess.sh');
 
 exit(0);

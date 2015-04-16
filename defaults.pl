@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Thu Apr 16 05:11:48 2015
+#                    dlm: Thu Apr 16 08:32:02 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 64 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 374 61 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -42,6 +42,9 @@
 #	Oct 31, 2014: - re-arranged order of things
 #				  - .w => .samp output
 #	Nov  4, 2014: - BUG: PPI_editing did not work as advertised
+#   Apr 16, 2015: - turned output specifies into lists (re-design of
+#                   plotting sub-system)
+
 
 #======================================================================
 # Data Input 
@@ -320,9 +323,9 @@ $out_log = "$log_subdir/$out_basename.log";
 #	*_wspec.eps			vertical-velocity wavenumber spectra
 #----------------------------------------------------------------------
 
-$out_profile = "| LWplot_prof_2beam $plot_subdir/${out_basename}_prof.eps" .
-#			   "| LWplot_spec $plot_subdir/${out_basename}_spec.eps" .
-			   "> $data_subdir/$out_basename.prof";
+@out_profile = ("| LWplot_prof_2beam $plot_subdir/${out_basename}_prof.eps",
+#			    "| LWplot_spec $plot_subdir/${out_basename}_spec.eps",
+			    "$data_subdir/$out_basename.prof");
 
 
 #----------------------------------------------------------------------
@@ -337,11 +340,11 @@ $out_profile = "| LWplot_prof_2beam $plot_subdir/${out_basename}_prof.eps" .
 #	*_corr.eps			correlation time-depth plot [REMOVED FROM DEFAULTS 2013/05/16]
 #----------------------------------------------------------------------
 
-$out_w = "| LWplot_residuals $plot_subdir/${out_basename}_residuals.eps" .
-		 "| LWplot_Sv $plot_subdir/${out_basename}_Sv.eps" .
-#		 "| LWplot_corr $plot_subdir/${out_basename}_corr.eps" .
-		 "| LWplot_w $plot_subdir/${out_basename}_w.eps" .
-		 "> $data_subdir/$out_basename.samp";
+@out_w = ("| LWplot_residuals $plot_subdir/${out_basename}_residuals.eps",
+		  "| LWplot_Sv $plot_subdir/${out_basename}_Sv.eps",
+#		  "| LWplot_corr $plot_subdir/${out_basename}_corr.eps",
+		  "| LWplot_w $plot_subdir/${out_basename}_w.eps",
+		  "$data_subdir/$out_basename.samp");
 
 
 #----------------------------------------------------------------------
@@ -353,21 +356,21 @@ $out_w = "| LWplot_residuals $plot_subdir/${out_basename}_residuals.eps" .
 #	*_CAE.eps		plot of CTD acceleration effects on reference-layer w
 #----------------------------------------------------------------------
 
-$out_timeseries = 
-#				  "| LWplot_CAE $plot_subdir/${out_basename}_CAE.eps" .
-				  "> $data_subdir/$out_basename.tis";
+@out_timeseries = ( 
+#				   "| LWplot_CAE $plot_subdir/${out_basename}_CAE.eps",
+				   "$data_subdir/$out_basename.tis");
 
 #----------------------------------------------------------------------
 # Per-bin vertical-velocity residuals (plot only)
 #----------------------------------------------------------------------
 
-$out_BR		= "| LWplot_BR $plot_subdir/${out_basename}_BR.eps";
+@out_BR	= ("| LWplot_BR $plot_subdir/${out_basename}_BR.eps");
 
 
 #----------------------------------------------------------------------
 # Time-lagging correlation statistics (plot only)
 #----------------------------------------------------------------------
 
-$out_TL 	= "| LWplot_TL $plot_subdir/${out_basename}_TL.eps";
+@out_TL = ("| LWplot_TL $plot_subdir/${out_basename}_TL.eps");
 
 1;	# return true
