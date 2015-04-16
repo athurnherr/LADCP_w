@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Fri Nov  7 14:45:44 2014
+#                    dlm: Thu Apr 16 14:40:22 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 80 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 141 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -18,6 +18,7 @@
 #	Mar  4, 2014: - added support for missing PITCH/ROLL (TILT)
 #	Apr 17, 2014: - BUG: missing ;
 #	Nov  7, 2014: - BUG: calc_binDepths() was called without valid CTD depth
+#	Apr 16, 2015: - added min samp criterion for seabed search
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -113,7 +114,7 @@ sub calc_backscatter_profs($$)
 
 #----------------------------------------------------------------------
 # determine location of seabed from backscatter profiles
-#	input:	depth below seabed can possibly be (e.g. max CTD depth)
+#	input:	depth below which seabed can possibly be (e.g. max CTD depth)
 #	output:	median/mad of estimated water depth
 #----------------------------------------------------------------------
 
@@ -135,6 +136,9 @@ sub find_backscatter_seabed($)
 			push(@wdepth,$depthmaxSv);
 		}
 	}
+
+	info("%d seabed samples found\n",scalar(@wdepth));
+	return (undef,undef) if (scalar(@wdepth) < $SS_min_samp);	# require min number of samples
 	
 	my($wd) = median(@wdepth);
 	return ($wd,mad2($wd,@wdepth));

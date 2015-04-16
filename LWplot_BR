@@ -1,10 +1,10 @@
-#!/bin/ksh
+#!/bin/sh
 #======================================================================
 #					 L W P L O T _ B R 
 #                    doc: Mon Oct 17 10:57:12 2011
-#                    dlm: Thu Apr 16 08:08:23 2015
+#                    dlm: Thu Apr 16 10:40:35 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 17 51 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 19 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,6 +15,7 @@
 #   Oct 30, 2103: - got rid of non-portable echo -e
 #	Apr  5, 2015: - made fixbb optional
 #	Apr 16, 2015: - removed copy of input on stdout
+#				  - changed shell from /bin/ksh to /bin/sh
 
 #--------------------------------------------------
 # Usage

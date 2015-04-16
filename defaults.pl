@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Thu Apr 16 08:32:02 2015
+#                    dlm: Thu Apr 16 14:40:08 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 374 61 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 256 2 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -44,7 +44,8 @@
 #	Nov  4, 2014: - BUG: PPI_editing did not work as advertised
 #   Apr 16, 2015: - turned output specifies into lists (re-design of
 #                   plotting sub-system)
-
+#				  - croak -> error
+#				  - added $SS_use_BT
 
 #======================================================================
 # Data Input 
@@ -106,7 +107,7 @@ $out_basename = sprintf('%03d',$STN);
 
 # output subdirectories
 
-croak("$RUN: no such directory\n") unless (-d $RUN);
+error("$RUN: no such directory\n") unless (-d $RUN);
 $data_subdir = $plot_subdir = $log_subdir = $RUN;
 
 
@@ -207,7 +208,7 @@ $PPI_editing_required = '($LADCP{BEAM_FREQUENCY} < 300)';
 # Time Lagging
 #======================================================================
 
-# externally supplied lag
+# externally supplied lag initial guess
 
 # $opt_i = 567;
 
@@ -244,19 +245,34 @@ $TL_max_allowed_three_lag_spread = 3;
 # Seabed Search
 #======================================================================
 
-# # of ensembles around bottom to search
+# Set to folloing variable to 1 to use ADCP BT data to detect seabed 
+# instead of default code based on Sv (echo amplitude). I do not know
+# which code is better.
+
+$SS_use_BT = 0;
+
+
+# Require at least 5 valid samples for seabed detection. Only for
+# $SS_use_BT == 0.
+
+$SS_min_samp = 5;
+
+
+# Number of ensembles around bottom to search. Only for $SS_use_BT == 1.
 
 $SS_search_window_halfwidth = 200;	 
 
 
-# max allowed distance of seabed from mode of distribution
+# Maximum allowed distance of seabed from mode of distribution. 
+# Only for $SS_use_BT == 1.
 
 $SS_max_allowed_depth_range = 10;
 
 
 # The following numbers define the valid range of height-above bottom
-# for seabed detection. If the the mean BT_RANGE of a given ens
-# falls outside this range, the ensemble is ignored during seabed detection.
+# for seabed detection when $SS_use_BT == 1. If the the mean BT_RANGE of 
+# a given ens falls outside this range, the ensemble is ignored during 
+# seabed detection.
 # Also, bins falling outside this range are not considered during 
 # construction of accoustic backscatter profiles.
 
@@ -266,6 +282,8 @@ $SS_max_allowed_range = 150;
 
 #======================================================================
 # Bottom Tracking
+#	- at present, the ADCP BT data are ignored, i.e. "post-processed"
+#	  BT data are used.
 #======================================================================
 
 # Don't look for BT-referenced velocities if package is more than $BT_max_range
@@ -303,7 +321,7 @@ if (-r "ProcessingParams.$RUN") {
 } elsif (-r "ProcessingParams") {
 	$processing_param_file = "ProcessingParams";
 } else {
-	croak("$0: cannot find either <ProcessingParams.$RUN> or <ProcessingParams[.default]>\n");
+	error("$0: cannot find either <ProcessingParams.$RUN> or <ProcessingParams[.default]>\n");
 }
 
 #----------------------------------------------------------------------

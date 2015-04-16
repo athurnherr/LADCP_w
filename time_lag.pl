@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Thu Apr 16 10:25:37 2015
+#                    dlm: Thu Apr 16 12:13:25 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 63 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 276 41 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -56,6 +56,7 @@
 #                   plotting sub-system)
 #				  - BUG: executable flag was not set on file output
 #				  - disabled active output when ANTS are not available
+#				  - croak -> error
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -105,8 +106,6 @@ sub mad_w($$$)									# mean absolute deviation
 sub bestLag($$$$)								# find best lag in window
 {
 	my($fe,$le,$ww,$soi) = @_;					# first/last LADCP ens, window width, scan-offset increment
-#	$le = $lastGoodEns
-#		unless ($le <= $lastGoodEns);
 	die("assertion failed\n\tfe = $fe, le = $le, firstGoodEns = $firstGoodEns, lastGoodEns = $lastGoodEns")
 		unless ($fe>=$firstGoodEns && $le<=$lastGoodEns);
 
@@ -274,7 +273,7 @@ RETRY:
 			foreach my $of (@out_TL) {
 				progress("<$of> ");
 				$of = ">$of" unless ($of =~ /^$|^\s*\|/);
-		        open(STDOUT,$of) || croak("$of: $!\n");
+		        open(STDOUT,$of) || error("$of: $!\n");
 				undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 
 				for (my($wi)=0; $wi<@elapsed_buf; $wi++) {

@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Thu Apr 16 10:24:42 2015
+#                    dlm: Thu Apr 16 14:27:45 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 159 70 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 162 60 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -146,7 +146,7 @@ $antsMinLibVersion = 6.0;
 #				  - BUG: sVelProf[] was not allowed to have any gaps
 #	Jul  9, 2014: - BUG: Jul 6 bug fixes had been applied to older
 #				  		 version
-#				  - BUG: code meant to ensure gap-freee svel profiles did not work correctly
+#				  - BUG: code meant to ensure gap-free svel profiles did not work correctly
 #	Jul 12, 2014: - finally made output files executable
 #	Apr  5, 2015: - added check for required software
 #				  - BUG: removed dc/uc mean w fields from .prof again
@@ -157,6 +157,9 @@ $antsMinLibVersion = 6.0;
 #					plotting sub-system)
 #				  - removed 30s sleep from PostProcess.sh call
 #				  - disabled active output when ANTS are not available
+#				  - removed /bin/ksh requirement
+#				  - BUG: error messages were not reported in the log file
+#				  - made seabed detection code more flexible
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -215,8 +218,6 @@ $antsMinLibVersion = 6.0;
 $WCALC = '.' if ($WCALC eq '');
 $ANTS_TOOLS_AVAILABLE = (`which list` ne '');
 
-die("$0: Korn shell (/bin/ksh) required but not found\n")
-	unless (-x '/bin/ksh');
 die("$0: Generic Mapping Tools (GMT) required but not found (bad \$PATH?)\n")
 	unless (`which psxy` ne '');
 die("$0: ANTSlib required but not found (bad \$PATH?)\n")
@@ -300,8 +301,6 @@ $RDI_Coords::minValidVels = 4 if ($opt_4);								# decode cmd-line arguments
 		unless numberp($length_of_timelag_windows[0]) && numberp($length_of_timelag_windows[1]);
 
 
-
-
 croak("$0: \$out_basename undefined\n")									# all plotting routines use this
 	unless defined($out_basename);
 &antsAddParams('out_basename',$out_basename);
@@ -348,6 +347,12 @@ sub warning(@)
 	print(STDERR "\n") if ($opt_v > 1);
 }
 
+sub error($)
+{
+	print(LOGF "ABORT: @_") if defined($out_log);
+	croak("ABORT: @_");
+}
+
 sub debugmsg(@)
 { printf(STDERR @_) if ($opt_v > 2); }
 
@@ -359,23 +364,23 @@ progress("Reading LADCP data from <$LADCP_file>...\n");
 readData($LADCP_file,\%LADCP);
 progress("\t%d ensembles\n",scalar(@{$LADCP{ENSEMBLE}}));
 
-croak("$LADCP_file: not enough LADCP bins ($LADCP{N_BINS}) for choice of -r\n")
+error("$LADCP_file: not enough LADCP bins ($LADCP{N_BINS}) for choice of -r\n")
 	unless ($LADCP{N_BINS} >= $refLr_lastBin);
 
-croak("$0: first reference-layer bin outside valid range\n")
+error("$0: first reference-layer bin outside valid range\n")
 	unless ($refLr_firstBin>=1 && $refLr_firstBin<=$LADCP{N_BINS});
-croak("$0: last reference-layer bin outside valid range\n")
+error("$0: last reference-layer bin outside valid range\n")
 	unless ($refLr_lastBin>=1 && $refLr_lastBin<=$LADCP{N_BINS});
-croak("$0: first reference-layer bin > last reference-layer bin\n")
+error("$0: first reference-layer bin > last reference-layer bin\n")
 	unless ($refLr_firstBin <= $refLr_lastBin);
 
 $LADCP_lastBin = $LADCP{N_BINS}-1
 	if ($LADCP_lastBin eq '*');
-croak("$0: first valid LADCP bin outside valid range\n")
+error("$0: first valid LADCP bin outside valid range\n")
 	unless ($LADCP_firstBin>=1 && $LADCP_firstBin<=$LADCP{N_BINS});
-croak("$0: last valid LADCP bin outside valid range\n")
+error("$0: last valid LADCP bin outside valid range\n")
 	unless ($LADCP_lastBin>=1 && $LADCP_lastBin<=$LADCP{N_BINS});
-croak("$0: first valid LADCP bin > last valid LADCP bin\n")
+error("$0: first valid LADCP bin > last valid LADCP bin\n")
 	unless ($LADCP_firstBin <= $LADCP_lastBin);
 
 warning(0,"first reference-layer bin < first valid LADCP bin\n")
@@ -432,12 +437,12 @@ if ($LADCP{BEAM_COORDINATES}) {
 		$cte += editCorr($ens,$opt_c);
 #		$pte += editTilt($ens,$opt_t);
 	}
-	croak("$LADCP_file: no valid data\n") unless ($nvv > 0);
+	error("$LADCP_file: no valid data\n") unless ($nvv > 0);
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$opt_c,$cte,round(100*$cte/$nvv));
 #	progress("\tattitude threshold (-t %d deg): %d velocites removed (%d%% of total)\n",$opt_t,$pte,round(100*$pte/$nvv));
 } else {
 	progress("Editing velocity data...\n");
-	croak("$LADCP_file: cannot apply beamvel-mask $opt_m to earth-coordinate data\n")
+	error("$LADCP_file: cannot apply beamvel-mask $opt_m to earth-coordinate data\n")
 		if defined($opt_m);
 	$nvv = $cte = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
@@ -445,7 +450,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 		$cte += editCorr_Earthcoords($ens,$opt_c);
 #		$pte += editTilt($ens,$opt_t);
 	}
-	croak("$LADCP_file: no valid data\n") unless ($nvv > 0);
+	error("$LADCP_file: no valid data\n") unless ($nvv > 0);
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$opt_c,$cte,round(100*$cte/$nvv));
 #	progress("\tattitude threshold (-t %d deg): %d velocites removed (%d%% of total)\n",$opt_t,$pte,round(100*$pte/$nvv));
 }
@@ -523,7 +528,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 	progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
 }
 
-croak("$LADCP_file: insufficient valid velocities\n") unless ($nvw > 1000);
+error("$LADCP_file: insufficient valid velocities\n") unless ($nvw > 1000);
 
 #----------------------------------------------
 # STEP: Edit earth-coordinate -velocity data
@@ -556,12 +561,12 @@ progress("Calculating LADCP time-series...\n");
 
 ($firstGoodEns,$lastGoodEns,$LADCP_atbottom,$LADCP_w_gap_time) =
 	calcLADCPts(\%LADCP,$opt_s,$refLr_firstBin,$refLr_lastBin,$opt_g);
-croak("$LADCP_file: no good ensembles\n")
+error("$LADCP_file: no good ensembles\n")
 	unless defined($firstGoodEns) && ($lastGoodEns-$firstGoodEns > 0);
 
 my($cast_duration) = $LADCP{ENSEMBLE}[$lastGoodEns]->{ELAPSED} -
 				     $LADCP{ENSEMBLE}[$firstGoodEns]->{ELAPSED};
-croak("$0: implausibly short cast ($cast_duration seconds)\n")
+error("$0: implausibly short cast ($cast_duration seconds)\n")
 	unless ($cast_duration > 600);
 
 $LADCP{MEAN_DT} = $cast_duration / ($lastGoodEns-$firstGoodEns-1);
@@ -590,7 +595,7 @@ if (@out_LADCPtis) {
 	foreach my $of (@out_LADCP) {
 	    progress("<$of> ");
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
-		open(STDOUT,$of) || croak("$of: $!\n");
+		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 		for (my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 			&antsOut($LADCP{ENSEMBLE}[$ens]->{NUMBER},
@@ -604,6 +609,9 @@ if (@out_LADCPtis) {
 	}
 	progress("\n");
 }
+
+error("deepest depth is at end of cast (no upcast data)\n")
+	if ($lastGoodEns-$LADCP_atbottom < 100);
 
 #----------------------------------------------------------------------
 # More editing
@@ -635,8 +643,8 @@ progress("\tvelocities beyond bin $first_bad_bin (<%d%% valid values): %d veloci
 #--------------
 
 progress("Reading CTD data from <$CTD_file>...\n");
-open(STDIN,$CTD_file) || croak("$CTD_file: $!\n");
-croak("$CTD_file: no data\n") unless (&antsIn());
+open(STDIN,$CTD_file) || error("$CTD_file: $!\n");
+error("$CTD_file: no data\n") unless (&antsIn());
 undef($antsOldHeaders);
 ($CTD_elapsed,$CTD_depth,$CTD_svel,$CTD_w) = &fnr('elapsed','depth','ss','w');
 $CTD_temp = &fnrNoErr('temp');
@@ -646,7 +654,7 @@ $CTD_temp = &fnrNoErr('temp');
 $CTD_maxdepth = -1;
 
 do {																		# read data
-	croak("$0: cannot deal with non-numeric CTD elapsed time\n")
+	error("$0: cannot deal with non-numeric CTD elapsed time\n")
 		unless &antsNumbers($CTD_elapsed);
 	push(@{$CTD{ELAPSED}},$ants_[0][$CTD_elapsed]);
 	push(@{$CTD{DEPTH}},  $ants_[0][$CTD_depth]);
@@ -669,7 +677,7 @@ for (my($s)=1; $s<@{$CTD{ELAPSED}}-1; $s++) {								# centered differences for 
 	$CTD{W_tt}[$s] = ($CTD{W}[$s+1] + $CTD{W}[$s-1] - 2*$CTD{W}[$s]) / $CTD{DT}**2;
 }
 
-croak("$0: CTD start depth must be numeric\n")
+error("$0: CTD start depth must be numeric\n")
 	unless numberp($CTD{DEPTH}[0]);
 if (($CTD{DEPTH}[0] < -$opt_d) && !defined($opt_d)) {
 	$opt_d = -1 * round($CTD{DEPTH}[0]);
@@ -747,7 +755,7 @@ if ($opt_u) {
 	$CTD{TIME_LAG} =														
 		calc_lag($number_of_timelag_windows[0],$length_of_timelag_windows[0],
 				 int(1/$CTD{DT}+0.5),$firstGoodEns,$lastGoodEns);
-	croak("$0: Cannot proceed without valid lag!\n") unless defined($CTD{TIME_LAG});
+	error("$0: Cannot proceed without valid lag!\n") unless defined($CTD{TIME_LAG});
 	progress("\telapsed(CTD) ~ elapsed(LADCP) + %.2fs\n",$CTD{TIME_LAG});
 
 	#---------------------------------
@@ -789,7 +797,7 @@ if ($opt_u) {
 		shift(@splits);
 	}
 			
-	croak("$0: Cannot proceed without at least one lag!\n")					# fill failed lag with surrounding data
+	error("$0: Cannot proceed without at least one lag!\n")					# fill failed lag with surrounding data
 		unless defined($valid_lag);
 	while ($valid_lag < $#CTD_time_lag) {									# forward
 		$CTD_time_lag[$valid_lag+1] = $CTD_time_lag[$valid_lag];
@@ -851,7 +859,7 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 			&& numberp($CTD{DEPTH}[$scan])) {
 		$LADCP{ENSEMBLE}[$ens]->{REFLR_W_NOSSCORR} = $LADCP{ENSEMBLE}[$ens]->{REFLR_W};				
 	    $LADCP{ENSEMBLE}[$ens]->{REFLR_W} *= $CTD{SVEL}[$scan]/1500; 	# correct for sound-speed variations at source
-		croak(sprintf("\n$0: negative depth (%.1fm) in CTD file at elapsed(CTD) = %.1fs (use -d?)\n",
+		error(sprintf("\n$0: negative depth (%.1fm) in CTD file at elapsed(CTD) = %.1fs (use -d?)\n",
 			$CTD{DEPTH}[$scan],$CTD{ELAPSED}[$scan]))
 				unless ($CTD{DEPTH}[$scan] >= 0);
 		$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH} = $CTD{DEPTH}[$scan];
@@ -880,13 +888,13 @@ if ($nWsq > 0 && $nWsqI > 0) {
 						100*sqrt($sumWsq/$nWsq),100*sqrt($sumWsqI/$nWsqI));
 	warning(0,"%.2f cm/s reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI))
 		if (sqrt($sumWsqI/$nWsqI) > 0.05);
-#	croak("$0: rms reference-layer w_ocean is too large\n")
+#	error("$0: rms reference-layer w_ocean is too large\n")
 #		unless (sqrt($sumWsqI/$nWsqI) < 0.07);
 } elsif ($nWsq > 0) {
 	&antsAddParams('rms_w_reflr_err',sqrt($sumWsq/$nWsq),'rms_w_reflr_err_interior',nan);
 	progress("\t%.2f cm/s rms reference-layer w_ocean\n",100*sqrt($sumWsq/$nWsq));
 } else {
-	croak("$0: no valid vertical velocities\n");
+	error("$0: no valid vertical velocities\n");
 }
 
 #----------------------------------------------------------------------
@@ -915,14 +923,23 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 			find_backscatter_seabed($LADCP{ENSEMBLE}[$LADCP_atbottom]->{CTD_DEPTH});
 		($water_depth_BT,$sig_water_depth_BT) =
 			find_seabed(\%LADCP,$LADCP_atbottom,$LADCP{BEAM_COORDINATES});
-		if (defined($water_depth_BT)) {
+		if (defined($water_depth) && defined($water_depth_BT)) {
 			my($dd) = abs($water_depth_BT - $water_depth);
-			warning(2,sprintf("Large RDI vs. own water-depth difference (%.1fm)\n",$dd))
+			warning(2,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
 				if ($dd > 5);
+		}
+		if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {
+			warning(1,"using water_depth from BT data\n");
+			$SS_use_BT = 1;
+		}
+		if ($SS_use_BT) {
+			$water_depth = $water_depth_BT;
+			$sig_water_depth = $sig_water_depth_BT;
 		}
 	}
 	
-	&antsAddParams('water_depth',$water_depth,'water_depth.sig',$sig_water_depth);
+	&antsAddParams('water_depth',$water_depth,'water_depth.sig',$sig_water_depth)
+		if defined($water_depth);
 
 	if (numberp($water_depth)) {
 		if (numberp($water_depth_BT)) {
@@ -1266,7 +1283,7 @@ if (@out_BR) {
 	foreach my $of (@out_BR) {
 	    progress("<$of> ");
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
-		open(STDOUT,$of) || croak("$of: $!\n");
+		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 		for (my($bin)=0; $bin<max(scalar(@dc_bres),scalar(@uc_bres)); $bin++) {
 			my($dc_avg) = avg(@{$dc_bres[$bin]});
@@ -1318,7 +1335,7 @@ if (@out_w) {
 	foreach my $of (@out_w) {
 	    progress("<$of> ");
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
-		open(STDOUT,$of) || croak("$of: $!\n");
+		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 	    
 		for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
@@ -1407,7 +1424,7 @@ if (@out_profile) {
 	foreach my $of (@out_profile) {
 	    progress("<$of> ");
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
-		open(STDOUT,$of) || croak("$of: $!\n");
+		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 	    
 		for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
@@ -1443,7 +1460,7 @@ if (@out_timeseries) {
 	foreach my $of (@out_timeseries) {
 	    progress("<$of> ");
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
-		open(STDOUT,$of) || croak("$of: $!\n");
+		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 		 
 		for ($ens=$firstGoodEns; $ens<=$realLastGoodEns; $ens++) {

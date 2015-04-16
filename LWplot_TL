@@ -1,10 +1,10 @@
-#!/bin/ksh
+#!/bin/sh
 #======================================================================
 #                    L W P L O T _ T L 
 #                    doc: Thu Oct 13 10:51:49 2011
-#                    dlm: Thu Apr 16 08:09:32 2015
+#                    dlm: Thu Apr 16 10:40:56 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 57 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 27 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -23,6 +23,7 @@
 #	Apr  5, 2015: - made fixbb optional
 #				  - BUG: ps file had not been closed properly (fixbb took care of that)
 #   Apr 16, 2015: - removed copy of input on stdout
+#				  - changed shell from /bin/ksh to /bin/sh
 
 USAGE="Usage: $0 <eps-file> [in-file]"
 	[ $# -eq 2 ] && exec <"$2" "$0" "$1"

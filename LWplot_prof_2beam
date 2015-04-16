@@ -1,10 +1,10 @@
-#!/bin/ksh
+#!/bin/sh
 #======================================================================
 #					 L W P L O T _ P R O F _ 2 B E A M 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Thu Apr 16 08:10:32 2015
+#                    dlm: Thu Apr 16 13:59:55 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 61 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 1 9 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,9 +13,9 @@
 #	Nov  3, 2014: - adapted to updated layout of .prof file
 #	Apr  5, 2015: - made fixbb optional
 #   Apr 16, 2015: - removed copy of input on stdout
-
-# NOTES:
-#	- this version plots 2-beam solutions instead of final w
+#				  - changed shell from /bin/ksh to /bin/sh
+#				  - slightly increased w range
+#				  - added seabed if available
 
 #--------------------------------------------------
 # Usage
@@ -37,6 +37,7 @@ do
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
 	[ -z "$max_depth" ] && max_depth=`expr -- "$line" : '#ANTS#PARAMS#.*max_depth{\([^}]*\)}`
+	[ -z "$water_depth" ] && water_depth=`expr -- "$line" : '#ANTS#PARAMS#.*water_depth{\([^}]*\)}`
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
 done
 
@@ -65,17 +66,19 @@ cat > $TMPFILE
 			WANT_EURO_FONT true \
 	        PLOT_DEGREE_FORMAT ddd:mm:ssF
 
-R=-R-0.07/0.35/$min_depth/$max_depth
-R2=-R-200/200/$min_depth/$max_depth
+[ -n "$water_depth" ] && blim=`echo "scale=0;$water_depth/1+25"|bc` \
+				      || blim=`echo "scale=0;$max_depth/1+25"|bc`
+R=-R-0.1/0.35/0/$blim
+R2=-R-200/200/0/$blim
 U=-R0/1/0/1
 X=-JX10/-10
 
 # FRAME
-{ echo 0 $min_depth; echo 0 $max_depth; } | psxy -P -K $R $X > "$eps_file"
-{ echo 0.07 $min_depth; echo 0.07 $max_depth; echo 0.18 $max_depth; echo 0.18 $min_depth; } | psxy -O -K $R $X -L -G200 >> "$eps_file"
-{ echo 50 $min_depth; echo 50 $max_depth; } | psxy -O -K $R2 $X >> "$eps_file"
-{ echo 100 $min_depth; echo 100 $max_depth; } | psxy -O -K $R2 $X >> "$eps_file"
-{ echo 150 $min_depth; echo 150 $max_depth; } | psxy -O -K $R2 $X >> "$eps_file"
+{ echo 0 0; echo 0 $blim; } | psxy -P -K $R $X > "$eps_file"
+{ echo 0.07 0; echo 0.07 $blim; echo 0.18 $blim; echo 0.18 0; } | psxy -O -K $R $X -L -G200 >> "$eps_file"
+{ echo 50 0; echo 50 $blim; } | psxy -O -K $R2 $X >> "$eps_file"
+{ echo 100 0; echo 100 $blim; } | psxy -O -K $R2 $X >> "$eps_file"
+{ echo 150 0; echo 150 $blim; } | psxy -O -K $R2 $X >> "$eps_file"
 
 # VERTICAL VELOCITIES (2-BEAM SOLUTIONS)
 awk '{print $7, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,coral,6_2:0 >> "$eps_file"
@@ -94,17 +97,21 @@ awk '{print  $6,$1, $4}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2
 awk '{print $13,$1,$11}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/SeaGreen >> "$eps_file"
 awk '{print $18,$1,$20}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/black >> "$eps_file"
 
+# SEABED
+[ -n "$water_depth" ] && {
+	echo -0.1 $blim;
+	echo 0.35 $blim;
+	echo 0.35 $water_depth;
+	echo -0.1 $water_depth;
+} | psxy -O -K $R $X -G204/153/102 >> "$eps_file"
+
 # LABELS
 echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$eps_file"
 echo 0.6 0.98 12 0 0 BR m.a.d. | pstext -O -K $U $X >> "$eps_file"
 
 # AXES
-if [ 0 -eq `echo "($max_depth-$min_depth)>1000"|bc` ]
-then
-	depth_tics=f10a100
-else
-	depth_tics=f100a500
-fi
+[ $blim -lt 1000 ] && depth_tics=f10a100\
+				   || depth_tics=f100a500
 
 psbasemap -O -K $R $X -Bf0.01a10-10.05:"Vertical Velocity [m/s]                               ":/$depth_tics:"Depth [m]":WeS >> "$eps_file"
 psbasemap -O -K $R $X -Ba10-9.95S >> "$eps_file"

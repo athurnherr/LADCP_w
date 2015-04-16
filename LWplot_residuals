@@ -1,10 +1,10 @@
-#!/bin/ksh
+#!/bin/sh
 #======================================================================
 #					 L W P L O T _ R E S I D U A L S 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Thu Apr 16 08:10:54 2015
+#                    dlm: Thu Apr 16 11:20:19 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 63 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 91 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -17,6 +17,8 @@
 #   Apr 12, 2012: - made re-entrant
 #	Apr  5, 2015: - made fixbb optional
 #   Apr 16, 2015: - removed copy of input on stdout
+#				  - changed shell from /bin/ksh to /bin/sh
+#				  - added seabed if available
 
 #--------------------------------------------------
 # Usage
@@ -38,6 +40,7 @@ do
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
 	[ -z "$max_depth" ] && max_depth=`expr -- "$line" : '#ANTS#PARAMS#.*max_depth{\([^}]*\)}`
+	[ -z "$water_depth" ] && water_depth=`expr -- "$line" : '#ANTS#PARAMS#.*water_depth{\([^}]*\)}`
 	[ -z "$min_ens" ] && min_ens=`expr -- "$line" : '#ANTS#PARAMS#.*min_ens{\([^}]*\)}`
 	[ -z "$max_ens" ] && max_ens=`expr -- "$line" : '#ANTS#PARAMS#.*max_ens{\([^}]*\)}`
 	[ -z "$ADCP_bin_length" ] && ADCP_bin_length=`expr -- "$line" : '#ANTS#PARAMS#.*ADCP_bin_length{\([^}]*\)}`
@@ -67,8 +70,9 @@ cat > $TMPFILE
 			WANT_EURO_FONT true \
 	        PLOT_DEGREE_FORMAT ddd:mm:ssF
 
-R=-R`echo "scale=1;$min_ens-0.5"|bc`/`echo "scale=1;$max_ens+0.5"|bc`/`\
-	 echo "scale=1;$min_depth-$ADCP_bin_length/2"|bc`/`echo "scale=1;$max_depth+$ADCP_bin_length/2"|bc`
+[ -n "$water_depth" ] && blim=`echo "scale=1;$water_depth+25"|bc` \
+				      || blim=`echo "scale=1;$max_depth+$ADCP_bin_length"|bc`
+R=-R`echo "scale=1;$min_ens-0.5"|bc`/`echo "scale=1;$max_ens+0.5"|bc`/0/$blim
 U=-R0/1/0/1
 X=-JX10/-10
 C=-C`which LWplot_residuals | sed 's@LWplot_residuals$@residuals.cpt@'`
@@ -78,6 +82,12 @@ bin_length=`echo "scale=5;10*$ADCP_bin_length/($max_depth-$min_depth+$ADCP_bin_l
 
 awk "{print \$1, \$4, \$10, $ens_width, $bin_length}" $TMPFILE \
 	| psxy -P -K $R $X $C -Sr > "$eps_file"
+[ -n "$water_depth" ] && {
+	echo $min_ens $blim;
+	echo $max_ens $blim;
+	echo $max_ens $water_depth;
+	echo $min_ens $water_depth;
+} | psxy -O -K $R $X -G204/153/102 >> "$eps_file"
 	
 echo 0.02 0.02 12 0 0 TL $out_basename $run_label | pstext -O -K $U $X >> "$eps_file"
 

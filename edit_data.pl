@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Wed May 21 13:00:35 2014
+#                    dlm: Thu Apr 16 12:13:15 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 339 74 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 357 20 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -30,6 +30,7 @@
 #	Mar  4, 2013: - added support for missing PITCH/ROLL (TILT) & HEADING
 #	May 20, 2014: - added editPPI()
 #	May 21, 2014: - got it to work correctly
+#				  - croak -> error
 
 # NOTES:
 #	- editCorr_Earthcoords() is overly conservative and removed most
@@ -353,7 +354,7 @@ sub editPPI($$$)
 		elsif ($LADCP{BEAM_FREQUENCY} ==  300) { $bha = 3.7; }
 		elsif ($LADCP{BEAM_FREQUENCY} ==  150) { $bha = 6.7; }
 		elsif ($LADCP{BEAM_FREQUENCY} ==   75) { $bha = 8.4; }
-		else { croak("$0: unexpected transducer frequency $LADCP{BEAM_FREQUENCY}\n"); }
+		else { error("$0: unexpected transducer frequency $LADCP{BEAM_FREQUENCY}\n"); }
 	}
 	
 	for (my($e)=$fe; $e<=$te; $e++) {

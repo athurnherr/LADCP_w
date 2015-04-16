@@ -1,10 +1,10 @@
-#!/bin/ksh
+#!/bin/sh
 #======================================================================
 #					 L W P L O T _ S P E C 
 #                    doc: Thu Sep  5 18:23:41 2013
-#                    dlm: Thu Apr 16 08:12:02 2015
+#                    dlm: Thu Apr 16 10:41:27 2015
 #                    (c) 2013 A.M. Thurnherr
-#                    uE-Info: 10 58 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 20 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # NB: THIS PLOTTING ROUTINE REQUIRES NON-PUBLIC ANTS TOOLS
@@ -16,6 +16,7 @@
 #	Jul 12, 2013: - added a -N to pgram to make it work with partial-depth casts
 #	Apr  5, 2015: - made fixbb optional
 #   Apr 16, 2015: - removed copy of input on stdout
+#				  - changed shell from /bin/ksh to /bin/sh
 
 #--------------------------------------------------
 # Usage
