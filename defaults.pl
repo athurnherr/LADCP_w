@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Tue Apr  7 19:27:36 2015
+#                    dlm: Thu Apr 16 05:11:48 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 58 21 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 64 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -61,6 +61,7 @@
 
 
 # correct attiude sensors
+# NB: heading is not used for vertical-velocity processing!
 
 $pitch_bias = $roll_bias = $heading_bias = 0;
 
