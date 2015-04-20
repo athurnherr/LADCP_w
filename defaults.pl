@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Thu Apr 16 14:40:08 2015
+#                    dlm: Mon Apr 20 13:51:17 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 256 2 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 283 24 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -45,7 +45,7 @@
 #   Apr 16, 2015: - turned output specifies into lists (re-design of
 #                   plotting sub-system)
 #				  - croak -> error
-#				  - added $SS_use_BT
+#				  - added $SS_use_BT, $SS_min_signal, $SS_min_samp
 
 #======================================================================
 # Data Input 
@@ -252,32 +252,47 @@ $TL_max_allowed_three_lag_spread = 3;
 $SS_use_BT = 0;
 
 
-# Require at least 5 valid samples for seabed detection. Only for
-# $SS_use_BT == 0.
+# The following variable defines the minimum Sv signal in a bin (max - min)
+# required for reliable seabed detection. A limiting value of 40dB is
+# indicated based on GoM#13, where the seabed is only visible in the last 
+# bin (#25). 30dB is chosen as the default to allow for variability. 
+# This value may need to be changed for data not collected with WH300
+# instruments with 8m bins, and perhaps also for different types of
+# seafloor (soft sediments). To do this, set $SS_min_signal to a small value
+# (e.g. 10) and inspect the \@SV_rng values reported in the log files.
+# This parameter is only used when $SS_use_BT == 0.
 
-$SS_min_samp = 5;
+$SS_min_signal = 30;
 
 
-# Number of ensembles around bottom to search. Only for $SS_use_BT == 1.
+# Require at minimum nubmer of valid samples for seabed detection. Each
+# sample is a bin with a clear seabed maximum. With a proper setting
+# of $SS_min_signal, the algorithm is stable even with only a single
+# sample (GoM#13). However, a default of 3 required samples is chosen
+# to make seabed detection less sensitive to $SS_min_signal. 
+# This parameter is only used when $SS_use_BT == 0.
+
+$SS_min_samp = 3;
+
+
+# The following numbers define the valid range of height-above bottom
+# for seabed detection. For data collected with WH300 instruments and
+# 8m bins, the maximum range needs to be greater than 250m (based on 
+# GoM#13).
+
+$SS_min_allowed_range = 0;
+$SS_max_allowed_range = 350;
+
+
+# Number of ensembles around bottom to search. Only used with $SS_use_BT == 1.
 
 $SS_search_window_halfwidth = 200;	 
 
 
 # Maximum allowed distance of seabed from mode of distribution. 
-# Only for $SS_use_BT == 1.
+# Only used with $SS_use_BT == 1.
 
 $SS_max_allowed_depth_range = 10;
-
-
-# The following numbers define the valid range of height-above bottom
-# for seabed detection when $SS_use_BT == 1. If the the mean BT_RANGE of 
-# a given ens falls outside this range, the ensemble is ignored during 
-# seabed detection.
-# Also, bins falling outside this range are not considered during 
-# construction of accoustic backscatter profiles.
-
-$SS_min_allowed_range = 20;
-$SS_max_allowed_range = 150;
 
 
 #======================================================================

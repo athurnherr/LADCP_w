@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Thu Apr 16 14:40:22 2015
+#                    dlm: Mon Apr 20 13:56:56 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 141 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 24 71 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -18,7 +18,10 @@
 #	Mar  4, 2014: - added support for missing PITCH/ROLL (TILT)
 #	Apr 17, 2014: - BUG: missing ;
 #	Nov  7, 2014: - BUG: calc_binDepths() was called without valid CTD depth
-#	Apr 16, 2015: - added min samp criterion for seabed search
+#				  - added $SS_use_BT, $SS_min_signal, $SS_min_samp
+#	Apr 20, 2015: - added comments
+#				  - removed SS_{min,max}_allowed_range from calc_backscatter_profs()
+#				  - added correct_backscatter() & linterp() from laptop
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -27,6 +30,11 @@
 #   - no sound-speed correction applied
 #   - R in bin center, instead of last quarter
 #   - transmit power assumes 33V batteries
+# EMPIRICAL FINDINGS (after applying the empirical correction)
+#  - Sv(WH300) ~ Sv(WH150)/1.4-34
+#      - based on DoMORE-1: 004, 005
+#      - identical instrument setup (0/8/8m)
+#      - 003, with higher scattering is somewhat different
 #----------------------------------------------------------------------
 
 # NB:
@@ -39,7 +47,7 @@
 sub Sv($$$$$)
 {
     my($temp,$PL,$Er,$R,$EA) = @_;
-    my($C)      = -143;                 # RDI Workhorse monitor
+    my($C)      = -143;                 # RDI WHM300 (from Deines)
     my($Ldbm)   = 10 * log10($PL);
     my($PdbW)   = 14.0;
     my($alpha)  = 0.069;
@@ -85,9 +93,9 @@ sub calc_backscatter_profs($$)
 			my($range_to_bin) = abs($bd[$bin] - $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH})
 									/ cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}))
 									/ $cosBeamAngle;
-			next
-				if ($range_to_bin < $SS_min_allowed_range ||
-					$range_to_bin > $SS_max_allowed_range);
+#			next
+#				if ($range_to_bin < $SS_min_allowed_range ||
+#					$range_to_bin > $SS_max_allowed_range);
 			my($temp) = defined($CTD_temp)
 					  ? $CTD{TEMP}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]
 					  : $LADCP{ENSEMBLE}[$ens]->{TEMPERATURE};
@@ -113,6 +121,77 @@ sub calc_backscatter_profs($$)
 }
 
 #----------------------------------------------------------------------
+# empirically adjust Sv in far bins for consistency with nearest
+# valid bin
+#	- based on bin-to-bin differences of 100m vertically averaged Sv
+#	  profiles
+#	- algorithm can leave artifacts in the near bins near bottom
+#	  turn-around (DM1#001)
+#----------------------------------------------------------------------
+
+sub linterp($$$$$)
+{
+	my($x,$mix,$max,$miy,$may) = @_;
+	return $miy + ($x-$mix)/($max-$mix)*($may-$miy);
+}
+
+$Sv_ref_bin = 1;  # bin 2 is slightly better than bin 5 => use closest bin as reference as originally intended
+				  # default setting choses first bin with data; do not set to values below 1
+
+sub correct_backscatter($$)
+{
+	my($LADCP_start,$LADCP_end) = @_;
+	my($bin) = $LADCP_firstBin-1;
+	my(@refSvProf,@refSvSamp,$depth,$i);
+
+RETRY:
+	for ($depth=0; $depth<@nSv; $depth++) {						# create reference profile
+		next unless ($nSv[$depth][$Sv_ref_bin-1] > 0);
+		$refSvProf[int($depth/100)] += $sSv[$depth][$Sv_ref_bin-1] / $nSv[$depth][$Sv_ref_bin-1];
+		$refSvSamp[int($depth/100)]++;
+    }
+    $Sv_ref_bin++,goto RETRY
+    	unless (@refSvSamp);
+
+	for ($i=0; $i<@refSvSamp; $i++) {
+		next unless ($refSvSamp[$i] > 0);
+		$refSvProf[$i] /= $refSvSamp[$i];
+	}
+	for ($i=0; $i<5; $i++) {									# extrapolate bottom value by 500m
+		push(@refSvProf,$refSvProf[$#refSvProf]);
+		push(@refSvSamp,$refSvSamp[$#refSvSamp]);
+	}
+	info("\tusing bin %d as reference\n",$Sv_ref_bin);
+
+	my(@dSvProf);												# create profiles for all bins
+	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {	
+		my(@dSvSamp);									
+		for ($depth=0; $depth<@nSv; $depth++) {					# create Sv-difference profile for current bin
+			next unless ($nSv[$depth][$bin] > 0);
+			$dSvProf[int($depth/100)][$bin] += $sSv[$depth][$bin] / $nSv[$depth][$bin];
+			$dSvSamp[int($depth/100)]++;
+		}
+		for ($i=0; $i<@dSvSamp; $i++) {
+			next unless ($refSvSamp[$i] > 0) && ($dSvSamp[$i] > 0);
+			$dSvProf[$i][$bin] = $dSvProf[$i][$bin]/$dSvSamp[$i] - $refSvProf[$i];
+		}
+		$dSvProf[$i][$bin] = $dSvProf[$i-1][$bin];				# extrapolate 100m
+	}
+
+    for (my($ens)=$LADCP_start; $ens<=$LADCP_end; $ens++) {		# correct Sv data
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+		my(@bd) = calc_binDepths($ens);
+		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			next unless numberp($LADCP{ENSEMBLE}[$ens]->{SV}[$bin]);
+			my($depth) = int($bd[$bin]);
+			$LADCP{ENSEMBLE}[$ens]->{SV}[$bin] -= $dSvProf[int($depth/100)][$bin];
+				linterp($depth,100*int($depth/100),100*int($depth/100)+100,
+						$dSvProf[int($depth/100)][$bin],$dSvProf[int($depth/100)+1][$bin]);
+		}
+	}
+}
+
+#----------------------------------------------------------------------
 # determine location of seabed from backscatter profiles
 #	input:	depth below which seabed can possibly be (e.g. max CTD depth)
 #	output:	median/mad of estimated water depth
@@ -120,8 +199,8 @@ sub calc_backscatter_profs($$)
 
 sub find_backscatter_seabed($)
 {
-	my($search_below) = int($_[0]);								# grid index to begin search
-	my(@wdepth);												# list of water_depth indices
+	my($search_below) = int($_[0]);										# grid index to begin search
+	my(@wdepth,@Sv_rng);												# list of water_depth indices
 
 	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) { 	# find backscatter min/max below $search_below in each bin
 		my($minSv,$maxSv,$depthmaxSv,$lastvalid) = (1e99,-1e99,-1,-1);
@@ -132,13 +211,18 @@ sub find_backscatter_seabed($)
 			$minSv = $Sv if ($Sv < $minSv);
 			$maxSv = $Sv, $depthmaxSv = $depth if ($Sv > $maxSv);
 		}
-		if ($maxSv-$minSv>10 && $depthmax!=$lastvalid) { 		# ignore boundary maxima & scatter
+		if ($maxSv-$minSv >= $SS_min_signal) { 							# ignore scatter
+			push(@Sv_rng,round($maxSv-$minSv));
 			push(@wdepth,$depthmaxSv);
 		}
 	}
 
-	info("%d seabed samples found\n",scalar(@wdepth));
-	return (undef,undef) if (scalar(@wdepth) < $SS_min_samp);	# require min number of samples
+	if (@wdepth) {
+		info("%d bins with seabed signatures found (\@Sv_rng: @Sv_rng)\n",scalar(@wdepth));
+    } else {
+		info("no bins with seabed signatures found\n");
+    }
+	return (undef,undef) if (scalar(@wdepth) < $SS_min_samp);			# require min number of samples
 	
 	my($wd) = median(@wdepth);
 	return ($wd,mad2($wd,@wdepth));

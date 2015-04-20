@@ -2,9 +2,9 @@
 #======================================================================
 #                    S B E _ W 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Thu Apr 16 10:29:18 2015
+#                    dlm: Fri Apr 17 10:06:21 2015
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 24 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 23 55 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -20,10 +20,9 @@ $antsMinLibVersion = 6.0;
 #				  - added no-valid-data error message
 #				  - modified binning criterion to allow any sampling
 #					frequency (not just divisors of 24)
-#	Apr 16, 2015: - disabled output activation unless ANTS tools are available
+#	Apr 17, 2015: - added in-situ temperature to output
 
 ($ANTS) = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
-$ANTS_TOOLS_AVAILABLE = (`which list` ne '');
 
 require "$ANTS/ants.pl";
 require "$ANTS/fft.pl";
@@ -45,8 +44,7 @@ $antsParseHeader = 0;											# usage
 
 $CNVfile = $ARGV[0];											# open CNV file
 open(F,&antsFileArg());
-&antsActivateOut()												# activate ANTS file
-	if ($ANTS_TOOLS_AVAILABLE);
+&antsActivateOut();												# activate ANTS file
 
 #----------------------------------------------------------------------
 # Read Data
@@ -359,9 +357,9 @@ if ($opt_l > 0) {
 
 print(STDERR "Writing output...\n") if ($opt_v);
 
-@antsNewLayout = ('elapsed','depth','sspd','w.raw','w');
+@antsNewLayout = ('elapsed','depth','temp','sspd','w.raw','w');
 for ($r=0; $r<@w; $r++) {
-	&antsOut($elapsed[$r],$depth[$r],$sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp);
+	&antsOut($elapsed[$r],$depth[$r],$temp[$r],$sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp);
 }
 
 exit(0);															# don't flush @ants_

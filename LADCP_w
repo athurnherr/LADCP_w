@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Thu Apr 16 14:27:45 2015
+#                    dlm: Mon Apr 20 14:01:10 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 162 60 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 167 78 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -160,13 +160,19 @@ $antsMinLibVersion = 6.0;
 #				  - removed /bin/ksh requirement
 #				  - BUG: error messages were not reported in the log file
 #				  - made seabed detection code more flexible
+#				  - made reference-layer w_ocean warning more severe
+#				  - BUG: info() did not write anything into logfile when format string was used
+#				  - BUG: LADCP_lastBin was set 1 too low
+#	Apr 20, 2015: - improved comments
+#				  - improved diagnostic messages (warning on missing CTD temp)
+#				  - added support for empirical backscatter correction
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
 #	- depth
 #	- ss			sound speed
 #	- w				ddepth/dt
-#	- temp			OPTIONAL; used for backscatter calculation (i.e. not very important)
+#	- temp			OPTIONAL; used for backscatter calculation
 #	- %lat/%lon		OPTIONAL
 
 # 2-BEAM SOLUTIONS
@@ -326,7 +332,7 @@ sub progress(@)
 
 sub info(@)
 {
-	printf(LOGF "\t",@_) if defined($out_log);
+	print(LOGF "\t"),printf(LOGF @_) if defined($out_log);
 	print(STDERR ($opt_v > 1) ? "\t" : "$LADCP_file: ");
 	printf(STDERR @_)  if ($opt_v > 0);
 }
@@ -374,7 +380,7 @@ error("$0: last reference-layer bin outside valid range\n")
 error("$0: first reference-layer bin > last reference-layer bin\n")
 	unless ($refLr_firstBin <= $refLr_lastBin);
 
-$LADCP_lastBin = $LADCP{N_BINS}-1
+$LADCP_lastBin = $LADCP{N_BINS}
 	if ($LADCP_lastBin eq '*');
 error("$0: first valid LADCP bin outside valid range\n")
 	unless ($LADCP_firstBin>=1 && $LADCP_firstBin<=$LADCP{N_BINS});
@@ -646,13 +652,16 @@ progress("Reading CTD data from <$CTD_file>...\n");
 open(STDIN,$CTD_file) || error("$CTD_file: $!\n");
 error("$CTD_file: no data\n") unless (&antsIn());
 undef($antsOldHeaders);
-($CTD_elapsed,$CTD_depth,$CTD_svel,$CTD_w) = &fnr('elapsed','depth','ss','w');
-$CTD_temp = &fnrNoErr('temp');
+
 &antsAddParams('lat',$P{lat}) if defined($P{lat});
 &antsAddParams('lon',$P{lon}) if defined($P{lon});
 
-$CTD_maxdepth = -1;
+($CTD_elapsed,$CTD_depth,$CTD_svel,$CTD_w) = &fnr('elapsed','depth','ss','w');
+$CTD_temp = &fnrNoErr('temp');
+warning(2,"no CTD temperature --- using ADCP temperature instead => Sv degraded!\n",$s)
+   unless defined($CTD_temp);
 
+$CTD_maxdepth = -1;
 do {																		# read data
 	error("$0: cannot deal with non-numeric CTD elapsed time\n")
 		unless &antsNumbers($CTD_elapsed);
@@ -886,8 +895,11 @@ if ($nWsq > 0 && $nWsqI > 0) {
 	&antsAddParams('rms_w_reflr_err',sqrt($sumWsq/$nWsq),'rms_w_reflr_err_interior',sqrt($sumWsqI/$nWsqI));
 	progress("\t%.2f cm/s rms reference-layer w_ocean, %.2f cm/s away from boundaries\n",
 						100*sqrt($sumWsq/$nWsq),100*sqrt($sumWsqI/$nWsqI));
-	warning(0,"%.2f cm/s reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI))
-		if (sqrt($sumWsqI/$nWsqI) > 0.05);
+	if (sqrt($sumWsqI/$nWsqI) > 0.05) {
+		warning(1,"%.2f cm/s reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
+	} elsif (sqrt($sumWsqI/$nWsqI) > 0.1) {
+		warning(2,"%.2f cm/s reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
+	}
 #	error("$0: rms reference-layer w_ocean is too large\n")
 #		unless (sqrt($sumWsqI/$nWsqI) < 0.07);
 } elsif ($nWsq > 0) {
@@ -901,11 +913,14 @@ if ($nWsq > 0 && $nWsqI > 0) {
 # Calculate Volume Scattering Coefficients
 #----------------------------------------------------------------------
 
-progress("Calculating volume-scattering coefficients...\n");
+progress("Calculating volume-scattering coefficients (Sv)...\n");
 calc_backscatter_profs($firstGoodEns,$lastGoodEns);
 
+progress("\tapplying empirical Sv correction\n");
+correct_backscatter($firstGoodEns,$lastGoodEns);
+
 #----------------------------------------------------------------------------
-# Edit data
+# Find Seabed & Edit data
 #	1) contaminated by sidelobe reflection from seabed and sea surface
 #	2) PPI 
 #----------------------------------------------------------------------------
@@ -929,7 +944,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 				if ($dd > 5);
 		}
 		if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {
-			warning(1,"using water_depth from BT data\n");
+			warning(1,"using water_depth from ADCP BT data\n");
 			$SS_use_BT = 1;
 		}
 		if ($SS_use_BT) {
@@ -943,7 +958,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 
 	if (numberp($water_depth)) {
 		if (numberp($water_depth_BT)) {
-			progress("\t%.1f(%.1f) m water depth (%.1f(%.1f)m from BT)\n",
+			progress("\t%.1f(%.1f) m water depth (%.1f(%.1f)m from ADCP BT data)\n",
 				$water_depth,$sig_water_depth,$water_depth_BT,$sig_water_depth_BT);
 		} else {
 			progress("\t%.1f(%.1f) m water depth\n",$water_depth,$sig_water_depth);
@@ -972,7 +987,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 	        progress("\t$nvrm velocities from $nerm ensembles removed\n");
 	    }
 	} else {
-		info("no seabed found in backscatter profiles --- cannot edit sidelobe or PPI\n");
+		info("no seabed found --- cannot edit sidelobe or PPI\n");
 	}
 	
 } else {
