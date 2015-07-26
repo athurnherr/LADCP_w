@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ C O R R 
 #                    doc: Sat Oct 15 13:42:50 2011
-#                    dlm: Thu Apr 16 10:41:02 2015
+#                    dlm: Wed May 20 20:44:44 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 20 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 48 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -17,6 +17,8 @@
 #	Apr  5, 2015: - made fixbb optional
 #   Apr 16, 2015: - removed copy of input on stdout
 #				  - changed shell from /bin/ksh to /bin/sh
+#   Apr 20, 2015: - removed _skel dependence
+#   May 20, 2015: - made it quit on EOF
 
 #--------------------------------------------------
 # Usage
@@ -31,9 +33,9 @@ eps_file="$1"
 # Read Header Data
 #--------------------------------------------------
 
-while [ -z "$fields" ]
+read line
+while [ -z "$fields" -a -n "$line" ]
 do
-	read line
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
@@ -42,6 +44,7 @@ do
 	[ -z "$max_ens" ] && max_ens=`expr -- "$line" : '#ANTS#PARAMS#.*max_ens{\([^}]*\)}`
 	[ -z "$ADCP_bin_length" ] && ADCP_bin_length=`expr -- "$line" : '#ANTS#PARAMS#.*ADCP_bin_length{\([^}]*\)}`
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
+	read line
 done
 
 set -- $fields
@@ -90,9 +93,10 @@ else
 	ens_tics=f500a1000
 fi
 
-cat `which LWplot_corr | sed 's@LWplot_corr$@corr_scale.skel@'` >> "$eps_file"
+psbasemap -O -K $R $X -B$ens_tics:"Ensemble":/$depth_tics:"Depth [m]":WeSn >> "$eps_file"
 
-psbasemap -O $R $X -B$ens_tics:"Ensemble":/$depth_tics:"Depth [m]":WeSn >> "$eps_file"
+gmtset ANNOT_FONT_SIZE_PRIMARY 7
+psscale -O -E -D8/2/3/0.4 $C -B/:corr: >> "$eps_file"
 
 rm $TMPFILE
 [ -n "`which fixbb`" ] && fixbb "$eps_file"

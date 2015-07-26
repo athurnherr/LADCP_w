@@ -1,0 +1,354 @@
+#!/usr/bin/perl
+#======================================================================
+#                    L A D C P _ W S P E C 
+#                    doc: Thu Jun 11 12:02:49 2015
+#                    dlm: Tue Jun 16 13:20:57 2015
+#                    (c) 2012 A.M. Thurnherr
+#                    uE-Info: 334 19 NIL 0 0 72 10 2 4 NIL ofnI
+#======================================================================
+
+$antsSummary = 'calculate VKE window spectra from LADCP profiles';
+$antsMinLibVersion = 6.1;
+
+# HISTORY:
+#	Jun 11, 2015: - adapted from [binpgrams]
+#	Jun 12, 2015: - renamed %PARAM prefixes
+#	Jun 15, 2015: - BUG: de-meaning did not respect _gap variables
+#				  - added %output_depth_resolution
+#				  - reversed semantics of -d/-u
+#	Jun 16, 2015: - reversed semantics of -t
+#				  - re-added pwrdens.0 to make output consistent with [binpgrams]
+
+($ANTSBIN) = (`which list` =~ m{^(.*)/[^/]*$});
+($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
+
+require "$ANTSLIB/ants.pl";
+require "$ANTSLIB/antsfilters.pl";
+require "$ANTSLIB/libstats.pl";
+require "$ANTSLIB/fft.pl";
+require "$ANTSLIB/lfit.pl";
+require "$ANTSLIB/nrutil.pl";
+require "$ANTSBIN/.lsfit.poly";
+require "$ANTSBIN/.nminterp.linear";
+
+#----------------------------------------------------------------------
+# Usage
+#----------------------------------------------------------------------
+
+&antsUsage('bc:dg:o:s:tuw:',0,
+			'[poly-o)rder <n[0]> to de-mean data; -1 to disable>] [suppress cosine-t)aper]',
+			'[-d)own/-u)pcast-only] [exclude -b)ottom window]',
+			'[shortwave -c)utoff <kz or lambda>]',
+			'[-s)urface <layer depth to exclude[150m]>',
+			'[-g)ap <max depth layer to fill with interpolation[40m]>]',
+			'[-w)indow <power-of-two input-records[32]>]',
+			'[LADCP-profile(s)]');
+
+&antsIntOpt(\$opt_o,0);										# polynomial order to remove
+if ($opt_o >= 0) {												# init model
+	&modelUsage();
+	matrix(\@covar,1,$modelNFit,1,$modelNFit);
+	vector(\@afunc,1,$modelNFit);
+	&antsAddParams('wspec::demean_poly_order',$opt_o);
+}
+
+croak("$0: cannot ignore both down- and upcast\n")
+	unless ($opt_d+$opt_u < 2);
+if ($opt_d) {
+	&antsAddParams('wspec::input_data','dc');
+} elsif ($opt_u) {
+	&antsAddParams('wspec::input_data','uc');
+} else {
+	&antsAddParams('wspec::input_data','dc/uc');
+}
+&antsAddParams('wspec::cos_taper_applied',$opt_t ? 'no' : 'yes');
+&antsAddParams('wspec::btm_window_included',$opt_b ? 'no' : 'yes');
+
+if (defined($opt_c)) {											# shortwave cutoff
+	$kzlim = ($opt_c < 1) ? $opt_c : 2*$PI/$opt_c;
+	&antsAddParams('wspec::shortwave_cutoff',$kzlim);
+} else {
+	$kzlim = 9e99;
+}
+
+&antsCardOpt($opt_w);											# window size
+
+&antsCardOpt(\$opt_g,40);										# gap length [m]
+&antsAddParams('wspec::min_gap_thickness',$opt_g);
+
+&antsCardOpt(\$opt_s,150);      								# surface layer
+&antsAddParams('wspec::surface_layer',$opt_s);
+
+&ISUsage;														# interpolation model
+
+#----------------------------------------------------------------------
+# Read Data & Define Layout
+#----------------------------------------------------------------------
+
+croak("LADCP_VKE: spectral-input mode must be selected manually (-f)\n")
+	if defined(fnrNoErr('pwrdens.0')) && !defined(fnrNoErr('dc_w'));
+
+$zfnr = fnr('depth');											# required fields
+unless (defined(fnrNoErr('dc_w'))) {							# 
+}
+$dcwfnr = fnr('dc_w');
+$ucwfnr = fnr('uc_w');
+$habfnr = fnrNoErr('hab');										# optional fields
+
+&antsInstallBufFull(0);											# read entire file
+&antsIn();
+
+while ($ants_[0][$zfnr] < $opt_s) {								# remove surface layer
+	shift(@ants_);
+}
+
+for ($trimmed=0; !numberp($ants_[$#ants_][$dcwfnr]) && !numberp($ants_[$#ants_][$ucwfnr]); $trimmed++) {
+	pop(@ants_);
+}
+&antsInfo("$trimmed trailing non-numeric records trimmed")
+	if ($trimmed);
+
+$dz = &antsXCheck($zfnr,0,$#ants_,1.01);						# calc dT; 1% jitter
+&antsAddParams("wspec::input_depth_resolution",$dz);
+
+$opt_g = int(($opt_g - 1) / $dz);								# [m] -> [records]
+
+unless (defined($opt_w)) {										# window size
+	for ($opt_w=32; $opt_w*$dz>600; $opt_w/=2) {}
+	&antsInfo("%d-m windows ($opt_w records)",$opt_w*$dz);
+}
+&antsAddParams('wspec::window_size',$opt_w,'wspec::output_depth_resolution',$dz*$opt_w);
+
+croak(sprintf("$0: insufficient data (%d records found, %d required)\n",scalar(@ants_),$opt_w))
+	unless (@ants_ >= $opt_w);
+
+$zrange = $opt_w * $dz;											# NB: not equal to max-min!!!
+$resolution_bandwidth = 1 / $zrange;
+$resolution_bandwidth *= 2*$PI;
+&antsAddParams('wspec::resolution_bandwidth',$resolution_bandwidth);
+
+push(@antsNewLayout,'widx','depth','depth.min','depth.max','hab','nsamp');
+for (my($i)=0; $i<$opt_w/2+1; $i++) {
+	my($kz) = 2*$PI*$i/$zrange;
+	last if ($kz > $kzlim);
+	&antsAddParams(sprintf('wspec::k.%d',$i),$kz);
+	&antsAddParams(sprintf('wspec::lambda.%d',$i),$i ? $zrange/$i : inf);
+	push(@antsNewLayout,sprintf('pwrdens.%d',$i));
+}
+push(@antsNewLayout,'pwr.tot');
+
+&antsActivateOut();
+
+#----------------------------------------------------------------------
+# interpolate short gaps
+#----------------------------------------------------------------------
+
+&ISInit($dcwfnr,$zfnr);
+&ISInit($ucwfnr,$zfnr);
+
+my($dcLastValid,$ucLastValid,$interp);
+for (my($r)=0; $r<=$#ants_; $r++) {
+	if (numberp($ants_[$r][$dcwfnr])) {								# number => no interp.
+		$dcLastValid = $r;
+	} elsif (defined($dcLastValid)) {
+		$ants_[$r][$dcwfnr] = &interpolate($zfnr,$opt_g,$dcwfnr,$dcLastValid,$r);
+		$interp++ if numberp($ants_[$r][$dcwfnr]);
+	}
+	if (numberp($ants_[$r][$ucwfnr])) {								# number => no interp.
+		$ucLastValid = $r;
+	} elsif (defined($ucLastValid)) {
+		$ants_[$r][$ucwfnr] = &interpolate($zfnr,$opt_g,$ucwfnr,$ucLastValid,$r);
+		$interp++ if numberp($ants_[$r][$ucwfnr]);
+	}
+}
+	
+&antsInfo("$interp non-numeric values interpolated")
+	if ($interp);
+
+#----------------------------------------------------------------------
+# loop over windows
+#----------------------------------------------------------------------
+
+sub avgF($$)														# average field over window
+{
+	my($f,$r) = @_;
+	my(@vals);
+
+	push(@vals,$ants_[$r++][$f])
+		while (@vals < $opt_w);
+	return avg(@vals);
+}
+
+unless ($opt_t) {													# compile taper function only if needed
+	sub cosTaperWeight($)
+	{
+		my($z) = $_[0] - $ants_[$fromR][$zfnr];						# elapsed time
+		return ($z<0.1*$zrange || $z>0.9*$zrange) ?
+					0.5*(1+cos(10*$PI*$z/$zrange-$PI)) : 1;
+	}
+}
+
+WINDOW: for (my($widx)=1; 1; $widx++) {
+	undef(@out);
+	$out[0] = $widx;
+	local($fromR) = round(($widx-1)*($opt_w/2));					# local, cuz it's used in cosTaperWeight
+
+	#----------------------
+	# partial bottom window
+	#----------------------
+
+	if ($fromR+$opt_w-1 > $#ants_) {
+		last if ($opt_b);
+		$out[0] = -1;
+		$fromR = @ants_ - $opt_w;
+		$opt_b = 1;
+	}
+
+	#-----------------------------------
+	# output nan on non-numeric y values
+	#-----------------------------------
+
+	my($dc_gap) = $opt_u;											# exclude dc with -d, uc with -u
+	my($uc_gap) = $opt_d;
+	for (my($r)=$fromR; $r<$fromR+$opt_w; $r++) {
+		$dc_gap |= !numberp($ants_[$r][$dcwfnr]);
+		$uc_gap |= !numberp($ants_[$r][$ucwfnr]);
+	}
+
+	if ($dc_gap && $uc_gap) {
+		push(@out,$ants_[$fromR+$opt_w/2][$zfnr]);		
+		if ($ants_[0][$zfnr] > $ants_[1][$zfnr]) {		
+			push(@out,$ants_[$fromR+$opt_w-1][$zfnr]);	
+			push(@out,$ants_[$fromR][$zfnr]); 			
+		} else {										
+			push(@out,$ants_[$fromR][$zfnr]);			
+			push(@out,$ants_[$fromR+$opt_w-1][$zfnr]);	
+	    }
+	    push(@out,defined($habfnr) ?					
+						avgF($habfnr,$fromR) : nan);
+		push(@out,nan);								
+		for ($i=0; $i<=$opt_w/2; $i++) {			
+			push(@out,nan);
+		}
+		&antsOut(@out);												# output nan record and go to next window
+		next WINDOW;
+	}
+
+	#--------------------
+	# save current values
+	#--------------------
+
+	for (my($i)=0; $i<$opt_w; $i++) {
+		$dcwbuf[$i] = $ants_[$fromR+$i][$dcwfnr];
+		$ucwbuf[$i] = $ants_[$fromR+$i][$ucwfnr];
+	}
+
+	#------------------------
+	# polynomial de-"mean"ing
+	#------------------------
+
+	if ($opt_o >= 0) {
+		my($calc);
+		unless ($dc_gap) {
+			&modelInit();												# dc
+			for (my($a)=1; $a<=$modelNFit; $a++) { $iA[$a] = 1; }
+			&lfit($zfnr,$dcwfnr,-1,\@A,\@iA,\@covar,\&modelEvaluate,$fromR,$fromR+$opt_w-1);
+			&modelCleanup();
+			for (my($i)=0; $i<$opt_w; $i++) {
+				modelEvaluate($i,$zfnr,\@afunc);
+				for ($calc=0,my($p)=1; $p<=$modelNFit; $p++) {
+					$calc += $A[$p] * $afunc[$p];
+				}
+				$ants_[$fromR+$i][$dcwfnr] -= $calc;
+	        }
+	    }
+	    unless ($uc_gap) {
+			&modelInit();												# uc
+			for (my($a)=1; $a<=$modelNFit; $a++) { $iA[$a] = 1; }
+			&lfit($zfnr,$ucwfnr,-1,\@A,\@iA,\@covar,\&modelEvaluate,$fromR,$fromR+$opt_w-1);
+			&modelCleanup();
+			for (my($i)=0; $i<$opt_w; $i++) {
+				modelEvaluate($i,$zfnr,\@afunc);
+				for ($calc=0,my($p)=1; $p<=$modelNFit; $p++) {
+					$calc += $A[$p] * $afunc[$p];
+				}
+				$ants_[$fromR+$i][$ucwfnr] -= $calc;
+	        }
+	    }
+	}
+
+	#-----------
+	# taper data
+	#-----------
+
+	unless ($opt_t) {
+		for (my($i)=0; $i<$opt_w; $i++) {
+			$ants_[$fromR+$i][$dcwfnr] *= &cosTaperWeight($ants_[$fromR+$i][$zfnr]);
+			$ants_[$fromR+$i][$ucwfnr] *= &cosTaperWeight($ants_[$fromR+$i][$zfnr]);
+		}
+		$taper_correction = 1/0.875;
+	} else {
+		$taper_correction = 1;
+	}
+
+	#-------------
+	# PSD Estimate
+	#-------------
+			
+#	for (my($r)=0; $r<$opt_w; $r++) {
+#		print(STDERR "$ants_[$fromR+$r][$dcwfnr], $ants_[$fromR+$r][$ucwfnr]\n");
+#	}
+
+	@dc_coeff = &cFFT($dcwfnr,nan,$opt_w,$fromR)				# FFT
+		unless ($dc_gap);
+	@uc_coeff = &cFFT($ucwfnr,nan,$opt_w,$fromR)
+		unless ($uc_gap);
+	croak("$0: -n $opt_w not a power-of-two\n")
+		unless (@dc_coeff/2==$opt_w || @uc_coeff/2==$opt_w);
+
+	@dc_pwr = &pgram_onesided($opt_w,@dc_coeff)					# total power
+		unless ($dc_gap);
+	@uc_pwr = &pgram_onesided($opt_w,@uc_coeff)
+		unless ($uc_gap);
+	
+	push(@out,$ants_[$fromR+$opt_w/2][$zfnr]);					# middle z
+	if ($ants_[0][$zfnr] > $ants_[1][$zfnr]) {					# input descending
+		push(@out,$ants_[$fromR+$opt_w-1][$zfnr]);				# z.min
+		push(@out,$ants_[$fromR][$zfnr]); 						# z.max
+	} else {													# input ascending
+		push(@out,$ants_[$fromR][$zfnr]);						# z.min
+		push(@out,$ants_[$fromR+$opt_w-1][$zfnr]);				# z.max
+    }
+    push(@out,defined($habfnr) ?								# hab
+					avgF($habfnr,$fromR) : nan);
+	my($nsamp) = !$dc_gap + !$uc_gap;							# nsamp
+	push(@out,$nsamp);
+					
+	my($totP) = 0;												# power
+	my($i);
+	for ($i=0; $i<$opt_w/2+1; $i++) {				
+		my($sumP) = 0;
+		$sumP += $dc_pwr[$i] * $taper_correction unless ($dc_gap);
+		$sumP += $uc_pwr[$i] * $taper_correction unless ($uc_gap);
+		push(@out,$sumP/$nsamp/$resolution_bandwidth)
+			unless (antsParam("k.$i") > $kzlim);
+		$totP += $sumP;
+	}
+	push(@out,$totP);											# total power
+    
+	&antsOut(@out);
+
+	#--------------------------------
+	# undo tapering and/or de-meaning
+	#--------------------------------
+
+	for ($i=0; $i<$opt_w; $i++) {
+		$ants_[$fromR+$i][$dcwfnr] = $dcwbuf[$i];
+		$ants_[$fromR+$i][$ucwfnr] = $ucwbuf[$i];
+    }	
+}
+
+&antsInfo("$skipped windows with non-numeric values skipped")
+	if ($skipped);
+
+antsExit();

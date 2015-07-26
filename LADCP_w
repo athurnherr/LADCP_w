@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon Apr 20 14:01:10 2015
+#                    dlm: Sun Jul 26 17:11:01 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 167 78 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 1465 90 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -166,6 +166,20 @@ $antsMinLibVersion = 6.0;
 #	Apr 20, 2015: - improved comments
 #				  - improved diagnostic messages (warning on missing CTD temp)
 #				  - added support for empirical backscatter correction
+#	Apr 21, 2015: - improved screen log output
+#	Apr 22, 2015: - BUG: $realLastGoodEns could be undefined, breaking plotting routines
+#	Apr 24, 2015: - removed @ARGS
+#				  - added %profile_id
+#	May 13, 2015: - loosened "insufficient valid velocities" test for short casts
+#	May 15, 2015: - added $min_valid_vels
+#				  - BUG: LADCP_atbottom could be less than firstGoodEns
+#	May 18, 2015: - added %LADCP_pulse_length, %dnXX
+#	May 20, 2015: - added $PROF as newer alternative to $STN
+#				  - replaced "require ProcessingParams" by "do ProcessingParams"
+#	Jun 15, 2015: - clarified warning message
+#	Jul 26, 2015: - added %output_grid_dz %output_grid_minsamp for use by [LADCP_w_regrid]
+# 				  - began work on support for [libGMT.pl]
+#				  - -v usage message had wrong default
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
@@ -251,11 +265,11 @@ my($TINY) = 1e-16;
 # Usage
 #------
 
-@ARGS = @ARGV;														# save opts & arguments
+#@ARGS = @ARGV;														# save opts & arguments
 
 $antsParseHeader = 0;
 &antsUsage('3:4a:b:c:e:g:h:i:k:m:n:o:p:qs:t:uv:w:x:',1,
-	'[-v)erbosity <level[2]>]',
+	'[-v)erbosity <level[1]>]',
 	'[-q)uick (no single-ping denoising)]',
     '[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]',
 	'[valid LADCP -b)ins <bin[2],bin[*]>',
@@ -269,17 +283,17 @@ $antsParseHeader = 0;
 	'[pressure-sensor -a)cceleration correction <residual/CTD_w_tt>]',
 	'[-o)utput bin <resolution[10m]>] [-k) require <min[20]> samples]',
 	'[e-x)ecute <perl-expr>]',
-	'<station-id> [run-label]');
+	'<profile-id> [run-label]');
 
 &antsUsageError() if ($opt_u && !defined($opt_i));
 
-&antsCardOpt(\$opt_s,0);											# skip # initial ensembles
-$opt_p = '+' unless defined($opt_p);								# separate uc/dc time lagging
+&antsCardOpt(\$opt_s,0);												# skip # initial ensembles
+$opt_p = '+' unless defined($opt_p);									# separate uc/dc time lagging
 
-&antsFloatOpt(\$opt_a,1);											# pressure acceleration correction
+&antsFloatOpt(\$opt_a,1);												# pressure acceleration correction
 
-$STN = &antsCardArg();												# station id
-if (@ARGV) {														# run label
+$PROF = $STN = &antsCardArg();											# station id ($STN for compatibility)
+if (@ARGV) {															# run label
 	$RUN = $ARGV[0];
 	shift;
 } else {
@@ -291,7 +305,7 @@ if (@ARGV) {														# run label
 #-----------------------------
 
 require "$WCALC/defaults.pl";											# load default/option parameters
-require "$processing_param_file";										# load processing parameters
+do "$processing_param_file";											# load processing parameters
 eval($opt_x) if defined($opt_x);										# eval cmd-line expression to override anything
 
 $RDI_Coords::minValidVels = 4 if ($opt_4);								# decode cmd-line arguments
@@ -310,7 +324,7 @@ $RDI_Coords::minValidVels = 4 if ($opt_4);								# decode cmd-line arguments
 croak("$0: \$out_basename undefined\n")									# all plotting routines use this
 	unless defined($out_basename);
 &antsAddParams('out_basename',$out_basename);
-&antsAddParams('run_label',$RUN);
+&antsAddParams('profile_id',$PROF,'run_label',$RUN);
 
 #----------------------------------------------------------------------
 # Screen Logging
@@ -333,8 +347,7 @@ sub progress(@)
 sub info(@)
 {
 	print(LOGF "\t"),printf(LOGF @_) if defined($out_log);
-	print(STDERR ($opt_v > 1) ? "\t" : "$LADCP_file: ");
-	printf(STDERR @_)  if ($opt_v > 0);
+	printf(STDERR @_)  if ($opt_v > 1);
 }
 	
 sub warning(@)
@@ -342,15 +355,20 @@ sub warning(@)
 	my($lvl,@msg) = @_;
 
 	if (defined($out_log)) {
-		print(LOGF "\nWARNING (level $lvl): ");
+		print(LOGF "\nWARNING (L$lvl): ");
 		printf(LOGF @msg);
 		print(LOGF "\n");
 	}
 	return if ($opt_v == 0);
-	print(STDERR "\n") if ($opt_v > 1);
-	print(STDERR "WARNING (level $lvl): ");
-	printf(STDERR @msg);
-	print(STDERR "\n") if ($opt_v > 1);
+
+	if ($opt_v == 1) {
+		print(STDERR "$LADCP_file: WARNING (L$lvl): ");
+		printf(STDERR @msg);
+	} else {
+		print(STDERR "\n-------------\nWARNING (L$lvl): ");
+		printf(STDERR @msg);
+		print(STDERR "-------------\n\n")
+	}
 }
 
 sub error($)
@@ -398,6 +416,7 @@ warning(1,"if at all, bin 1 should not be used for short blank-after-transmit va
 	if ($LADCP{BLANKING_DISTANCE}<$LADCP{BIN_LENGTH} && $refLr_firstBin==1);
 
 &antsAddParams('ADCP_bin_length',$LADCP{BIN_LENGTH},
+			   'ADCP_pulse_length',$LADCP{TRANSMITTED_PULSE_LENGTH},
 			   'ADCP_frequency',$LADCP{BEAM_FREQUENCY},
 			   'ADCP_blanking_distance',$LADCP{BLANKING_DISTANCE});
 
@@ -534,7 +553,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 	progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
 }
 
-error("$LADCP_file: insufficient valid velocities\n") unless ($nvw > 1000);
+error("$LADCP_file: insufficient valid velocities\n") unless ($nvw >= $min_valid_vels);
 
 #----------------------------------------------
 # STEP: Edit earth-coordinate -velocity data
@@ -567,13 +586,16 @@ progress("Calculating LADCP time-series...\n");
 
 ($firstGoodEns,$lastGoodEns,$LADCP_atbottom,$LADCP_w_gap_time) =
 	calcLADCPts(\%LADCP,$opt_s,$refLr_firstBin,$refLr_lastBin,$opt_g);
-error("$LADCP_file: no good ensembles\n")
-	unless defined($firstGoodEns) && ($lastGoodEns-$firstGoodEns > 0);
+error("$LADCP_file: insufficient valid data\n")
+	unless defined($firstGoodEns) && ($lastGoodEns>$firstGoodEns) && ($LADCP_atbottom>=$firstGoodEns);
 
 my($cast_duration) = $LADCP{ENSEMBLE}[$lastGoodEns]->{ELAPSED} -
 				     $LADCP{ENSEMBLE}[$firstGoodEns]->{ELAPSED};
 error("$0: implausibly short cast ($cast_duration seconds)\n")
 	unless ($cast_duration > 600);
+
+my($year) = $LADCP{ENSEMBLE}[$firstGoodEns]->{YEAR} % 100;
+&antsAddParams("dn$year",$LADCP{ENSEMBLE}[$firstGoodEns]->{DAYNO});
 
 $LADCP{MEAN_DT} = $cast_duration / ($lastGoodEns-$firstGoodEns-1);
 
@@ -658,7 +680,7 @@ undef($antsOldHeaders);
 
 ($CTD_elapsed,$CTD_depth,$CTD_svel,$CTD_w) = &fnr('elapsed','depth','ss','w');
 $CTD_temp = &fnrNoErr('temp');
-warning(2,"no CTD temperature --- using ADCP temperature instead => Sv degraded!\n",$s)
+warning(0,"no CTD temperature --- using ADCP temperature instead => Sv degraded!\n",$s)
    unless defined($CTD_temp);
 
 $CTD_maxdepth = -1;
@@ -792,9 +814,10 @@ if ($opt_u) {
 	while (@splits > 1) {
 		push(@CTD_tl_fromEns,$splits[0]);
 		push(@CTD_tl_toEns,$splits[1]);
+		debugmsg("lag($splits[0],$splits[1]) = ");
 		my($lag) = calc_lag($number_of_timelag_windows[1],$length_of_timelag_windows[1],
 							1,$splits[0],$splits[1]);
-		debugmsg("lag($splits[0],$splits[1]) = $lag\n");									
+		debugmsg("$lag\n");									
 		if (defined($lag)) {
 			progress("\tcast-piece: elapsed(CTD) = elapsed(LADCP) + %.2fs\n",$lag);
 			push(@CTD_time_lag,$lag);
@@ -896,12 +919,10 @@ if ($nWsq > 0 && $nWsqI > 0) {
 	progress("\t%.2f cm/s rms reference-layer w_ocean, %.2f cm/s away from boundaries\n",
 						100*sqrt($sumWsq/$nWsq),100*sqrt($sumWsqI/$nWsqI));
 	if (sqrt($sumWsqI/$nWsqI) > 0.05) {
-		warning(1,"%.2f cm/s reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
+		warning(1,"%.2f cm/s (large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
 	} elsif (sqrt($sumWsqI/$nWsqI) > 0.1) {
-		warning(2,"%.2f cm/s reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
+		warning(2,"%.2f cm/s (very large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
 	}
-#	error("$0: rms reference-layer w_ocean is too large\n")
-#		unless (sqrt($sumWsqI/$nWsqI) < 0.07);
 } elsif ($nWsq > 0) {
 	&antsAddParams('rms_w_reflr_err',sqrt($sumWsq/$nWsq),'rms_w_reflr_err_interior',nan);
 	progress("\t%.2f cm/s rms reference-layer w_ocean\n",100*sqrt($sumWsq/$nWsq));
@@ -1066,9 +1087,11 @@ if ($opt_a != 1) {
 #---------------------------------------------------------------------------
 
 progress("Creating binned profiles at ${opt_o}m resolution...\n");
+&antsAddParams('output_grid_dz',$opt_o,'output_grid_minsamp',$opt_k);			# will be used by LADCP_w_regrid
 
 my($min_depth) = 9e99;
 my($max_depth) = 0;
+my($realLastGoodEns);
 
 progress("\tdowncast...\n");
 for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
@@ -1076,6 +1099,7 @@ for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		$firstGoodEns++ if ($ens == $firstGoodEns);								# start has been edited away
 		next;
 	}
+	$realLastGoodEns = $ens;
 	my(@bindepth) = calc_binDepths($ens);
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
@@ -1125,7 +1149,6 @@ for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {							# bin data into profi
 
 progress("\tupcast...\n");														# upcast
 
-my($realLastGoodEns);
 for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {		
 	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 	$realLastGoodEns = $ens;
@@ -1438,7 +1461,15 @@ if (@out_profile) {
 
 	foreach my $of (@out_profile) {
 	    progress("<$of> ");
-	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
+
+		my($plot,$out) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
+		if (defined($out)) {
+			require "$WCALC/${plot}.pl";
+			&{$plot}($out);
+			next;
+		}
+			
+	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);								# pipe or file output
 		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 	    

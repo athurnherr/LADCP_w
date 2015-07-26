@@ -2,13 +2,13 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Thu Apr 16 10:29:45 2015
+#                    dlm: Wed Jun 17 11:40:44 2015
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 188 54 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 399 18 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
-$antsMinLibVersion = 6.0;
+$antsMinLibVersion = 6.1;
 
 # HISTORY:
 #	Oct 14, 2014: - created from [LADCPfs]
@@ -18,38 +18,127 @@ $antsMinLibVersion = 6.0;
 #	Nov  7, 2014: - changed parameterization constant $c to 0.0215
 #	Apr 16, 2015: - disabled output activation unless ANTS tools are available
 #				  - removed superfluous $ANTSBIN definition
-
-# NOTES:
-#	- requires power densities
-#	- output spectra (-s) have ADCP-related corrections applied unless -c is set
+#	May 18, 2015: - added -p)ulse <length>
+#	Jun 11, 2015: - removed w_z code (yfname param requirement)
+#	Jun 12, 2015: - adapted to &antsParam()
+#				  - BUG: %k.0 and %lambda.0 had been required erroneously (.1 are first ones to be used)
+#				  - made finescale limits optional
+#				  - renamed -b=>-l, -c=>-o, -s=>-i
+#	Jun 14, 2015: - renamed -p=>-a
+#				  - added -p
+#				  - removed weird evals
+#	Jun 15, 2015: - added plot & other mods
+#	Jun 16, 2015: - define default outputs when STDOUT is a tty
+#				  - adapted to re-added pwrdens.0 in LADCP_wspec output
+#				  - modified plot label
+#	Jun 17, 2015: - added eps.w to plot
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 $ANTS_TOOLS_AVAILABLE = (`which list` ne '');
 
 require "$ANTSLIB/ants.pl";
 require "$ANTSLIB/libLADCP.pl";
+require "$ANTSLIB/libGMT.pl";
+
+use FileHandle;
+use IPC::Open2;
 
 #----------------------------------------------------------------------
 # Usage
 #----------------------------------------------------------------------
 
-my($c) = 0.0215;
+my($c) = 0.0215;											# Thurnherr et al. (GRL 2015)
 
-&antsUsage('cne:r:s:',2,
-			'[suppress spectral -c)orrection] [tilt-correction -r)ange <max[0m]>]',
-			'[output -s)pectra <basename>]',
+&antsUsage('bc:de:g:i:l:mno:p:r:s:tuw:',0,
+		    '[poly-o)rder <n[0]> to de-mean data; -1 to disable>] [apply cosine-t)aper]',
+		    '[-d)own/-u)pcast-only] [exclude -b)ottom window]',								# LADCP_wspec options
+			'[-s)urface <layer depth to exclude[150m]>',
+            '[-g)ap <max depth layer to fill with interpolation[40m]>]',
+            '[-w)indow <power-of-two input-records[32]>]',
+			'[shortwave -c)utoff <kz or lambda[100m]>]',									# LADCP_VKE options
+			'[o-m)it spectral correction] [spectral-tilt-correction -r)ange <max[0m]>]',
+			'[-l) override ADCP bin <length>] [-a) override pulse <length>]',
 			"[-e)ps-parameterization <scale[$c]>",
-			'<lambda.min> <lambda.max> [file...]');
+			'[output -i)ndividual spectra <basename>]',
+			'[output -p)lot <ps-file>',
+			'[file]');
 
-$lmin = &antsFloatArg();									# wavelength limits
-$lmax = &antsFloatArg();
+#----------------------------------------------------------------------
+# Calculate VKE spectra with [LADCP_wspec] if input is a w_ocean file
+#----------------------------------------------------------------------
+
+if (defined(fnrNoErr('dc_w'))) {							# pre-process with LADCP_wspec when handed vertical-velocity input
+	my($opts);
+	$opts .= ' -d' if ($opt_d);
+	$opts .= ' -u' if ($opt_u);
+	$opts .= ' -b' if ($opt_b);
+	$opts .= ' -t' if ($opt_t);
+	$opts .= " -s $opt_s" if defined($opt_s);
+	$opts .= " -g $opt_g" if defined($opt_g);
+	$opts .= " -w $opt_w" if defined($opt_w);
+	$opts .= " -o $opt_o" if defined($opt_o);
+	open2(\*FROMCLD,\*TOCLD,"LADCP_wspec $opts") ||			# spawn sub-process
+		croak("LADCP_wspec $opts: $!\n");
+	open(STDIN,"<&FROMCLD") || croak("dup(FROMCLD): $!\n");
+	close(FROMCLD);
+	print(TOCLD $antsOldHeaders); undef($antsOldHeaders);	# feed already gobbled header & first record to child
+	print(TOCLD $antsPeekBuffer); undef($antsPeekBuffer);
+	undef(%P);												# shouldn't matter, because we'll get the same %PARAMs back
+	undef(@antsLayout);										# shouldn't matter, because it will get overwritten
+	while (<>) { print(TOCLD $_); }							# feed remaining data
+	close(TOCLD);
+} elsif (defined(fnrNoErr('pwrdens.1'))) {
+	croak("$0: -d, -u, -b, -w, -s meaningless when $0 used with spectral input\n")
+		if ($opt_d || $opt_u || $opt_b || defined($opt_w) ||			
+		    defined($opt_s) || defined($opt_g));
+} else {
+	if ($ARGV[0]) {
+		croak("$ARGV[0]: no such file or directory\n");
+	} else {
+		croak("$0: empyt input\n");
+	}
+}
+
+#----------------------------------------------------------------------
+# Handle LADCP_VKE usage & read data
+#----------------------------------------------------------------------
+
+&antsAddParams('ADCP_bin_length',$opt_l)					# override bin length
+	if defined($opt_l);
+&antsAddParams('ADCP_pulse_length',$opt_a)					# override pulse length
+	if defined($opt_a);
 
 &antsFloatOpt(\$opt_e,$c);									# default parameterization
 
+if (defined($opt_c)) {										# shortwave cutoff supplied
+	$lmin = ($opt_c < 1) ? 2*$PI/$opt_c : $opt_c;
+	&antsAddParams('LADCP_VKE::shortwave_cutoff',2*$PI/$lmin);	# ensure eps.w is calculated below
+} elsif (defined(antsParam('shortwave_cutoff'))) {			# cutoff already applied
+	$lmin = 2*$PI/antsParam('shortwave_cutoff');
+} else {													# use 100m default cutoff
+	$lmin = 100;
+	&antsAddParams('LADCP_VKE::shortwave_cutoff',2*$PI/$lmin);	# ensure eps.w is calculated below
+}
+$lmax = 9e99;												# no longwave cutoff implemented yet
+
+&antsInstallBufFull(0);										# load entire file
+&antsIn();
+my($Hbuf) = $antsOldHeaders;								# save for later
+
+&antsRequireParam('profile_id');
+&antsRequireParam('lambda.1');
+&antsRequireParam('k.1');
+&antsRequireParam('resolution_bandwidth');
+&antsRequireParam('input_depth_resolution');
+&antsRequireParam('output_depth_resolution');
+&antsRequireParam('ADCP_bin_length');
+&antsAddParams('ADCP_pulse_length',antsParam('ADCP_bin_length'))
+	unless defined(antsParam('ADCP_pulse_length'));
+
 $imin = 0;													# find frequency bin limits
-for ($nfreq=1; defined($P{"binpgrams::lambda.$nfreq"}); $nfreq++) {
-	$imin = $nfreq if ($imin==0 && $P{"binpgrams::lambda.$nfreq"}<=$lmax);
-	$imax = $nfreq if ($P{"binpgrams::lambda.$nfreq"} >= $lmin);
+for ($nfreq=1; defined(antsParam("lambda.$nfreq")); $nfreq++) {
+	$imin = $nfreq if ($imin==0 && antsParam("lambda.$nfreq")<=$lmax);
+	$imax = $nfreq if (antsParam("lambda.$nfreq") >= $lmin);
 }
 croak("$0: <lambda.min=$lmin> < min(lambda)")
 	unless defined($imax);
@@ -58,26 +147,49 @@ $pg_fmin = fnr('pwrdens.0');								# first power field in spectra
 $fs_fmin = $pg_fmin + $imin;								# first power field in finescale range
 $fs_fmax = $pg_fmin + $imax;								# last power field in finescale range
 
+$widxf = fnr('widx');
 $mindf = fnr('depth.min');
 $maxdf = fnr('depth.max');
 
 #----------------------------------------------------------------------
-# Calculate Finescale Quantities (depending on input quantity)
+# Redirect STDOUT & create plot if STDOUT is a tty
 #----------------------------------------------------------------------
 
-sub integrate_fs_power($)																# integrate fs spectrum (always done)
+if (-t STDOUT) {
+	my($id) = &antsRequireParam('profile_id');
+	$opt_p = sprintf('%03d_VKE.ps',$id)
+		unless defined($opt_p);
+	$outfile = sprintf('%03d.VKE',$id);
+	open(STDOUT,">$outfile") || die("$outfile: $!\n");
+}
+
+#----------------------------------------------------------------------
+# Library
+#----------------------------------------------------------------------
+
+sub integrate_fs_power($)									# integrate fs spectrum
 {
 	my($r) = @_;
 	
 	$ants_[$r][$fspwrf] = 0;
 	for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
-		$ants_[$r][$fspwrf] += $ants_[0][$f];
+		$ants_[$r][$fspwrf] += $ants_[$r][$f];
 	}
-	$ants_[$r][$fspwrf] *= $P{'binpgrams::resolution_bandwidth'};
+	$ants_[$r][$fspwrf] *= antsParam('resolution_bandwidth');
 }
 
 
-sub fit_universal_w_spec($)																# vertical velocity => p0
+sub normalize_spectral_power($)								# scale pwrdens by p0
+{
+	my($r) = @_;
+	
+	for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
+		$ants_[$r][$f] /= $ants_[$r][$p0f];
+	}
+}
+
+
+sub fit_universal_w_spec($)									# vertical velocity => p0
 {
 	my($r) = @_;
 	my($nsamp) = $fs_fmax - $fs_fmin + 1;
@@ -86,27 +198,27 @@ sub fit_universal_w_spec($)																# vertical velocity => p0
 	# fit slope-2 line in log-log space (main estimator)
 	#---------------------------------------------------
 
-	if ($nsamp >= 2) {																	# require min 2 wavenumber samples
+	if ($nsamp >= 2) {										# require min 2 wavenumber samples
 
 		my($sumd,$sumx,$sumy) = (0,0,0);
-		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {										# loop over wavenumbers
+		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {			# loop over wavenumbers
 			my($i) = $f - $pg_fmin;
-			$sumd += log10($ants_[$r][$f]) + 2*log10($P{"binpgrams::k.$i"});
-			$sumx += log10($P{"binpgrams::k.$i"});
+			$sumd += log10($ants_[$r][$f]) + 2*log10(antsRequireParam("k.$i"));
+			$sumx += log10(antsParam("k.$i"));
 			$sumy += log10($ants_[$r][$f]);
 		}
 		my($p0) = $sumd/$nsamp;
 		$ants_[$r][$p0f] = 10**$p0;
 
-		my($avgx) = $sumx/$nsamp;													# avg for r calc
+		my($avgx) = $sumx/$nsamp;							# avg for r calc
 		my($avgy) = $sumy/$nsamp;
 
-		my($sumsq,$sxx,$syy,$sxy) = (0,0,0,0);										# calc rms misfit & correlation coeff
+		my($sumsq,$sxx,$syy,$sxy) = (0,0,0,0);				# calc rms misfit & correlation coeff
 		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {								
 			my($i) = $f - $pg_fmin;
-			my($xt) = log10($P{"binpgrams::k.$i"}) - $avgx;
+			my($xt) = log10(antsParam("k.$i")) - $avgx;
             my($yt) = log10($ants_[$r][$f]) - $avgy;
-			$sumsq += ($p0 - 2*log10($P{"binpgrams::k.$i"}) - log10($ants_[$r][$f]))**2;
+			$sumsq += ($p0 - 2*log10(antsParam("k.$i")) - log10($ants_[$r][$f]))**2;
 			$sxx += $xt * $xt; $syy += $yt * $yt; $sxy += $xt * $yt;
         }
         $ants_[$r][$rmsf] = sqrt($sumsq/$nsamp);
@@ -124,14 +236,11 @@ sub fit_universal_w_spec($)																# vertical velocity => p0
 
 $fspwrf = &antsNewField('fs_pwr');							# derived fields
 
-if ($P{binpgrams::yfname} eq 'dc_w' ||						# w-finestructure parameterization
-	$P{binpgrams::yfname} eq 'uc_w') {
-	$p0f	 = &antsNewField('p0');
-	$rmsf	 = &antsNewField('p0fit.rms');
-	$sampf	 = &antsNewField('p0fit.nsamp');
-	$rf      = &antsNewField('p0fit.r');
-	$wepsf   = &antsNewField('eps.w');
-}
+$p0f	 = &antsNewField('p0');								# VKE parameterization
+$rmsf	 = &antsNewField('p0fit.rms');
+$sampf	 = &antsNewField('p0fit.nsamp');
+$rf      = &antsNewField('p0fit.r');
+$wepsf   = &antsNewField('eps.w');
 
 my(@outLayout) = @antsNewLayout;							# save for later
 for ($f=0; $f<@outLayout; $f++) {							# determine last spectral field in input
@@ -140,11 +249,24 @@ for ($f=0; $f<@outLayout; $f++) {							# determine last spectral field in input
 }
 croak("$0: cannot find fields 'pwr.tot' or 'pwr.tot.nsamp' in input\n")
 	unless defined($totf) || defined($tnsf);
-$lsf = defined($tnsf) ? $tnsf : $totf;	
+$lsf = defined($tnsf) ? $tnsf : $totf;
 
-&antsInstallBufFull(0);										# load entire file
-&antsIn();
-my($Hbuf) = $antsOldHeaders;								# save for later
+if ($opt_p) {												# begin plot
+	$xmin = (&antsParam('output_depth_resolution')>=350) ? 0.012 : 0.018;
+	$xmax = 0.2; $ymin = 1; $ymax = 1e4;
+	$plotsize = 13;
+	GMT_begin($opt_p,"-JX${plotsize}l","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4');	# init plot
+	GMT_psxy('-G25/255/25 -L');
+	printf(GMT "%f %f\n",$xmin,$xmin**(-2)*sqrt(2));
+	printf(GMT "%f %f\n",$xmax,$xmax**(-2)*sqrt(2));
+	printf(GMT "%f %f\n",$xmax,$xmax**(-2)/sqrt(2));
+	printf(GMT "%f %f\n",$xmin,$xmin**(-2)/sqrt(2));
+}
+
+my(@sumPwr,@nPwr);
+my(@sumGoodPwr,@nGoodPwr);
+my($min_depth) =  9e99;
+my($max_depth) = -9e99;
 
 for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 
@@ -152,17 +274,12 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 	# apply spectral correction
 	#--------------------------
 
-	unless ($opt_c) {
+	unless ($opt_m) {
 		for (my($i)=0; $i<$nfreq; $i++) {										# loop over wavenumbers
-			if ($P{binpgrams::yfname} eq 'dc_w' ||	 							# vertical velocity
-				$P{binpgrams::yfname} eq 'uc_w') {
-				$ants_[$r][$i+$pg_fmin] *= T_w($P{"binpgrams::k.$i"},$P{ADCP_bin_length},$P{binpgrams::depth_resolution},$opt_r);
-			} elsif ($P{binpgrams::yfname} eq 'dc_w_depth'||	 				# dw/dz
-					 $P{binpgrams::yfname} eq 'uc_w_depth') {
-				$ants_[$r][$i+$pg_fmin] *= T_w_z($P{"binpgrams::k.$i"},$P{ADCP_bin_length},$P{binpgrams::depth_resolution},$opt_r);
-			} else {
-				croak("$0: cannot calculate finescale $P{'binpgrams::yfname'} spectra (implementation restriction)\n");
-			}
+			$ants_[$r][$i+$pg_fmin] *=
+				T_w(antsParam("k.$i"),antsParam('ADCP_bin_length'),
+				    antsParam('ADCP_pulse_length'),antsParam('input_depth_resolution'),
+					$opt_r);
 	    }
 	}
 
@@ -170,19 +287,54 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 	# calculate fs quantities
 	#------------------------
 
-	integrate_fs_power($r);														# always integrate spectra
-	fit_universal_w_spec($r)
-		if (($P{binpgrams::yfname} eq 'dc_w') || ($P{binpgrams::yfname} eq 'uc_w'));
-	$ants_[$r][$wepsf] = ($ants_[$r][$p0f] / $opt_e)**2;
+	integrate_fs_power($r);														# calculate total finescale power
+	fit_universal_w_spec($r);													# fit kz^-2 spectrum
+#	normalize_spectral_power($r);												# normalize by p0 (even w/o shortwave cutoff)
+
+	$ants_[$r][$wepsf] = $ants_[$r][$rmsf] <= 0.4 ?								# do not calc eps unless good fit
+					   			($ants_[$r][$p0f] / $opt_e)**2 : nan;
+
+	if (numberp($ants_[$r][$p0f])) {											# update min/max depth
+		$min_depth = $ants_[$r][$mindf] if ($ants_[$r][$mindf] < $min_depth);
+		$max_depth = $ants_[$r][$maxdf] if ($ants_[$r][$maxdf] > $max_depth);
+	}
 	
 	#---------------
 	# produce output
 	#---------------
 
-	if (defined($opt_s)) {														# output individual spectra
+	if (defined($opt_p)) {														# plot current spectrum on -p & calc mean
+		my($R) = 0;																# RGB map
+		my($G) = int(200*(1-$r/@ants_));
+		my($B) = ($r < @ants_/2) ? 150 : int(100+100*(1-$r/@ants_));
+		GMT_psxy("-W8,$R/$G/$B");
+		for (my($f)=$pg_fmin+1; $f<$pg_fmin+$nfreq; $f++) {						# avg & plot high-quality spectra only
+			next unless numberp($ants_[$r][$f]) && numberp($ants_[$r][$p0f]);	#	- omit zero wavenumber ($pg_fmin)
+			next if ($ants_[$r][$rmsf] > 0.4);
+			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
+			printf(GMT "$k %g\n",$ants_[$r][$f]/$ants_[$r][$p0f]);
+			$nGoodPwr[$f]++;
+			$sumGoodPwr[$f] += $ants_[$r][$f]/$ants_[$r][$p0f];
+		}
+		GMT_psxy("-W4,$R/$G/$B,.");												# avg & plot all spectra with dots
+		for (my($f)=$pg_fmin+1; $f<$pg_fmin+$nfreq; $f++) {
+			next unless numberp($ants_[$r][$f]) && numberp($ants_[$r][$p0f]);
+			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
+			printf(GMT "$k %g\n",$ants_[$r][$f]/$ants_[$r][$p0f]);
+			$nPwr[$f]++;
+			$sumPwr[$f] += $ants_[$r][$f]/$ants_[$r][$p0f];
+		}
+	}
+		
+
+	if (defined($opt_i)) {														# output current spectrum on -i
 		open(STDOUT_DUP,">&",STDOUT) || croak("$0: cannot dup STDOUT\n");
 		@antsNewLayout = ('k','lambda','pwrdens','finescale','pwrdens_fit');
-		$ofname = sprintf("${opt_s}_%02d.wspec",$r+1);
+		if ($ants_[$r][$widxf] > 0) {
+			$ofname = sprintf("${opt_i}_%02d.wspec",$r+1);
+		} else {
+			$ofname = sprintf("${opt_i}_btm.wspec");
+		}
 		open(STDOUT,">$ofname") || croak("$ofname: $!\n");
 		undef($antsOldHeaders);
 		&antsActivateOut() if ($ANTS_TOOLS_AVAILABLE);
@@ -194,9 +346,9 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 			&antsAddParams($outLayout[$f],$ants_[$r][$f]);
         }
 					   
-		for (my($f)=$pg_fmin; $f<$pg_fmin+$nfreq; $f++) {
-			my($k) = eval(sprintf('$P{"binpgrams::k.%d"}',$f-$pg_fmin));
-			my($l) = eval(sprintf('$P{"binpgrams::lambda.%d"}',$f-$pg_fmin));
+		for (my($f)=$pg_fmin+1; $f<$pg_fmin+$nfreq; $f++) {
+			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
+			my($l) = antsParam(sprintf("lambda.%d",$f-$pg_fmin));
 			&antsOut($k,$l,$ants_[$r][$f],
 					 ($f>=$fs_fmin && $f<=$fs_fmax),
 					 numberp($ants_[$r][$p0f]) ? $ants_[$r][$p0f] * $k**(-2) : nan);
@@ -208,6 +360,59 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 		$antsCurParams = $saveParams;
 	}
 }
+
+if (defined($opt_p)) {															# complete plot
+	if (@nPwr) {
+		GMT_psxy('-W10,255/100/100,.');											# plot mean spectrum; dotted; entire range
+		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
+			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
+			printf(GMT "$k %g\n",$sumPwr[$f]/$nPwr[$f]);
+		}
+	}
+
+	if (@nGoodPwr) {
+		GMT_psxy('-W4/255/100/100');											# plot mean spectrum; entire range
+		for (my($f)=$pg_fmin+1; $f<$pg_fmin+$nfreq; $f++) {
+			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
+			printf(GMT "$k %g\n",$sumGoodPwr[$f]/$nGoodPwr[$f]);
+		}
+		GMT_psxy('-W16/255/100/100');											# plot mean fs spectrum (heavy)
+		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
+			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
+			printf(GMT "$k %g\n",$sumGoodPwr[$f]/$nGoodPwr[$f]);
+	    }
+	}
+
+	GMT_psbasemap('-Bf3a2:"Vertical Wavenumber [rad/m]":/' .					# annotate axes
+				  'f3a1:"VKE/p@-0@- [m@+3@+s@+-1/2@+/(rad m@+-1@+)]":WeS');
+	GMT_setJ("-JX-${plotsize}l");
+	GMT_setR(sprintf('-R%f/%f/%f/%f',2*$PI/$xmax,2*$PI/$xmin,$ymin,$ymax));
+	GMT_psbasemap('-B3:"Vertical Wavelength [m]:N"');
+
+	GMT_unitcoords();															# print profile number 
+	GMT_pstext();
+	if (defined($outfile)) { printf(GMT "0.98 0.98 14 0 0 TR $outfile %s\n",antsParam('input_data')); }
+	else { printf(GMT "0.98 0.98 14 0 0 TR %03d %s\n",antsParam('profile_id'),antsParam('input_data')); }
+
+	GMT_set('ANNOT_FONT_SIZE_PRIMARY 10','ANNOT_OFFSET_PRIMARY 0.01c',			# eps profile inset
+			'LABEL_FONT_SIZE 10','LABEL_OFFSET 0');
+	$min_depth = 400 if ($min_depth > 1e4);
+	$max_depth = 1500 if ($max_depth < 0);
+	GMT_setR(sprintf("-R5e-12/1e-7/%d/%d",round($min_depth-250,500),round($max_depth+250,500))); 
+	GMT_setJ(sprintf('-JX%fl/-%f',$plotsize/2.2,$plotsize/2.2));
+	GMT_psbasemap('-X0.3 -Y0.3 -Bg1a1f3p:"@~e@~@-VKE@- [W kg@+-1@+]":/g1000a500f100:"Depth [m]":wEsN');
+	GMT_psxy('-M');
+	for (my($r)=0; $r<@ants_; $r++) {
+		next unless numberp($ants_[$r][$wepsf]);
+		my($R) = 0; my($G) = int(200*(1-$r/@ants_));
+		my($B) = ($r < @ants_/2) ? 150 : int(100+100*(1-$r/@ants_));
+		print(GMT "> -W12,$R/$G/$B\n");
+		print(GMT "$ants_[$r][$wepsf] $ants_[$r][$mindf]\n");
+		print(GMT "$ants_[$r][$wepsf] $ants_[$r][$maxdf]\n");
+	}
+
+	GMT_end();																	# finish plot
+}	
 
 @antsNewLayout = @outLayout;
 $antsOldHeaders = $Hbuf;

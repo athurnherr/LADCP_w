@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Mon Apr 20 13:51:17 2015
+#                    dlm: Sun Jul 26 17:12:51 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 283 24 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 379 12 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -46,6 +46,15 @@
 #                   plotting sub-system)
 #				  - croak -> error
 #				  - added $SS_use_BT, $SS_min_signal, $SS_min_samp
+#	Apr 20, 2015: - reduced value of $SS_min_allowed_range
+#				  - added $Sv_ref_bin
+#	Apr 21: 2015: - BUG: typo in $Sv_ref_bin
+#				  - decreased default verbosity
+#   May 15, 2015: - added $min_valid_vels
+#	May 20, 2015: - STN -> PROF
+#	Jul 23, 2015: - began adaptation to libGMT.pl
+#				  - changed .prof output .wprof
+#				  - -v docu was wrong
 
 #======================================================================
 # Data Input 
@@ -70,6 +79,12 @@
 $pitch_bias = $roll_bias = $heading_bias = 0;
 
 
+# minimum valid velocities to require in a LADCP file
+# 	throws an error if not enough valid vels in a file
+
+$min_valid_vels = 50;
+
+
 # bins to use in w calculations
 #	- set with -b
 #	- defaults to 2-last
@@ -81,13 +96,13 @@ $opt_b = '2,*' unless defined($opt_b);
 #======================================================================
 
 #	- there are 4 verbosity levels, selected by -v
-#		0:	only print errors
-#		1:	UNIX-like (warnings and info messages that are not produced for every cast)
-#		2:	(default) progress messages and useful information
+#		0 :	errors
+#		1*:	UNIX-like (warnings and info messages that are not produced for every cast; *DEFAULT)
+#		2 :	progress messages and useful information
 #		>2:	debug messges
 #	- the most useful ones of these are 1 & 2
 
-&antsCardOpt(\$opt_v,2);
+&antsCardOpt(\$opt_v,1);
 
 
 # output bin size in meters
@@ -102,7 +117,7 @@ $opt_b = '2,*' unless defined($opt_b);
 
 # output base name
 
-$out_basename = sprintf('%03d',$STN);
+$out_basename = sprintf('%03d',$PROF);
 
 
 # output subdirectories
@@ -242,8 +257,18 @@ $TL_max_allowed_three_lag_spread = 3;
 
 
 #======================================================================
-# Seabed Search
+# Acoustic Backscatter and Seabed Search
 #======================================================================
+
+# After applying the method of Deines (1999), an empirical correction
+# for Sv is applied to the data. The following variable determines which
+# bin is chosen to construct a reference profile for Sv. The bin number
+# is automatically increased if the selected bin does not contain valid
+# data, i.e. the default value of 1 ensures that the closest valid bin
+# is used to construct the reference profile.
+
+$Sv_ref_bin = 1; 
+
 
 # Set to folloing variable to 1 to use ADCP BT data to detect seabed 
 # instead of default code based on Sv (echo amplitude). I do not know
@@ -349,16 +374,13 @@ $out_log = "$log_subdir/$out_basename.log";
 #----------------------------------------------------------------------
 # Vertical-velocity profile output and plots:
 # Data:
-#	*.prof				vertical velocity profiles
+#	*.wprof				vertical velocity profiles
 # Standard Plots:
-# 	*_prof.eps			vertical velocity profiles (main output plot)
-# Optional Plots:
-#	*_wspec.eps			vertical-velocity wavenumber spectra
+# 	*_wprof.ps			vertical velocity profiles (main output plot)
 #----------------------------------------------------------------------
 
-@out_profile = ("| LWplot_prof_2beam $plot_subdir/${out_basename}_prof.eps",
-#			    "| LWplot_spec $plot_subdir/${out_basename}_spec.eps",
-			    "$data_subdir/$out_basename.prof");
+@out_profile = ("plot_wprof($plot_subdir/${out_basename}_wprof.ps)",
+			    "$data_subdir/$out_basename.wprof");
 
 
 #----------------------------------------------------------------------

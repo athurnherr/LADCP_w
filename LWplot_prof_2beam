@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ P R O F _ 2 B E A M 
 #                    doc: Fri Oct 14 09:42:36 2011
-#                    dlm: Thu Apr 16 13:59:55 2015
+#                    dlm: Wed May 20 20:42:08 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 1 9 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 21 39 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -16,6 +16,16 @@
 #				  - changed shell from /bin/ksh to /bin/sh
 #				  - slightly increased w range
 #				  - added seabed if available
+#	Apr 23, 2015: - added support for .LWplot_prof_2beam
+#				  - removed all -N
+#	May 20, 2015: - made it quit on EOF
+
+# NOTES:
+#	- In order to extend the x-axis range, create a file
+#	  called [.LWplot_prof_2beam] in the processing directory and
+#	  add something like the following lines:
+#		XMIN=-0.27
+#		XTICS="-0.25 -0.15 -0.05 0.05"
 
 #--------------------------------------------------
 # Usage
@@ -30,15 +40,16 @@ eps_file="$1"
 # Read Header Data
 #--------------------------------------------------
 
-while [ -z "$fields" ]
+read line
+while [ -z "$fields" -a -n "$line" ]
 do
-	read line
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
 	[ -z "$max_depth" ] && max_depth=`expr -- "$line" : '#ANTS#PARAMS#.*max_depth{\([^}]*\)}`
 	[ -z "$water_depth" ] && water_depth=`expr -- "$line" : '#ANTS#PARAMS#.*water_depth{\([^}]*\)}`
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
+	read line
 done
 
 set -- $fields
@@ -53,6 +64,19 @@ set -- $fields
 # Plot Data
 #--------------------------------------------------
 
+[ -n "$water_depth" ] && blim=`echo "scale=0;$water_depth/1+25"|bc` \
+				      || blim=`echo "scale=0;$max_depth/1+25"|bc`
+
+XTICS="-0.05 0.05 0.15"
+XMIN=-0.1
+
+[ -r ./.LWplot_prof_2beam ] && . ./.LWplot_prof_2beam
+
+R=-R$XMIN/0.35/0/$blim
+R2=-R-200/200/0/$blim
+U=-R0/1/0/1
+X=-JX10/-10
+
 eps_file="$PWD/$eps_file"	# make outfile name absolute (hopefully, it is not already...)
 mkdir /tmp/$$				# GMT makes tmpfiles and is not reentrant
 cd /tmp/$$
@@ -66,13 +90,6 @@ cat > $TMPFILE
 			WANT_EURO_FONT true \
 	        PLOT_DEGREE_FORMAT ddd:mm:ssF
 
-[ -n "$water_depth" ] && blim=`echo "scale=0;$water_depth/1+25"|bc` \
-				      || blim=`echo "scale=0;$max_depth/1+25"|bc`
-R=-R-0.1/0.35/0/$blim
-R2=-R-200/200/0/$blim
-U=-R0/1/0/1
-X=-JX10/-10
-
 # FRAME
 { echo 0 0; echo 0 $blim; } | psxy -P -K $R $X > "$eps_file"
 { echo 0.07 0; echo 0.07 $blim; echo 0.18 $blim; echo 0.18 0; } | psxy -O -K $R $X -L -G200 >> "$eps_file"
@@ -81,28 +98,28 @@ X=-JX10/-10
 { echo 150 0; echo 150 $blim; } | psxy -O -K $R2 $X >> "$eps_file"
 
 # VERTICAL VELOCITIES (2-BEAM SOLUTIONS)
-awk '{print $7, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,coral,6_2:0 >> "$eps_file"
-awk '{print $8, $1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,coral,4_6:0 >> "$eps_file"
-awk '{print $14,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,SeaGreen,6_2:0 >> "$eps_file"
-awk '{print $15,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,SeaGreen,4_6:0 >> "$eps_file"
-awk '{print $16,$1}' $TMPFILE | psxy -O -K -N -Mn $R $X -W4,black >> "$eps_file"
+awk '{print $7, $1}' $TMPFILE | psxy -O -K -Mn $R $X -W4,coral,6_2:0 >> "$eps_file"
+awk '{print $8, $1}' $TMPFILE | psxy -O -K -Mn $R $X -W4,coral,4_6:0 >> "$eps_file"
+awk '{print $14,$1}' $TMPFILE | psxy -O -K -Mn $R $X -W4,SeaGreen,6_2:0 >> "$eps_file"
+awk '{print $15,$1}' $TMPFILE | psxy -O -K -Mn $R $X -W4,SeaGreen,4_6:0 >> "$eps_file"
+awk '{print $16,$1}' $TMPFILE | psxy -O -K -Mn $R $X -W4,black >> "$eps_file"
 	
 # MEAN ABSOLUTE DEVIATIONS (COMBINED SOLUTION)
-awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gcoral >> "$eps_file"
-awk '{print $12,$1,$11}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -GSeaGreen >> "$eps_file"
-awk '{print $17,$1,$20}' $TMPFILE | grep -vi nan | psxy -O -K -N  $R $X -Sc0.1c -Gblack >> "$eps_file"
+awk '{print  $5,$1, $4}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -Sc0.1c -Gcoral >> "$eps_file"
+awk '{print $12,$1,$11}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -Sc0.1c -GSeaGreen >> "$eps_file"
+awk '{print $17,$1,$20}' $TMPFILE | grep -vi nan | psxy -O -K $R $X -Sc0.1c -Gblack >> "$eps_file"
 
 # NUMBER OF SAMPLES (COMBINED SOLUTION)
-awk '{print  $6,$1, $4}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/coral >> "$eps_file"
-awk '{print $13,$1,$11}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/SeaGreen >> "$eps_file"
-awk '{print $18,$1,$20}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -N -Mn $R2 $X -W1/black >> "$eps_file"
+awk '{print  $6,$1, $4}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -Mn $R2 $X -W1/coral >> "$eps_file"
+awk '{print $13,$1,$11}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -Mn $R2 $X -W1/SeaGreen >> "$eps_file"
+awk '{print $18,$1,$20}' $TMPFILE | sed '/nan/s/.*/nan/' | psxy -O -K -Mn $R2 $X -W1/black >> "$eps_file"
 
 # SEABED
 [ -n "$water_depth" ] && {
-	echo -0.1 $blim;
+	echo $XMIN $blim;
 	echo 0.35 $blim;
 	echo 0.35 $water_depth;
-	echo -0.1 $water_depth;
+	echo $XMIN $water_depth;
 } | psxy -O -K $R $X -G204/153/102 >> "$eps_file"
 
 # LABELS
@@ -113,9 +130,11 @@ echo 0.6 0.98 12 0 0 BR m.a.d. | pstext -O -K $U $X >> "$eps_file"
 [ $blim -lt 1000 ] && depth_tics=f10a100\
 				   || depth_tics=f100a500
 
-psbasemap -O -K $R $X -Bf0.01a10-10.05:"Vertical Velocity [m/s]                               ":/$depth_tics:"Depth [m]":WeS >> "$eps_file"
-psbasemap -O -K $R $X -Ba10-9.95S >> "$eps_file"
-psbasemap -O -K $R $X -Ba10-9.85S >> "$eps_file"
+psbasemap -O -K $R $X -Bf0.01:"Vertical Velocity [m/s]                               ":/$depth_tics:"Depth [m]":WeS >> "$eps_file"
+for t in $XTICS
+do
+	psbasemap -O -K $R $X -Ba10-`echo "10-($t)"|bc`S >> "$eps_file"
+done
 
 psbasemap -O -K $R2 $X -Bf10a1000-950:"                                     # of Samples":N >> "$eps_file"
 psbasemap -O -K $R2 $X -Ba1000-900N >> "$eps_file"

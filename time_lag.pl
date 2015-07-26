@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Thu Apr 16 12:13:25 2015
+#                    dlm: Fri Jun 19 07:23:38 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 276 41 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 61 10 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -57,6 +57,8 @@
 #				  - BUG: executable flag was not set on file output
 #				  - disabled active output when ANTS are not available
 #				  - croak -> error
+#	May 15, 2015: - fiddled with assertions
+#	Jun 19, 2015: - disabled L2 warning on partial-depth time-lagging failures
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -106,9 +108,6 @@ sub mad_w($$$)									# mean absolute deviation
 sub bestLag($$$$)								# find best lag in window
 {
 	my($fe,$le,$ww,$soi) = @_;					# first/last LADCP ens, window width, scan-offset increment
-	die("assertion failed\n\tfe = $fe, le = $le, firstGoodEns = $firstGoodEns, lastGoodEns = $lastGoodEns")
-		unless ($fe>=$firstGoodEns && $le<=$lastGoodEns);
-
 	my($bestso) = 0;							# error at first-guess offset
 	my($bestmad) = mad_w($fe,$le,0);
 
@@ -159,13 +158,15 @@ RETRY:
 	my($n_valid_windows) = 0;
 
 	$first_ens = $approx_joint_profile_start_ens
-		if ($first_ens < $approx_joint_profile_start_ens); 
+		if ($first_ens < $approx_joint_profile_start_ens);
 	my($last_lag_piece) = ($last_ens == $lastGoodEns);							# none is following
 	$last_ens = $approx_joint_profile_end_ens
 		if ($last_ens > $approx_joint_profile_end_ens);
 
 	for (my($wi)=0; $wi<$n_windows; $wi++) {
 		my($fe) = $first_ens + int(($last_ens-$first_ens-$window_ens)*$wi/($n_windows-1)+0.5);
+		die("assertion failed\n\tfe = $fe, first_ens = $first_ens, last_ens = $last_ens, window_ens = $window_ens, firstGoodEns = $firstGoodEns, lastGoodEns = $lastGoodEns")
+			unless ($fe>=$firstGoodEns && $fe+$window_ens<=$lastGoodEns);
 		my($so,$mad) = bestLag($fe,$fe+$window_ens,$search_radius,$scan_increment);
 		$elapsed[$wi] = $LADCP{ENSEMBLE}[$fe+int($w_size/2/$LADCP{MEAN_DT}+0.5)]->{ELAPSED};
 		die("assertion failed\nfe=$fe, lastGoodEns=$lastGoodEns, w_size=$w_size") unless ($elapsed[$wi]);
@@ -215,7 +216,8 @@ RETRY:
 	unless ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]} >= $opt_3*$n_valid_windows) {
 		if (max(@best_lag)-min(@best_lag) > $TL_max_allowed_three_lag_spread) {
 			warning(2,"$0: cannot determine a valid $ctmsg lag; top 3 tags account for %d%% of total (use -3 to relax criterion)\n",
-				int(100*($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]})/$n_valid_windows+0.5));
+				int(100*($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]})/$n_valid_windows+0.5))
+					unless ($ctmsg == 'partial-cast');
 			$failed = 1;				
 		} else {
 			warning(1,"top 3 tags account for only %d%% of total\n",

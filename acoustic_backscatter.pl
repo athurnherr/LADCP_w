@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Mon Apr 20 13:56:56 2015
+#                    dlm: Thu Jun 18 13:04:26 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 24 71 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 27 82 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -22,6 +22,9 @@
 #	Apr 20, 2015: - added comments
 #				  - removed SS_{min,max}_allowed_range from calc_backscatter_profs()
 #				  - added correct_backscatter() & linterp() from laptop
+#	Apr 21, 2015: - added debug statements
+#	May 14, 2015: - BUG: code did not work for partial-depth casts
+#	Jun 18, 2015: - removed assertion marked by ##???, which bombed on P16N1#41 DL
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -135,9 +138,6 @@ sub linterp($$$$$)
 	return $miy + ($x-$mix)/($max-$mix)*($may-$miy);
 }
 
-$Sv_ref_bin = 1;  # bin 2 is slightly better than bin 5 => use closest bin as reference as originally intended
-				  # default setting choses first bin with data; do not set to values below 1
-
 sub correct_backscatter($$)
 {
 	my($LADCP_start,$LADCP_end) = @_;
@@ -161,7 +161,17 @@ RETRY:
 		push(@refSvProf,$refSvProf[$#refSvProf]);
 		push(@refSvSamp,$refSvSamp[$#refSvSamp]);
 	}
+	for ($i=$#refSvProf-1; $i>=0; $i--) {						# extrapolate upward to surface
+		next if ($refSvSamp[$i] > 0);
+		$refSvProf[$i] = $refSvProf[$i+1];
+		$refSvSamp[$i] = $refSvSamp[$i+1];
+	}
 	info("\tusing bin %d as reference\n",$Sv_ref_bin);
+
+#	for ($i=0; $i<@refSvProf; $i++) {
+#		print(STDERR "$i $refSvProf[$i] $refSvSamp[$i]\n");
+#	}
+#	die;
 
 	my(@dSvProf);												# create profiles for all bins
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {	
@@ -171,11 +181,23 @@ RETRY:
 			$dSvProf[int($depth/100)][$bin] += $sSv[$depth][$bin] / $nSv[$depth][$bin];
 			$dSvSamp[int($depth/100)]++;
 		}
+#		print(STDERR "dSvProf[bin$bin] = ");
 		for ($i=0; $i<@dSvSamp; $i++) {
-			next unless ($refSvSamp[$i] > 0) && ($dSvSamp[$i] > 0);
+			next unless ($dSvSamp[$i] > 0);
+			die("assertion failed (refSvSamp[$i] = $refSvSamp[$i])") unless ($refSvSamp[$i] > 0);
 			$dSvProf[$i][$bin] = $dSvProf[$i][$bin]/$dSvSamp[$i] - $refSvProf[$i];
+			$dSvProf[$i][$bin] = $dSvProf[$i-1][$bin]
+				if (abs($dSvProf[$i][$bin]) > 10);
+#			printf(STDERR "%.1f ",$dSvProf[$i][$bin]);
 		}
-		$dSvProf[$i][$bin] = $dSvProf[$i-1][$bin];				# extrapolate 100m
+		$i--;													# trim deepest, often anomalous, value
+#		print(STDERR "[delete] ");
+		while ($i <= int(scalar(@nSv)/100)+1) {
+			$dSvProf[$i][$bin] = $dSvProf[$i-1][$bin];			# extrapolate 100m
+#			printf(STDERR "[%.1f] ",$dSvProf[$i][$bin]);
+			$i++;
+		}
+#		print(STDERR "\n");
 	}
 
     for (my($ens)=$LADCP_start; $ens<=$LADCP_end; $ens++) {		# correct Sv data
@@ -184,9 +206,15 @@ RETRY:
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{SV}[$bin]);
 			my($depth) = int($bd[$bin]);
-			$LADCP{ENSEMBLE}[$ens]->{SV}[$bin] -= $dSvProf[int($depth/100)][$bin];
-				linterp($depth,100*int($depth/100),100*int($depth/100)+100,
-						$dSvProf[int($depth/100)][$bin],$dSvProf[int($depth/100)+1][$bin]);
+			if (numberp($dSvProf[int($depth/100)][$bin]) && numberp($dSvProf[int($depth/100)+1][$bin])) {
+#				print(STDERR "\n$LADCP{ENSEMBLE}[$ens]->{SV}[$bin]? $dSvProf[int($depth/100)][$bin] $dSvProf[int($depth/100)+1][$bin] int($depth/100)+1[$bin]");
+				$LADCP{ENSEMBLE}[$ens]->{SV}[$bin] -= # $dSvProf[int($depth/100)][$bin];
+					linterp($depth,100*int($depth/100),100*int($depth/100)+100,
+							$dSvProf[int($depth/100)][$bin],$dSvProf[int($depth/100)+1][$bin]);
+##???			die unless ($LADCP{ENSEMBLE}[$ens]->{SV}[$bin] < 0);							
+			} else {
+				$LADCP{ENSEMBLE}[$ens]->{SV}[$bin] = nan;
+			}
 		}
 	}
 }

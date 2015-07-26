@@ -1,10 +1,10 @@
 #!/usr/bin/perl
 #======================================================================
-#                    S B E _ W 
+#                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Fri Apr 17 10:06:21 2015
+#                    dlm: Mon Jul 20 09:28:16 2015
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 23 55 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 38 25 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -21,21 +21,39 @@ $antsMinLibVersion = 6.0;
 #				  - modified binning criterion to allow any sampling
 #					frequency (not just divisors of 24)
 #	Apr 17, 2015: - added in-situ temperature to output
+#	Apr 23, 2015: - had to losen unrealistic-soundspeed criterion
+#					because of DUK2#45
+#	May 13, 2015: - BUG: did not work with casts beginning at depth
+#				  - added errors when editing edits too much
+#	May 14, 2015: - BUG: depth was wrong for partial-depth casts
+#				  - BUG: $badval had not been handled correctly
+#				  - BUG: editing errors were too tight
+#	Jun 16, 2015: - added STDOUT redirection (default output file) on tty stdout
+#				  - added -p)lot option
+#	Jun 17, 2015: - added cond to std output
+#				  - added conductivity spike filter (different from pressure)
+#	Jun 18, 2015: - renamed from SBE_w
+#	Jun 19, 2015: - added press & salin to make output suitable for u/v processing
+#				  - removed a couple of data assertions
+#	Jul 20, 2015: - allow for non-numeric -i
 
 ($ANTS) = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 
 require "$ANTS/ants.pl";
 require "$ANTS/fft.pl";
+require "$ANTS/libGMT.pl";
 require "$ANTS/libSBE.pl";
 require "$ANTS/libEOS83.pl";
 
 $antsParseHeader = 0;											# usage
-&antsUsage('al:rs:v:',1,
+&antsUsage('ai:l:rp:s:v:',1,
 	'[-v)erbosity <level[0]>]',
 	'[use -a)lternate sensor pair]',
 	'[-r)etain all data (no editing)]',
 	'[-s)ampling <rate[6Hz]>]',
 	'[-l)owpass w <cutoff[2s]>]',
+	'[profile -i)d <id>]',
+	'[-p)lot_basenames <[%03d_wpkg.ps],[%03d_sspd.ps]>]',
 	'<SBE CNV file>');
 
 &antsFloatOpt(\$opt_l,2);										# defaults
@@ -83,10 +101,31 @@ if ($opt_a) {													# temp/cond alternate sensor pair
 }
 
 &antsInstallBufFull(0);											# read entire CNV file
-&SBEin(F,$ftype,$nfields,$nscans,$bad);
+&SBEin(F,$ftype,$nfields,$nscans,$badval);
 
 printf(STDERR "\n\t%d scans",$nscans) if ($opt_v > 1);
 printf(STDERR "\n") if ($opt_v);
+
+#----------------------------------------------------------------------
+# Redirect STDOUT to %.6Hz & create %_wpkg.ps,%_sspd.ps if STDOUT is a tty
+#----------------------------------------------------------------------
+
+$id = defined($opt_i) ? $opt_i : &antsParam('station');
+croak("$CNVfile: no station information in header => -i required\n")
+	unless defined($id);
+	
+if (-t STDOUT) {
+	if (numberp($id)) {
+		$opt_p = '%03d_wpkg.ps,%03d_sspd.ps'
+			unless defined($opt_p);
+		$outfile = sprintf('%03d.%dHz',$id,$opt_s);
+	} else {
+		$opt_p = '%s_wpkg.ps,%s_sspd.ps'
+			unless defined($opt_p);
+		$outfile = sprintf('%s.%dHz',$id,$opt_s);
+	}
+    open(STDOUT,">$outfile") || die("$outfile: $!\n");
+}
 
 #----------------------------------------------------------------------
 # Edit Data
@@ -102,26 +141,30 @@ unless ($opt_r) {
 	#----------------------------------------
 	my($trimmed) = 0;												# trim leading nan pressures
 	shift(@ants_),$trimmed++
-		until numberp($ants_[0][$pressF]);
+		until numberp($ants_[0][$pressF]) && numberp($ants_[0][$condF]);
 	printf(STDERR "\n\t%d initial records with nan pressure and/or conductivity trimmed",$trimmed) if ($opt_v > 1);
 	my($lvp) = $ants_[0][$pressF];
+	my($lvc) = $ants_[0][$condF];
 	
 	#------------------------------------------------
 	# edit pressure outliers outside contiguous range
 	#------------------------------------------------
-	my($outliers) = 0; my($min,$max);
+	my($outliers) = 0; my($min) = 9e99; my($max);
 	for (my($s)=0; $s<$nscans; $s++) {
-		$phist[$ants_[$s][$pressF]+1000]++
-			if ($ants_[$s][$pressF]>=-100 && $ants_[$s][$pressF]<=6500);
+		next unless ($ants_[$s][$pressF]>=-100 && $ants_[$s][$pressF]<=6500);
+		$phist[$ants_[$s][$pressF]+1000]++;
+		$min = $ants_[$s][$pressF] if ($ants_[$s][$pressF] < $min);
 	}
-	for ($max=25; 	$phist[$max+1000]||$phist[$max+1001]; $max++) {}	# outliers after 2 gaps
-	for ($min=$max; $phist[$min+1000]||$phist[$min+ 999]; $min--) {}
+	for ($max=$min+25; $phist[$max+1000]||$phist[$max+1001]; $max++) {}	# outliers after 2 gaps
+	for ($min=$max;    $phist[$min+1000]||$phist[$min+ 999]; $min--) {}
 	for (my($s)=0; $s<$nscans; $s++) {
 		if ($ants_[$s][$pressF] > $max) { $outliers++; $ants_[$s][$pressF] = nan; }
 		if ($ants_[$s][$pressF] < $min) { $outliers++; $ants_[$s][$pressF] = nan; }
 	}
 	&antsAddParams("pressure_outliers",sprintf("%d",$outliers));
 	printf(STDERR "\n\tcontinuous pressure range: %d..%d dbar (%d outliers removed)",$min,$max,$outliers) if ($opt_v > 1);
+	croak("$CNVfile: pressure editing removed too many 'outliers'\n")
+		unless ($outliers < 100);
 	
 	#----------------------------------------------------
 	# edit conductivity outliers outside contiguous range
@@ -145,6 +188,8 @@ unless ($opt_r) {
 	}
 	&antsAddParams("conductivity_outliers",sprintf("%d",$outliers));
 	printf(STDERR "\n\tcontinuous conductivity range: %.1f..%.1f S/m (%d outliers removed)",$min,$max,$outliers) if ($opt_v > 1);
+	croak("$CNVfile: conductivity editing removed too many 'outliers'\n")
+		unless ($outliers/$nscans < 0.4);
 
 	#----------------------------------------------------
 	# edit temperature outliers outside contiguous range
@@ -168,12 +213,14 @@ unless ($opt_r) {
 	}
 	&antsAddParams("temperature_outliers",sprintf("%d",$outliers));
 	printf(STDERR "\n\tcontinuous temperature range: %.1f..%.1f degC (%d outliers removed)",$min,$max,$outliers) if ($opt_v > 1);
+	croak("$CNVfile: temperature editing removed too many 'outliers'\n")
+		unless ($outliers/$nscans < 0.4);
 
 	#----------------------------------------
 	# edit pressure spikes based on gradients
 	#----------------------------------------
 	
-	for (my($s)=1; $s<$nscans; $s++) {								# calculated pressure gradients (across gaps)
+	for (my($s)=1; $s<$nscans; $s++) {								# calculate pressure gradients (across gaps)
 		if (numberp($ants_[$s][$pressF])) {
 			$dp[$s-1] = $ants_[$s][$pressF] - $lvp;
 			$lvp = $ants_[$s][$pressF];
@@ -203,6 +250,66 @@ unless ($opt_r) {
 	&antsAddParams("pressure_spikes_removed",sprintf("%d+%d",$ns1,$ns2));
 	printf(STDERR "\n\t%d+%d pressure spikes removed",$ns1,$ns2) if ($opt_v > 1);
 
+	#--------------------------------------------------
+	# edit conductivity spikes based on large gradients
+	#	- $lvc = $ants_[0] is guaranteed numeric here
+	#--------------------------------------------------
+	
+	my($nv) = my($ns) = my($last_dcond) = my($lvcs) = 0;
+	my($run_start) = my($run_dcond) = 0;
+	for (my($s)=1; $s<$nscans; $s++) {								# calculate conductivity gradients (across gaps)
+		next unless numberp($ants_[$s][$condF]);
+
+		my($dcond) = $ants_[$s][$condF] - $lvc;						# integrate gradient across runs
+#		print(STDERR "ldc/dc/rdc: $last_dcond/$dcond/$run_dcond\n");
+		if ($last_dcond*$dcond >= 0) {								# run is continuing (gradient does not change sign)
+			$run_dcond += $dcond;
+		} else {													# run has ended
+#			print(STDERR "new run at $lvcs (run_dcond = $last_dcond)\n");
+			$run_start = $lvcs;
+			$run_dcond = $dcond;
+		}
+
+		if (abs($run_dcond) <= 0.02) {								# small integrated gradient => okay
+			$lvc = $ants_[$s][$condF];								# update stored previous values
+			$lvcs = $s;
+			$last_dcond = $dcond;
+			next;													# process next scan
+		}
+
+#		print(STDERR "large gradient ($ants_[$run_start][$condF]-$ants_[$s][$condF], $run_dcond) run $run_start-$s\n");
+		my($i);
+		my($max_spike_length) = 24;
+		for ($i=$s; $i<=$run_start+$max_spike_length && $i<$nscans-1; $i++) {	# large gradient => check whether values return within 10s
+			next unless (numberp($ants_[$i][$condF]) &&
+						 numberp($ants_[$i+1][$condF]));
+			last if ((abs($ants_[$i][$condF]-$ants_[$run_start][$condF]) <= 0.005) &&	# 2 vals to avoid large gradients
+					 (abs($ants_[$i+1][$condF]-$ants_[$run_start][$condF]) <= 0.005));
+		}
+
+		if ($i>$run_start+$max_spike_length || $i==$nscans-1) {		# values don't return => leave data alone
+#			print(STDERR "values don't return => new run at $s\n");
+			$run_start = $s; $run_dcond = 0;
+			$lvc = $ants_[$run_start][$condF];						# start new run
+			$lvcs = $run_start;
+			$last_dcond = 0;
+			next;													# process next scan
+		}
+
+		$ns++;
+		for (my($j)=$run_start+1; $j<$i; $j++) {					# values return => remove bad spike
+			$ants_[$j][$condF] = nan;
+			$nv++;
+		}
+#		print(STDERR "values return at $i ($ants_[$i][$condF]) => deleted $run_start+1-$i; new run\n");
+		$run_start = $i; $run_dcond = 0;
+		$lvc = $ants_[$run_start][$condF];
+		$lvcs = $run_start;
+		$last_dcond = 0;
+	}
+	&antsAddParams("conductivity_spikes_removed",$ns);
+	printf(STDERR "\n\t%d conductivity values removed from %d spikes",$nv,$ns) if ($opt_v > 1);
+
 	printf(STDERR "\n") if ($opt_v);
 
 } # if $opt_r
@@ -220,11 +327,16 @@ for (my($s)=0; $s<$nscans; $s++) {
 }
 croak("$CNVfile: no valid CTD pressure data below 25dbar\n")
 	unless ($minP < 9e99);
-&antsAddParams('pressure_bias',$minP);
-printf(STDERR "\n\tsubtracting %.1f dbar",$minP) if ($opt_v > 1);
-for (my($s)=0; $s<$nscans; $s++) {
-	$ants_[$s][$pressF] -= $minP
-		if numberp($ants_[$s][$pressF]);
+
+if ($minP < 25) {
+	&antsAddParams('pressure_bias',$minP);
+	printf(STDERR "\n\tsubtracting %.1f dbar",$minP) if ($opt_v > 1);
+	for (my($s)=0; $s<$nscans; $s++) {
+		$ants_[$s][$pressF] -= $minP
+			if numberp($ants_[$s][$pressF]);
+	}
+} else {
+	printf(STDERR "\n\tpartial-depth cast below %.1f dbar (no correction applied)",$minP) if ($opt_v > 1);
 }
 printf(STDERR "\n") if ($opt_v);
 
@@ -262,16 +374,16 @@ printf(STDERR "\n") if ($opt_v);
 
 print(STDERR "Calculating vertical package velocity & sound speed...") if ($opt_v);
 
+my($maxP) = -9e99; my($atBtm);
+my($min_sspd) = 9e99; my($max_sspd) = -9e99;
 for (my($r)=0; $r<@press; $r++) {
+	$maxP=$press[$r],$atBtm=$r if ($press[$r] > $maxP);
 	$elapsed[$r] = $r/$opt_s;
 	$depth[$r] = &depth($press[$r],$lat);
-	croak(sprintf("$CNVfile: unrealistic depth %d m at elapsed=%.1f s (r=$r)\n",
-		$depth[$r],$elapsed[$r]))
-			if numberp($depth[$r]) && ($depth[$r]<0 || $depth[$r]>6100);
-	$sspd[$r]  = &sVel(&salin($cond[$r],$temp[$r],$press[$r]),$temp[$r],$press[$r]);
-	croak(sprintf("$CNVfile: unrealistic soundspeed %dm/s at elapsed=%.1fs & depth=%.1fm ($cond[$r],$temp[$r],$press[$r])\n",
-		$sspd[$r],$elapsed[$r],$depth[$r]))
-			if numberp($sspd[$r]) && ($sspd[$r]<1400 || $sspd[$r]>1600);
+	$salin[$r] = &salin($cond[$r],$temp[$r],$press[$r]);
+	$sspd[$r]  = &sVel($salin[$r],$temp[$r],$press[$r]);
+	$min_sspd = $sspd[$r] if ($sspd[$r] < $min_sspd);
+	$max_sspd = $sspd[$r] if ($sspd[$r] > $max_sspd);
 }
 
 $w[0] = nan;
@@ -355,11 +467,54 @@ if ($opt_l > 0) {
 
 #----------------------------------------------------------------------
 
+if (defined($opt_p)) {
+	print(STDERR "Plotting data...\n") if ($opt_v);
+	my(@pfmt) = split(',',$opt_p);
+	croak("$0: cannot decode -p $opt_p\n")
+		unless (@pfmt == 2);
+
+	my($xmin) = $elapsed[0]/60;
+	my($xmax) = $elapsed[$#elapsed]/60;
+	my($ymin) = -3; my($ymax) = 3;
+	my($plotsize) = '13c';
+	GMT_begin(sprintf($pfmt[0],$id),"-JX${plotsize}","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4');
+	GMT_psxy('-W2,255/127/80');
+	for ($r=0; $r<@w; $r++) {
+		printf(GMT "%f %f\n",$elapsed[$r]/60,$w_lp[2*$r]/@w_lp);
+		GMT_psxy('-W2,46/139/87') if ($r == $atBtm);
+	}
+	GMT_psbasemap('-Bg60a30f5:"Elapsed Time [min]":/g1a1f0.1:"Vertical Package Velocity [ms@+-1@+]":WeSn');
+	GMT_unitcoords();
+	GMT_pstext();
+	if (defined($outfile)) { printf(GMT "0.98 0.98 14 0 0 TR $outfile\n",$id); }
+	else 				   { printf(GMT "0.98 0.98 14 0 0 TR %03d\n",$id); }
+	GMT_end();	                
+
+	my($xmin) = round($min_sspd-3,5);
+	my($xmax) = round($max_sspd+3,5);
+	my($ymin) = 0; my($ymax) = round($depth[$atBtm]+70,100);
+	my($plotsize) = '13c';
+	GMT_begin(sprintf($pfmt[1],$id),"-JX${plotsize}/-${plotsize}","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4');
+	GMT_psbasemap('-Bg10a10f1:"Speed of Sound [m/s]":/g1000a500f100:"Depth [m]":WeSn');
+	GMT_psxy('-W8,255/127/80');
+	for ($r=0; $r<@w; $r++) {
+		printf(GMT "%f %f\n",$sspd[$r],$depth[$r]);
+		GMT_psxy('-W6,46/139/87') if ($r == $atBtm);
+	}
+	GMT_unitcoords();
+	GMT_pstext();
+	if (defined($outfile)) { printf(GMT "0.98 0.98 14 0 0 TR $outfile\n",$id); }
+	else 				   { printf(GMT "0.98 0.98 14 0 0 TR %03d\n",$id); }
+	GMT_end();	                
+}
+
+#----------------------------------------------------------------------
+
 print(STDERR "Writing output...\n") if ($opt_v);
 
-@antsNewLayout = ('elapsed','depth','temp','sspd','w.raw','w');
+@antsNewLayout = ('elapsed','press','temp','cond','depth','salin','sspd','w.raw','w');
 for ($r=0; $r<@w; $r++) {
-	&antsOut($elapsed[$r],$depth[$r],$temp[$r],$sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp);
+	&antsOut($elapsed[$r],$press[$r],$temp[$r],$cond[$r],$depth[$r],$salin[$r],$sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp);
 }
 
 exit(0);															# don't flush @ants_

@@ -2,9 +2,9 @@
 #======================================================================
 #					 L W P L O T _ S P E C 
 #                    doc: Thu Sep  5 18:23:41 2013
-#                    dlm: Thu Apr 16 10:41:27 2015
+#                    dlm: Wed May 20 20:47:00 2015
 #                    (c) 2013 A.M. Thurnherr
-#                    uE-Info: 20 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 44 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # NB: THIS PLOTTING ROUTINE REQUIRES NON-PUBLIC ANTS TOOLS
@@ -17,6 +17,7 @@
 #	Apr  5, 2015: - made fixbb optional
 #   Apr 16, 2015: - removed copy of input on stdout
 #				  - changed shell from /bin/ksh to /bin/sh
+#   May 20, 2015: - made it quit on EOF
 
 #--------------------------------------------------
 # Usage
@@ -31,14 +32,15 @@ eps_file="$1"
 # Read Header Data
 #--------------------------------------------------
 
-while [ -z "$fields" ]
+read line
+while [ -z "$fields" -a -n "$line" ]
 do
-	read line
 	[ -z "$out_basename" ] && out_basename=`expr -- "$line" : '#ANTS#PARAMS#.*out_basename{\([^}]*\)}`
 	[ -z "$run_label" ] && run_label=`expr -- "$line" : '#ANTS#PARAMS#.*run_label{\([^}]*\)}`
 	[ -z "$min_depth" ] && min_depth=`expr -- "$line" : '#ANTS#PARAMS#.*min_depth{\([^}]*\)}`
 	[ -z "$max_depth" ] && max_depth=`expr -- "$line" : '#ANTS#PARAMS#.*max_depth{\([^}]*\)}`
 	[ -z "$fields" ] && fields=`expr -- "$line" : '#ANTS#FIELDS# \(.*\)' | sed -e s/{//g -e s/}//g`
+	read line
 done
 
 set -- $fields
