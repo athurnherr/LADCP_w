@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Fri Jun 19 07:23:38 2015
+#                    dlm: Wed Jul 29 14:43:08 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 61 10 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 272 59 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -59,6 +59,7 @@
 #				  - croak -> error
 #	May 15, 2015: - fiddled with assertions
 #	Jun 19, 2015: - disabled L2 warning on partial-depth time-lagging failures
+#	Jul 29, 2015: - support for new plotting system
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -126,7 +127,7 @@ sub bestLag($$$$)								# find best lag in window
 
 { # STATIC SCOPE
 
-my(@elapsed_buf,@so_buf,@mad_buf,@bmo_buf,@te_buf,$elapsed_min_buf);	
+local(@elapsed_buf,@so_buf,@mad_buf,@bmo_buf,@te_buf,$elapsed_min_buf);		# available to plot routines
 
 sub calc_lag($$$$$)
 {
@@ -274,6 +275,12 @@ RETRY:
 
 			foreach my $of (@out_TL) {
 				progress("<$of> ");
+				my($plot,$out) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/); 					# plot_sub(out_file)
+				if (defined($out)) {
+					require "$WCALC/${plot}.pl";
+					&{$plot}($out);
+					next;
+		        }
 				$of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		        open(STDOUT,$of) || error("$of: $!\n");
 				undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);

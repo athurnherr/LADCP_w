@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ R E G R I D 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Sun Jul 26 10:26:54 2015
+#                    dlm: Mon Jul 27 17:20:23 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 234 43 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 182 21 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -27,7 +27,8 @@ $antsMinLibVersion = 6.1;
 #				  - implemented default output on -t stdout
 #				  - changed to libGMT.pl
 #				  - removed dead -d option
-#	Jul 26, 2015: - adapted for %output_grid_dz
+#	Jul 26, 2015: - adapted for %outgrid_*
+#	Jul 27, 2015: - B-t)rack <wprof>
 
 ($ANTS) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 
@@ -38,16 +39,17 @@ require "$ANTS/ants.pl";
 require "$ANTS/libstats.pl";
 require "$ANTS/libGMT.pl";
 
-&antsUsage('i:k:o:p:',1,
+&antsUsage('b:i:k:o:p:t:',1,
 	'[profile -i)d <id>]',
 	'[-o)utput bin <resolution[10m]>] [-k) require <min> samples]',
-	'[-p)lot <[%03d_wprof.eps]>]',
+#	'[valid LADCP -b)ins <bin[2],bin[*][,bin[2],bin[*]]>',
+	'[-p)lot <[%03d_wprof.eps]> [B-t)rack <wprof>]]',
 	'<.samp file> [.samp file]');
 
 $dual_head = (@ARGV==1);
 
 $opt_o_override = defined($opt_o);
-$opt_o = $P{output_grid_dz};
+$opt_o = $P{outgrid_dz};
 &antsCardOpt(\$opt_o,10);
 	
 $opt_k_override = defined($opt_k);
@@ -55,6 +57,13 @@ $opt_k = 2 * $P{ouput_grid_minsamp}
 	if defined($P{ouput_grid_minsamp});
 &antsCardOpt(\$opt_k,$dual_head?40:20);
 
+if (defined($opt_b)) {
+	croak("$0: -b not implemented yet\n");
+	($LADCP_firstBin,$LADCP_lastBin) = split(',',$opt_b);
+	croak("$0: cannot decode -b $opt_b\n")
+		unless (numberp($LADCP_firstBin) &&
+				($LADCP_lastBin eq '*' || numberp($LADCP_lastBin)));
+}
 
 #----------------------------------------------------------------------
 # Redirect STDOUT to %.wprof & create %_wprof.ps if STDOUT is a tty
@@ -69,6 +78,9 @@ if (-t STDOUT) {
 	$outfile = sprintf('%03d.wprof',$id);
 	open(STDOUT,">$outfile") || die("$outfile: $!\n");
 }
+
+croak("$0: -t only makes sense when a plot is produced\n")
+	if $opt_t && !defined($opt_p);
 
 #----------------------------------------------------------------------
 # Library
@@ -121,6 +133,7 @@ sub isBad()
 $wF = &fnr('w');
 $eF = &fnr('elapsed');
 $dF = &fnr('depth');
+$bF = &fnr('bin');
 $dcF = &fnr('downcast');
 
 $first_label 	= &antsRequireParam('run_label');
@@ -152,6 +165,26 @@ if ($opt_p) {												# begin plot
 	print(GMT ">\n100 $ymin\n100 $ymax\n");
 	print(GMT ">\n150 $ymin\n150 $ymax\n");
 	GMT_setR($R);
+
+	if (defined($opt_t)) {
+		open(BT,$opt_t) || croak("$opt_t: $!\n");
+		@BTL = &antsFileLayout(BT);
+		my($BTwf,$BTdf,$BTmf,$BTnf);
+		for (my($f)=0; $f<=$#BTL; $f++) {
+			$BTdf = $f if ($BTL[$f] eq 'depth');
+			$BTwf = $f if ($BTL[$f] eq 'BT_w');
+			$BTmf = $f if ($BTL[$f] eq 'BT_w.mad');
+			$BTnf = $f if ($BTL[$f] eq 'BT_w.nsamp');
+		}
+		croak("$opt_t: file-layout error\n")
+			unless defined($BTdf) && defined($BTwf) &&
+				   defined($BTmf) && defined($BTnf);
+		GMT_psxy('-W6');
+		while (@BT = &antsFileIn(BT)) {
+			next unless numberp($BT[$BTwf]);
+			printf(GMT "%f %f\n",$BT[$BTwf],$BT[$BTdf]);
+		}
+	}
 }
 
 $min_depth =  9e99;										# sentinels
@@ -163,10 +196,10 @@ for (my($curF),$r=0; &antsIn(); $r++) {
 	if ($P{PATHNAME} ne $curF) {						# new file
 		$curF = $P{PATHNAME};
 
-		&antsInfo("WARNING: inconsistent %output_grid_dz in input files")
-			if (defined($P{output_grid_dz}) && $P{output_grid_dz}!=$opt_o &&!$opt_o_override);
-		&antsInfo("WARNING: inconsistent %output_grid_minsamp in input files")
-			if (defined($P{output_grid_minsamp}) && $P{output_grid_minsamp}*2!=$opt_k &&!$opt_k_override);
+		&antsInfo("WARNING: inconsistent %outgrid_dz in input files")
+			if (defined($P{outgrid_dz}) && $P{outgrid_dz}!=$opt_o &&!$opt_o_override);
+		&antsInfo("WARNING: inconsistent %outgrid_minsamp in input files")
+			if (defined($P{outgrid_minsamp}) && $P{outgrid_minsamp}*2!=$opt_k &&!$opt_k_override);
 		
 		$bin_length = sprintf('%d & %d',round($bin_length),($P{ADCP_bin_length}))
 			unless (round($bin_length) == round($P{ADCP_bin_length}));
@@ -191,6 +224,7 @@ for (my($curF),$r=0; &antsIn(); $r++) {
 			undef(@dcw1); undef(@ucw1);
 		}
 	}
+	next if ($ants_[0][$bF]<$P{outgrid_firstbin}-1 || $ants_[0][$bF]>$P{outgrid_lastbin}-1);
 	$filt++,next if &isBad();
 	$min_depth = $ants_[0][$dF] if ($ants_[0][$dF] < $min_depth);
 	$max_depth = $ants_[0][$dF] if ($ants_[0][$dF] > $max_depth);
@@ -231,7 +265,8 @@ if (@dcw1) {											# 2nd file in dual-head profile in buffer => plot it
 if ($dual_head) {										# selected %PARAMs only
 	&antsAddParams('profile_id',$id,'lat',$P{lat},'lon',$P{lon});
 	&antsAddParams($dayNoP,$dn,'run_label',"$first_label & $P{run_label}");
-	&antsAddParams('output_grid_dz',$opt_o,'output_grid_minsamp',$opt_k);
+	&antsAddParams('outgrid_dz',$opt_o,'outgrid_minsamp',$opt_k);
+	&antsAddParams('outgrid_firstbin',$P{outgrid_firstbin},'outgrid_lastbin',$P{outgrid_lastbin});
 	&antsAddParams('ADCP_bin_length',round($bin_length),'ADCP_pulse_length',round($pulse_length))
 	&antsAddParams('ADCP_blanking_distance',round($blanking_dist));
 	&antsAddParams('min_depth',round($min_depth),'max_depth',round($max_depth));

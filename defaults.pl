@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Sun Jul 26 17:12:51 2015
+#                    dlm: Wed Jul 29 07:19:25 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 379 12 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 438 69 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -52,9 +52,12 @@
 #				  - decreased default verbosity
 #   May 15, 2015: - added $min_valid_vels
 #	May 20, 2015: - STN -> PROF
-#	Jul 23, 2015: - began adaptation to libGMT.pl
+#	Jul 26, 2015: - began adaptation to libGMT.pl
 #				  - changed .prof output .wprof
 #				  - -v docu was wrong
+#				  - added $outGrid_firstBin, $outGrid_lastBin
+#	Jul 28, 2015: - implemented new plotting system
+#	Jul 29, 2015: - implemented new plotting system
 
 #======================================================================
 # Data Input 
@@ -105,16 +108,6 @@ $opt_b = '2,*' unless defined($opt_b);
 &antsCardOpt(\$opt_v,1);
 
 
-# output bin size in meters
-
-&antsFloatOpt(\$opt_o,10);
-
-
-# min w samples required for each vertical-velocity bin
-
-&antsCardOpt(\$opt_k,20);
-
-
 # output base name
 
 $out_basename = sprintf('%03d',$PROF);
@@ -124,6 +117,26 @@ $out_basename = sprintf('%03d',$PROF);
 
 error("$RUN: no such directory\n") unless (-d $RUN);
 $data_subdir = $plot_subdir = $log_subdir = $RUN;
+
+
+# min w samples required for each vertical-velocity bin
+#	- value recorded in %outgrid_minsamp and used by [LADCP_w_regrid]
+
+&antsCardOpt(\$opt_k,20);
+
+
+# output grid resolution in meters
+#	- value recorded in %outgrid_dz and used by [LADCP_w_regrid]
+
+&antsFloatOpt(\$opt_o,10);
+
+
+# the following variables limit the bins used to grid w_oean
+#	- in contrast to -b, the other bins are still used e.g. for BT 
+#	- values recorded in %outgrid_firstbin, %outgrid_lastbin
+
+$outGrid_firstBin = 0;
+$outGrid_lastBin  = 999;
 
 
 #======================================================================
@@ -388,17 +401,17 @@ $out_log = "$log_subdir/$out_basename.log";
 # Data:
 #	*.samp				w sample data
 # Standard Plots:
-#	*_w.eps				vertical velocity time-depth plot
-#	*_residuals.eps		residual vertical velocity time-depth plot
-#	*_Sv.eps			volume scattering coefficient time-depth plot
+#	*_w.ps				vertical velocity time-depth plot
+#	*_residuals.ps		residual vertical velocity time-depth plot
+#	*_backscatter.ps	volume scattering coefficient time-depth plot
 # Optional Plots:
-#	*_corr.eps			correlation time-depth plot [REMOVED FROM DEFAULTS 2013/05/16]
+#	*_correlation.ps	correlation time-depth plot
 #----------------------------------------------------------------------
 
-@out_w = ("| LWplot_residuals $plot_subdir/${out_basename}_residuals.eps",
-		  "| LWplot_Sv $plot_subdir/${out_basename}_Sv.eps",
-#		  "| LWplot_corr $plot_subdir/${out_basename}_corr.eps",
-		  "| LWplot_w $plot_subdir/${out_basename}_w.eps",
+@out_w = ("plot_residuals($plot_subdir/${out_basename}_residuals.ps)",
+		  "plot_backscatter($plot_subdir/${out_basename}_backscatter.ps)",
+#		  "plot_correlation($plot_subdir/${out_basename}_correlation.ps)",
+		  "plot_w($plot_subdir/${out_basename}_w.ps)",
 		  "$data_subdir/$out_basename.samp");
 
 
@@ -407,25 +420,21 @@ $out_log = "$log_subdir/$out_basename.log";
 # Data:
 #	*.tis			combined CTD/LADCP time-series data, including 
 #					package- and LADCP reference layer w
-# Optional Plots:
-#	*_CAE.eps		plot of CTD acceleration effects on reference-layer w
 #----------------------------------------------------------------------
 
-@out_timeseries = ( 
-#				   "| LWplot_CAE $plot_subdir/${out_basename}_CAE.eps",
-				   "$data_subdir/$out_basename.tis");
+@out_timeseries = ("$data_subdir/$out_basename.tis");
 
 #----------------------------------------------------------------------
 # Per-bin vertical-velocity residuals (plot only)
 #----------------------------------------------------------------------
 
-@out_BR	= ("| LWplot_BR $plot_subdir/${out_basename}_BR.eps");
+@out_BR	= ("plot_mean_residuals($plot_subdir/${out_basename}_mean_residuals.ps)");
 
 
 #----------------------------------------------------------------------
 # Time-lagging correlation statistics (plot only)
 #----------------------------------------------------------------------
 
-@out_TL = ("| LWplot_TL $plot_subdir/${out_basename}_TL.eps");
+@out_TL = ("plot_time_lags($plot_subdir/${out_basename}_time_lags.ps)");
 
 1;	# return true
