@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ B A C K S C A T T E R . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed Jul 29 07:13:33 2015
+#                    dlm: Thu Jul 30 09:53:42 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 59 45 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 57 59 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -54,7 +54,7 @@ sub plot_backscatter($)
 		print(GMT "0.02 0.98 12 0 0 BL $P{out_basename} $P{run_label}\n");
 
 	my($depth_tics) = ($ymax < 1000 ) ? 'f10a100' : 'f100a500';							# AXES
-	my($ens_tics) =   ($ymax < 1000 ) ? 'f50a500' : 'f500a1000';
+	my($ens_tics) =   ($ymax < 1000 ) ? 'f50a500' : 'f500a2000';
 	GMT_setR($R);
 	GMT_psbasemap("-B$ens_tics:'Ensemble [#]':/$depth_tics:'Depth [m]':WeSn");
 		 

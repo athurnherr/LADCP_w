@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Mon Jul 27 18:06:57 2015
+#                    dlm: Thu Jul 30 13:01:45 2015
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 392 80 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 35 53 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -32,6 +32,7 @@ $antsMinLibVersion = 6.1;
 #				  - adapted to re-added pwrdens.0 in LADCP_wspec output
 #				  - modified plot label
 #	Jun 17, 2015: - added eps.w to plot
+#	Jul 30, 2015: - moved main label and made it blue
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 $ANTS_TOOLS_AVAILABLE = (`which list` ne '');
@@ -390,9 +391,9 @@ if (defined($opt_p)) {															# complete plot
 	GMT_psbasemap('-B3:"Vertical Wavelength [m]:N"');
 
 	GMT_unitcoords_logscale();													# print profile number 
-	GMT_pstext();
-	if (defined($outfile)) { printf(GMT "0.98 0.98 14 0 0 TR $outfile %s\n",antsParam('input_data')); }
-	else { printf(GMT "0.98 0.98 14 0 0 TR %03d %s\n",antsParam('profile_id'),antsParam('input_data')); }
+	GMT_pstext('-Gblue');
+	if (defined($outfile)) { printf(GMT "0.98 0.02 14 0 0 BR $outfile %s\n",antsParam('input_data')); }
+	else { printf(GMT "0.98 0.02 14 0 0 BR %03d %s\n",antsParam('profile_id'),antsParam('input_data')); }
 
 	GMT_set('ANNOT_FONT_SIZE_PRIMARY 10','ANNOT_OFFSET_PRIMARY 0.01c',			# eps profile inset
 			'LABEL_FONT_SIZE 10','LABEL_OFFSET 0');

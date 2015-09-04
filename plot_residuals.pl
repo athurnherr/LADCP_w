@@ -1,13 +1,15 @@
 #======================================================================
 #                    P L O T _ R E S I D U A L S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed Jul 29 07:13:59 2015
+#                    dlm: Thu Jul 30 09:52:39 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 71 44 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 73 59 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 28, 2015: - created from [LWplot_residuals]
+#	Jul 30, 2015: - made it respect outGrid_ selection
+#				  - modified $ens_tics
 
 require "$ANTS/libGMT.pl";
 
@@ -35,6 +37,7 @@ sub plot_residuals($)
 		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 		  my(@bindepth) = calc_binDepths($ens);
 		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			  next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
 			  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			  my($bi) = $bindepth[$bin]/$opt_o;
 			  printf(GMT "%d %f %f $ens_width $bin_length\n",
@@ -47,6 +50,7 @@ sub plot_residuals($)
 		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 		  my(@bindepth) = calc_binDepths($ens);
 		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			  next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
 			  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			  my($bi) = $bindepth[$bin]/$opt_o;
 			  printf(GMT "%d %f %f $ens_width $bin_length\n",
@@ -66,7 +70,7 @@ sub plot_residuals($)
 		print(GMT "0.02 0.98 12 0 0 BL $P{out_basename} $P{run_label}\n");
 
 	my($depth_tics) = ($ymax < 1000 ) ? 'f10a100' : 'f100a500';							# AXES
-	my($ens_tics) =   ($ymax < 1000 ) ? 'f50a500' : 'f500a1000';
+	my($ens_tics) =   ($ymax < 1000 ) ? 'f50a500' : 'f500a2000';
 	GMT_setR($R);
 	GMT_psbasemap("-B$ens_tics:'Ensemble [#]':/$depth_tics:'Depth [m]':WeSn");
 

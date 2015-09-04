@@ -1,13 +1,14 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Sun Jul 26 18:14:54 2015
+#                    dlm: Thu Jul 30 09:50:03 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 105 49 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 11 54 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 26, 2015: - created from LWplot_prof_2beam
+#	Jul 30, 2015: - moved main label outside plot area
 
 # Tweakables:
 #
@@ -100,8 +101,9 @@ sub plot_wprof($)
 	GMT_psxy('-Mn -W1/black');				plotBT('N_SAMP');	
 	
 	GMT_unitcoords();																	# LABELS
+	GMT_pstext('-Gblue -N');
+		print(GMT "0.01 -0.06 14 0 0 TL $P{out_basename} $P{run_label}\n");
 	GMT_pstext();
-		print(GMT "0.02 0.02 12 0 0 TL $P{out_basename} $P{run_label}\n");
 		print(GMT "0.6 0.98 12 0 0 BR m.a.d.\n");
 
 	my($depth_tics) = ($plot_wprof_ymax < 1000 ) ? 'f10a100' : 'f100a500';				# AXES

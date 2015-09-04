@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Mon Jul 20 09:28:16 2015
+#                    dlm: Mon Aug 17 18:40:47 2015
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 38 25 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 500 105 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -36,6 +36,7 @@ $antsMinLibVersion = 6.0;
 #	Jun 19, 2015: - added press & salin to make output suitable for u/v processing
 #				  - removed a couple of data assertions
 #	Jul 20, 2015: - allow for non-numeric -i
+#	Aug 17, 2015: - modified plots
 
 ($ANTS) = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 
@@ -477,7 +478,7 @@ if (defined($opt_p)) {
 	my($xmax) = $elapsed[$#elapsed]/60;
 	my($ymin) = -3; my($ymax) = 3;
 	my($plotsize) = '13c';
-	GMT_begin(sprintf($pfmt[0],$id),"-JX${plotsize}","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4');
+	GMT_begin(sprintf($pfmt[0],$id),"-JX${plotsize}","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4 -P');
 	GMT_psxy('-W2,255/127/80');
 	for ($r=0; $r<@w; $r++) {
 		printf(GMT "%f %f\n",$elapsed[$r]/60,$w_lp[2*$r]/@w_lp);
@@ -485,16 +486,18 @@ if (defined($opt_p)) {
 	}
 	GMT_psbasemap('-Bg60a30f5:"Elapsed Time [min]":/g1a1f0.1:"Vertical Package Velocity [ms@+-1@+]":WeSn');
 	GMT_unitcoords();
-	GMT_pstext();
-	if (defined($outfile)) { printf(GMT "0.98 0.98 14 0 0 TR $outfile\n",$id); }
-	else 				   { printf(GMT "0.98 0.98 14 0 0 TR %03d\n",$id); }
+	GMT_pstext('-G255/127/80'); print(GMT "0.98 0.98 14 0 0 TR dc\n");
+	GMT_pstext('-G46/139/87');  print(GMT "0.98 0.94 14 0 0 TR uc\n");
+	GMT_pstext('-Gblue');
+	if (defined($outfile)) { printf(GMT "0.02 0.02 14 0 0 BL $outfile\n",$id); }
+	else 				   { printf(GMT "0.02 0.02 14 0 0 BL %03d\n",$id); }
 	GMT_end();	                
 
 	my($xmin) = round($min_sspd-3,5);
 	my($xmax) = round($max_sspd+3,5);
 	my($ymin) = 0; my($ymax) = round($depth[$atBtm]+70,100);
 	my($plotsize) = '13c';
-	GMT_begin(sprintf($pfmt[1],$id),"-JX${plotsize}/-${plotsize}","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4');
+	GMT_begin(sprintf($pfmt[1],$id),"-JX${plotsize}/-${plotsize}","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4 -P');
 	GMT_psbasemap('-Bg10a10f1:"Speed of Sound [m/s]":/g1000a500f100:"Depth [m]":WeSn');
 	GMT_psxy('-W8,255/127/80');
 	for ($r=0; $r<@w; $r++) {
@@ -502,9 +505,11 @@ if (defined($opt_p)) {
 		GMT_psxy('-W6,46/139/87') if ($r == $atBtm);
 	}
 	GMT_unitcoords();
-	GMT_pstext();
-	if (defined($outfile)) { printf(GMT "0.98 0.98 14 0 0 TR $outfile\n",$id); }
-	else 				   { printf(GMT "0.98 0.98 14 0 0 TR %03d\n",$id); }
+	GMT_pstext('-G255/127/80'); print(GMT "0.98 0.02 14 0 0 TR dc\n");
+	GMT_pstext('-G46/139/87');  print(GMT "0.98 0.06 14 0 0 TR uc\n");
+	GMT_pstext('-Gblue');
+	if (defined($outfile)) { printf(GMT "0.02 0.98 14 0 0 BL $outfile\n",$id); }
+	else 				   { printf(GMT "0.02 0.98 14 0 0 BL %03d\n",$id); }
 	GMT_end();	                
 }
 

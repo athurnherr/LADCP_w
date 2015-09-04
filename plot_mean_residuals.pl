@@ -1,14 +1,16 @@
 #======================================================================
 #                    P L O T _ M E A N _ R E S I D U A L S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed Jul 29 14:13:08 2015
+#                    dlm: Thu Jul 30 12:38:12 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 61 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 39 36 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 28, 2015: - created from [LWplot_BR]
 #	Jul 29, 2015: - finished
+#	Jul 30, 2015: - added bin_tics
+#				  - added outGrid_* support
 
 require "$ANTS/libGMT.pl";
 
@@ -23,6 +25,22 @@ sub plot_mean_residuals($)
 
 	my($R) = "-R$xmin/$xmax/$ymin/$ymax";
 	GMT_begin($pfn,'-JX10/-10',$R,'-P');
+
+	if ($outGrid_firstBin>$LADCP_firstBin || $outGrid_lastBin<$LADCP_lastBin) {
+		GMT_psxy('-G200 -M -L');
+		printf(GMT ">\n%f %f\n%f %f\n%f %f\n%f %f\n",
+			$xmin,$LADCP_firstBin-0.5,
+			$xmax,$LADCP_firstBin-0.5,
+			$xmax,$outGrid_firstBin-0.5,
+			$xmin,$outGrid_firstBin-0.5)
+				if ($outGrid_firstBin>$LADCP_firstBin);
+		printf(GMT ">\n%f %f\n%f %f\n%f %f\n%f %f\n",
+			$xmin,$LADCP_lastBin+0.5,
+			$xmax,$LADCP_lastBin+0.5,
+			$xmax,$outGrid_lastBin+0.5,
+			$xmin,$outGrid_lastBin+0.5)
+				if ($outGrid_lastBin<$LADCP_lastBin);
+	}
 
 	GMT_psxy('-W1');
 	printf(GMT "0 $ymin\n0 $ymax\n");
@@ -56,8 +74,9 @@ sub plot_mean_residuals($)
 	GMT_pstext(-Gblue);
 		print(GMT "0.02 0.98 12 0 0 BL $P{out_basename} $P{run_label}\n");
 
+	my($bin_tics) = ($ymax <= 20) ? 'f1a1' : 'f1a2';
 	GMT_setR($R);																		# FINISH PLOT
-	GMT_end('-Bf0.005a0.02:"Residual Vertical Velocity [m/s]":/f1a1:"Bin [#]":WeSn');
+	GMT_end("-Bf0.005a0.02:'Residual Vertical Velocity [m/s]':/$bin_tics:'Bin [#]':WeSn");
 }
 
 1; # return true on require

@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Wed Jul 29 07:19:25 2015
+#                    dlm: Thu Sep  3 11:59:09 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 438 69 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 407 7 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -58,6 +58,8 @@
 #				  - added $outGrid_firstBin, $outGrid_lastBin
 #	Jul 28, 2015: - implemented new plotting system
 #	Jul 29, 2015: - implemented new plotting system
+#	Sep  3, 2015: - renamed wsamp output and plot
+#   			  - changed out_w to out_wsamp
 
 #======================================================================
 # Data Input 
@@ -134,6 +136,9 @@ $data_subdir = $plot_subdir = $log_subdir = $RUN;
 # the following variables limit the bins used to grid w_oean
 #	- in contrast to -b, the other bins are still used e.g. for BT 
 #	- values recorded in %outgrid_firstbin, %outgrid_lastbin
+#	- values beyond range are:
+#		- greyed out in *_mean_residuals.ps
+#		- not used in *_w.ps, *_residuals.ps
 
 $outGrid_firstBin = 0;
 $outGrid_lastBin  = 999;
@@ -399,20 +404,20 @@ $out_log = "$log_subdir/$out_basename.log";
 #----------------------------------------------------------------------
 # Vertical-velocity sample data output and plots:
 # Data:
-#	*.samp				w sample data
+#	*.wsamp				w sample data
 # Standard Plots:
-#	*_w.ps				vertical velocity time-depth plot
+#	*_wsamp.ps			vertical velocity time-depth plot
 #	*_residuals.ps		residual vertical velocity time-depth plot
 #	*_backscatter.ps	volume scattering coefficient time-depth plot
 # Optional Plots:
 #	*_correlation.ps	correlation time-depth plot
 #----------------------------------------------------------------------
 
-@out_w = ("plot_residuals($plot_subdir/${out_basename}_residuals.ps)",
-		  "plot_backscatter($plot_subdir/${out_basename}_backscatter.ps)",
-#		  "plot_correlation($plot_subdir/${out_basename}_correlation.ps)",
-		  "plot_w($plot_subdir/${out_basename}_w.ps)",
-		  "$data_subdir/$out_basename.samp");
+@out_wsamp = ("plot_residuals($plot_subdir/${out_basename}_residuals.ps)",
+		      "plot_backscatter($plot_subdir/${out_basename}_backscatter.ps)",
+#		  	  "plot_correlation($plot_subdir/${out_basename}_correlation.ps)",
+		  	  "plot_wsamp($plot_subdir/${out_basename}_wsamp.ps)",
+		  	  "$data_subdir/$out_basename.wsamp");
 
 
 #----------------------------------------------------------------------

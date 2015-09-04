@@ -1,10 +1,10 @@
 #!/usr/bin/perl
 #======================================================================
-#                    L A D C P _ W 
+#                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Wed Jul 29 06:58:27 2015
+#                    dlm: Thu Sep  3 11:55:19 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 1356 92 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 187 45 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -183,6 +183,8 @@ $antsMinLibVersion = 6.0;
 #				  - added $outGrid_firstBin & $outGrid_lastBin
 #	Jul 28, 2015: - added GMT plot support for all @out_ lists
 #	Jul 29, 2015: - continue adaptation of code for new plotting system
+#	Jul 30, 2015: - cosmetics
+#	Sep  3, 2015: -changed out_w to out_wsamp
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -1303,7 +1305,7 @@ unless ($opt_q) {
 #-------------------------
 
 if (@out_BR) {
-	progress("Binning residuals ");
+	progress("Binning residuals...");
 
 	local(@dc_bres,@uc_bres);
 	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
@@ -1390,14 +1392,14 @@ if (defined($water_depth)) {
 
 # NB: residual field is calculated with respect to down-/upcast medians in -o-size bins
 
-if (@out_w) {
+if (@out_wsamp) {
 	progress("Writing vertical-velocity data to ");
 	@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
 					  'w','w12','w34','residual','CTD_w','CTD_w_tt','LADCP_w','errvel',
 					  'correlation','echo_amplitude','Sv',
 					  'pitch','roll','tilt','heading','3_beam','svel');
 
-	foreach my $of (@out_w) {
+	foreach my $of (@out_wsamp) {
 	    progress("<$of> ");
 
 		my($plot,$out) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
