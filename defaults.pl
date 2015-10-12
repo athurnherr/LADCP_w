@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Thu Sep  3 11:59:09 2015
+#                    dlm: Mon Oct 12 16:00:40 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 407 7 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 9 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -60,6 +60,7 @@
 #	Jul 29, 2015: - implemented new plotting system
 #	Sep  3, 2015: - renamed wsamp output and plot
 #   			  - changed out_w to out_wsamp
+#	Sep 26, 2015: - added sidelobe editing params
 
 #======================================================================
 # Data Input 
@@ -235,7 +236,26 @@ $surface_layer_depth = 25;
 
 $PPI_editing_required = '($LADCP{BEAM_FREQUENCY} < 300)';
 
-#$PPI_extend_upper_limit = 1.03;		# arbitrarily increase calculated max dist from seabed by 3%
+# arbitrarily increase calculated max dist from seabed by 3%
+
+#$PPI_extend_upper_limit = 1.03;		
+
+
+# The following variables control the "non-obvious" sidelobe editing for
+# contamination from the seabed for the UL and from the sea surface for the
+# DL. Tests with DoMORE-2 data (WH150 DL, WH300 UL) strongly suggest that
+# it is not necessary to edit DL data for surface contamination. However,
+# at least for that instrument combination, UL contamination from the
+# seabed should clearly be removed.
+
+$sidelobe_editing_DL_surface	= 0;
+$sidelobe_editing_UL_seabed		= 1;
+
+# The following variable sets the depth for sidelobe contamination
+# from the surface.
+
+$vessel_draft					= 6;		# in meters
+
 
 #======================================================================
 # Time Lagging

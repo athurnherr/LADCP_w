@@ -1,14 +1,14 @@
 #!/usr/bin/perl
 #======================================================================
-#                    L A D C P _ W _ R E G R I D 
+#                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Mon Jul 27 17:20:23 2015
+#                    dlm: Mon Oct 12 16:48:17 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 182 21 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 49 53 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
-$antsMinLibVersion = 6.1;
+$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Apr 24, 2015: - created
@@ -29,6 +29,24 @@ $antsMinLibVersion = 6.1;
 #				  - removed dead -d option
 #	Jul 26, 2015: - adapted for %outgrid_*
 #	Jul 27, 2015: - B-t)rack <wprof>
+#	Sep 21, 2015: - added valid_bins()
+#				  - replaced -t by -b
+#				  - BUG: -k default was wrong
+#				  - added error message output to EditParams
+#	Sep 22, 2015: - added output_resolution()
+#	Sep 24, 2015: - BUG: -k did not work any more
+#				  - BUG: some plot commands were exectuted even without -p
+#				  - BUG: wprof plot did not respect -k
+#				  - BUG: typo in mad output
+#	Sep 26, 2015: - allow $ID as alias for $STN and $PROF
+#	Sep 27, 2015: - adapted to 'unknown' %water_depth
+#	Oct 12, 2015: - improved EditParams handling
+#				  - BUG: single-profile plot did not work any more
+#				  - BUG: wrong single-profile bin size warning produced
+#				  - BUG: -o /-k code was wrong
+#				  - BUG: plot was in landscape mode
+#			      - added run-label(s) to plot
+#                 - require ANTSlibs V6.2 for release
 
 ($ANTS) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 
@@ -39,32 +57,29 @@ require "$ANTS/ants.pl";
 require "$ANTS/libstats.pl";
 require "$ANTS/libGMT.pl";
 
-&antsUsage('b:i:k:o:p:t:',1,
+&antsUsage('b:i:k:o:p:',1,
 	'[profile -i)d <id>]',
-	'[-o)utput bin <resolution[10m]>] [-k) require <min> samples]',
-#	'[valid LADCP -b)ins <bin[2],bin[*][,bin[2],bin[*]]>',
-	'[-p)lot <[%03d_wprof.eps]> [B-t)rack <wprof>]]',
-	'<.samp file> [.samp file]');
+	'[-o)utput bin <resolution>] [-k) require <min> samples]',
+	'[-p)lot <[%03d_wprof.eps]> [-b)t <wprof>]]',
+	'<.wsamp file> [.wsamp file]');
 
 $dual_head = (@ARGV==1);
 
-$opt_o_override = defined($opt_o);
-$opt_o = $P{outgrid_dz};
-&antsCardOpt(\$opt_o,10);
-	
-$opt_k_override = defined($opt_k);
-$opt_k = 2 * $P{ouput_grid_minsamp}
-	if defined($P{ouput_grid_minsamp});
-&antsCardOpt(\$opt_k,$dual_head?40:20);
-
-if (defined($opt_b)) {
-	croak("$0: -b not implemented yet\n");
-	($LADCP_firstBin,$LADCP_lastBin) = split(',',$opt_b);
-	croak("$0: cannot decode -b $opt_b\n")
-		unless (numberp($LADCP_firstBin) &&
-				($LADCP_lastBin eq '*' || numberp($LADCP_lastBin)));
+if (defined($opt_o)) {
+	$opt_o_override = 1;
+	&antsCardOpt($opt_o);
+} else {
+	$opt_o = &antsRequireParam('outgrid_dz');
 }
 
+if (defined($opt_k)) {
+	$opt_k_override = 1;
+	&antsCardOpt($opt_k);
+} else {
+	$opt_k = &antsRequireParam('outgrid_minsamp');
+	$opt_k *= 2 if ($dual_head);
+}
+	
 #----------------------------------------------------------------------
 # Redirect STDOUT to %.wprof & create %_wprof.ps if STDOUT is a tty
 #----------------------------------------------------------------------
@@ -79,49 +94,78 @@ if (-t STDOUT) {
 	open(STDOUT,">$outfile") || die("$outfile: $!\n");
 }
 
-croak("$0: -t only makes sense when a plot is produced\n")
-	if $opt_t && !defined($opt_p);
+croak("$0: -b only makes sense when a plot is produced\n")
+	if $opt_b && !defined($opt_p);
 
 #----------------------------------------------------------------------
-# Library
+# EditParams Library
+#
+#	output_resolution(dz)								output_resolution(40)
+#	bad_range[_dc|_uc](field,min_val,max_val)			bad_range_uc('depth',3500,3600)
+#	good_bins(first_good,last_good)						good_bins(2,'*')
+#	
 #----------------------------------------------------------------------
 
-my(@dscMin,@dscMax,@dscDUc);
+my(@brFnr,@brMin,@brMax,@brDUc);
+my(@gbFirst,@gbLast);
 
-sub discard($$$)										# define bad-data filter
+sub output_resolution($)
 {
-	my($fnm,$min,$max) = @_;
-	my($fnr) = fnr($fnm);
-	$dscMin[$fnr] = numberp($min) ? $min : -9e99;
-	$dscMax[$fnr] = numberp($max) ? $max :  9e99;
-	$dscDUc[$fnr] = 2;
+	my($dz) = @_;
+	$opt_o = $dz;
+	$opt_o_override = 1;
 }
 
-sub discard_dc($$$)										# define bad-data filter
+sub bad_range($$$)
 {
-	my($fnm,$min,$max) = @_;
-	my($fnr) = fnr($fnm);
-	$dscMin[$fnr] = numberp($min) ? $min : -9e99;
-	$dscMax[$fnr] = numberp($max) ? $max :  9e99;
-	$dscDUc[$fnr] = 1;
+	push(@brFnr,&fnr(shift));
+	push(@brMin,shift); push(@brMax,shift);
+	$brMin[$#brMin] = -9e99 if ($brMin[$#brMin] eq '*');
+	$brMax[$#brMax] =  9e99 if ($brMax[$#brMax] eq '*');
+	push(@brDUc,2);
 }
-
-sub discard_uc($$$)										# define bad-data filter
+	
+sub bad_range_dc($$$)
 {
-	my($fnm,$min,$max) = @_;
-	my($fnr) = fnr($fnm);
-	$dscMin[$fnr] = numberp($min) ? $min : -9e99;
-	$dscMax[$fnr] = numberp($max) ? $max :  9e99;
-	$dscDUc[$fnr] = 0;
+	push(@brFnr,&fnr(shift));
+	push(@brMin,shift); push(@brMax,shift);
+	$brMin[$#brMin] = -9e99 if ($brMin[$#brMin] eq '*');
+	$brMax[$#brMax] =  9e99 if ($brMax[$#brMax] eq '*');
+	push(@brDUc,1);
 }
+	
+sub bad_range_uc($$$)
+{
+	push(@brFnr,&fnr(shift));
+	push(@brMin,shift); push(@brMax,shift);
+	$brMin[$#brMin] = -9e99 if ($brMin[$#brMin] eq '*');
+	$brMax[$#brMax] =  9e99 if ($brMax[$#brMax] eq '*');
+	push(@brDUc,0);
+}
+	
+sub good_bins($$)
+{
+	push(@gbFirst,shift); push(@gbLast,shift);
+	$gbFirst[$#gbFirst] = 1    if ($gbFirst[$#gbFirst] eq '*');
+	$gbLast[$#gbLast]   = 9e99 if ($gbLast[$#gbLast] eq '*');
+}	
+	
+	
 
 sub isBad()
 {
 	for (my($f)=0; $f<$antsBufNFields; $f++) {
-		next unless defined($dscDUc[$f]);
-		next unless ($dscDUc[$f]==2 || $dscDUc[$f]==$ants_[0][$dcF]);
-		return 1 unless ($ants_[0][$f] < $dscMin[$f]) ||
-				        ($ants_[0][$f] > $dscMax[$f]);
+		for (my($i)=0; $i<@gbFirst; $i++) {								# good bin range
+			return 1 if ($ants_[0][$bF] < $gbFirst[$i] ||
+			             $ants_[0][$bF] > $gbLast[$i]);
+		}
+
+		for (my($i)=0; $i<@brFnr; $i++) {								# bad ranges
+			next unless ($brFnr[$i] == $f);
+			next unless ($brDUc[$i]==2 || $brDUc[$i]==$ants_[0][$dcF]);
+			return 1 if ($ants_[0][$f] >= $brMin[$i] &&
+						 $ants_[0][$f] <= $brMax[$i]);
+		}
 	}
 	return 0;
 }
@@ -150,11 +194,11 @@ if ($opt_p) {												# begin plot
 	$xmax = 0.35; $x2max =	200;
 	$ymin =  0;
 	$ymax = antsParam('water_depth');
-	$ymax = antsRequireParam('max_depth') unless defined($ymax);
+	$ymax = antsRequireParam('max_depth') unless numberp($ymax);
 	$plotsize = 13;
 	$R	= "-R$xmin/$xmax/$ymin/$ymax";
 	$R2 = "-R$x2min/$x2max/$ymin/$ymax";
-	GMT_begin(sprintf($opt_p,$id),"-JX$plotsize/-$plotsize",$R,'-X6 -Y4');
+	GMT_begin(sprintf($opt_p,$id),"-JX$plotsize/-$plotsize",$R,'-P -X6 -Y4');
 	GMT_psxy('-W1');
 	print(GMT "0 $ymin\n0 $ymax");
 	GMT_psxy('-L -G200');
@@ -166,8 +210,8 @@ if ($opt_p) {												# begin plot
 	print(GMT ">\n150 $ymin\n150 $ymax\n");
 	GMT_setR($R);
 
-	if (defined($opt_t)) {
-		open(BT,$opt_t) || croak("$opt_t: $!\n");
+	if (defined($opt_b)) {
+		open(BT,$opt_b) || croak("$opt_b: $!\n");
 		@BTL = &antsFileLayout(BT);
 		my($BTwf,$BTdf,$BTmf,$BTnf);
 		for (my($f)=0; $f<=$#BTL; $f++) {
@@ -176,7 +220,7 @@ if ($opt_p) {												# begin plot
 			$BTmf = $f if ($BTL[$f] eq 'BT_w.mad');
 			$BTnf = $f if ($BTL[$f] eq 'BT_w.nsamp');
 		}
-		croak("$opt_t: file-layout error\n")
+		croak("$opt_b: file-layout error\n")
 			unless defined($BTdf) && defined($BTwf) &&
 				   defined($BTmf) && defined($BTnf);
 		GMT_psxy('-W6');
@@ -196,10 +240,12 @@ for (my($curF),$r=0; &antsIn(); $r++) {
 	if ($P{PATHNAME} ne $curF) {						# new file
 		$curF = $P{PATHNAME};
 
-		&antsInfo("WARNING: inconsistent %outgrid_dz in input files")
+		&antsInfo("WARNING: inconsistent %%outgrid_dz in input files")
 			if (defined($P{outgrid_dz}) && $P{outgrid_dz}!=$opt_o &&!$opt_o_override);
-		&antsInfo("WARNING: inconsistent %outgrid_minsamp in input files")
-			if (defined($P{outgrid_minsamp}) && $P{outgrid_minsamp}*2!=$opt_k &&!$opt_k_override);
+		&antsInfo("WARNING: inconsistent %%outgrid_minsamp in input files")
+			if defined($P{outgrid_minsamp}) && !$opt_k_override &&
+					(( $dual_head && $P{outgrid_minsamp}*2!=$opt_k) ||
+					 (!$dual_head && $P{outgrid_minsamp}!=$opt_k));
 		
 		$bin_length = sprintf('%d & %d',round($bin_length),($P{ADCP_bin_length}))
 			unless (round($bin_length) == round($P{ADCP_bin_length}));
@@ -208,11 +254,15 @@ for (my($curF),$r=0; &antsIn(); $r++) {
 		$blanking_dist = sprintf('%d & %d',round($blanking_dist),($P{ADCP_blanking_distance}))
 			unless (round($blanking_dist) == round($P{ADCP_blanking_distance}));
 
-		$PROF = $STN = $id; $RUN = antsRequireParam('run_label');
-		undef(@dscMin); undef(@dscMax);
-		do "./EditParams";
+		$PROF = $STN = $ID = $id; $RUN = antsRequireParam('run_label');
+		undef(@rngMin); undef(@rngMax); undef(@bins);
+		unless ($return = do "./EditParams") {					# man perlfunc
+			croak("./EditParams: $@\n") if ($@);
+#	        croak("do ./EditParams: $!\n") unless defined($return);		# happens when EditParams does not exist
+#	        croak("couldn't run ./EditParams\n") unless $return;		# happens when EditParams does not exist
+		}
 
-		if (@dcw1) {									# 2nd file in dual-head profile => plot 1st
+		if ($opt_p && @dcw1) {									# 2nd file in dual-head profile => plot 1st
 			GMT_psxy('-W2,255/127/80,-');
 			for (my($bi)=0; $bi<=$#dcw1; $bi++) {
 				printf(GMT "%f %f\n",median(@{$dcw1[$bi]}),($bi+0.5)*$opt_o);
@@ -229,18 +279,18 @@ for (my($curF),$r=0; &antsIn(); $r++) {
 	$min_depth = $ants_[0][$dF] if ($ants_[0][$dF] < $min_depth);
 	$max_depth = $ants_[0][$dF] if ($ants_[0][$dF] > $max_depth);
 	my($bi) = $ants_[0][$dF]/$opt_o;
-	if ($ants_[0][$dcF]) {								# downcast
-		push(@{$dcw[$bi]},$ants_[0][$wF]);				# vertical velocity
+	if ($ants_[0][$dcF]) {										# downcast
+		push(@{$dcw[$bi]},$ants_[0][$wF]);						# vertical velocity
 		push(@{$dcw1[$bi]},$ants_[0][$wF]) if ($dual_head);
-		push(@{$dce[$bi]},$ants_[0][$eF]);	 			# elapsed time
-	} else {								 			# upcast
+		push(@{$dce[$bi]},$ants_[0][$eF]);	 					# elapsed time
+	} else {								 					# upcast
 		push(@{$ucw[$bi]},$ants_[0][$wF]);
 		push(@{$ucw1[$bi]},$ants_[0][$wF]) if ($dual_head);
 		push(@{$uce[$bi]},$ants_[0][$eF]);
 	}
 }
 
-if (@dcw1) {											# 2nd file in dual-head profile in buffer => plot it
+if ($opt_p && @dcw1) {											# 2nd file in dual-head profile in buffer => plot it
 	GMT_psxy('-W2,255/127/80,.');
 	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
 		printf(GMT "%f %f\n",median(@{$dcw1[$bi]}),($bi+0.5)*$opt_o);
@@ -289,10 +339,10 @@ for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
 			 ($bi+0.5)*$opt_o,
 			 (numberp($P{water_depth}) ? $P{water_depth}-($bi+0.5)*$opt_o : nan),
 			 avg(@{$dce[$bi]}),
-			 (($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),(($dcns[$bi]>=$opt_k)?$dcmad[$bi]:nan),
+			 (($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),(($dcns[$bi]>=$opt_k)?$dcwmad[$bi]:nan),
 			 scalar(@{$dcw[$bi]}),
 			 avg(@{$uce[$bi]}),
-			 (($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),(($ucns[$bi]>=$opt_k)?$ucmad[$bi]:nan),
+			 (($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),(($ucns[$bi]>=$opt_k)?$ucwmad[$bi]:nan),
 			 scalar(@{$ucw[$bi]}));
 	&antsOut(@{$out[$bi]});				 
 }
@@ -301,30 +351,30 @@ if ($opt_p) {																		# complete plot
 	GMT_setR($R);
 
 	GMT_psxy('-W4,255/127/80');														# median profiles
-	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
-		printf(GMT "%f %f\n",$dcwm[$bi],($bi+0.5)*$opt_o);
+	for (my($bi)=0; $bi<=$#dcw; $bi++) {
+		printf(GMT "%f %f\n",(($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),($bi+0.5)*$opt_o);
 	}
 	GMT_psxy('-W4,46/139/87');
-	for (my($bi)=0; $bi<=$#ucw1; $bi++) {
-		printf(GMT "%f %f\n",$ucwm[$bi],($bi+0.5)*$opt_o);
+	for (my($bi)=0; $bi<=$#ucw; $bi++) {
+		printf(GMT "%f %f\n",(($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),($bi+0.5)*$opt_o);
 	}
 
 	GMT_psxy('-Sc0.1 -G255/127/80');												# m.a.d. profiles
-	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
-		printf(GMT "%f %f\n",$dcwmad[$bi],($bi+0.5)*$opt_o);
+	for (my($bi)=0; $bi<=$#dcw; $bi++) {
+		printf(GMT "%f %f\n",(($dcns[$bi]>=$opt_k)?$dcwmad[$bi]:nan),($bi+0.5)*$opt_o);
 	}
 	GMT_psxy('-Sc0.1 -G46/139/87');
-	for (my($bi)=0; $bi<=$#ucw1; $bi++) {
-		printf(GMT "%f %f\n",$ucwmad[$bi],($bi+0.5)*$opt_o);
+	for (my($bi)=0; $bi<=$#ucw; $bi++) {
+		printf(GMT "%f %f\n",(($ucns[$bi]>=$opt_k)?$ucwmad[$bi]:nan),($bi+0.5)*$opt_o);
 	}
 
 	GMT_setR($R2);
 	GMT_psxy('-Mn -W1,255/127/80');
-	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
+	for (my($bi)=0; $bi<=$#dcw; $bi++) {											# number of samples
 		printf(GMT "%f %f\n",$dcns[$bi],($bi+0.5)*$opt_o);
 	}
 	GMT_psxy('-Mn -W1,46/139/87');
-	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
+	for (my($bi)=0; $bi<=$#dcw; $bi++) {
 		printf(GMT "%f %f\n",$ucns[$bi],($bi+0.5)*$opt_o);
 	}
 
@@ -339,8 +389,8 @@ if ($opt_p) {																		# complete plot
 
 	GMT_setR('-R0/1/0/1');
 	GMT_pstext('-Gblue -N');
-	if (defined($outfile)) { print(GMT "0.01 -0.06 14 0 0 TL $outfile\n"); }
-	else { printf(GMT "0.01 -0.06 14 0 0 TL %03d\n",$id); }
+	if (defined($outfile)) { print(GMT "0.01 -0.06 14 0 0 TL $outfile [$P{run_label}]\n"); }
+	else { printf(GMT "0.01 -0.06 14 0 0 TL %03d\n [$P{run_label}]",$id); }
 	GMT_pstext();
 	print(GMT '0.62 0.98 12 0 0 MR m.a.d.');
 	GMT_end();

@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Thu Apr 16 12:13:15 2015
+#                    dlm: Sat Sep 26 12:58:46 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 357 20 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 34 56 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -31,6 +31,7 @@
 #	May 20, 2014: - added editPPI()
 #	May 21, 2014: - got it to work correctly
 #				  - croak -> error
+#	Sep 26, 2015: - added $vessel_draft to editSideLobes
 
 # NOTES:
 #	- editCorr_Earthcoords() is overly conservative and removed most
@@ -249,19 +250,20 @@ sub editFarBins($$)
 # NOTES:
 #	1) When this code is executed the sound speed is known. No attempt is made to correct for
 #	   along-beam soundspeed variation, but the soundspeed at the transducer is accounted for.
-#	2) for UL, water_depth == undef
+#	2) for surface sidelobes, water_depth == undef; surface sidelobes include the
+#	   vessel draft
 #======================================================================
 
 sub editSideLobes($$$)
 {
-	my($fe,$te,$wd) = @_;	# first & last ens to process, water depth for downlooker
+	my($fe,$te,$wd) = @_;	# first & last ens to process, water depth for sidelobes near seabed
 	my($nvrm) = 0;			# of velocities removed
 	my($nerm) = 0;			# of ensembles affected
 	for (my($e)=$fe; $e<=$te; $e++) {
 		next unless numberp($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH});
-		my($range) = $LADCP{ENSEMBLE}[$e]->{XDUCER_FACING_UP}
-				   ? $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}
-				   : $wd - $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH};
+		my($range) = defined($wd) ? $wd - $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH} 
+								  : $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH} - $vessel_draft;
+		$range = 0 if ($range < 0);								  
 		my($sscorr) = $CTD{SVEL}[$LADCP{ENSEMBLE}[$e]->{CTD_SCAN}] / 1500;
 		my($goodBins) =   ($range - $sscorr*$LADCP{DISTANCE_TO_BIN1_CENTER}) * cos(rad($LADCP{BEAM_ANGLE}))
 						/ ($sscorr*$LADCP{BIN_LENGTH})

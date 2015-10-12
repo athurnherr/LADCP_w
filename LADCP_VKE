@@ -2,13 +2,13 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Thu Jul 30 13:01:45 2015
+#                    dlm: Mon Oct 12 16:46:13 2015
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 35 53 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 39 53 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
-$antsMinLibVersion = 6.1;
+$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Oct 14, 2014: - created from [LADCPfs]
@@ -33,6 +33,10 @@ $antsMinLibVersion = 6.1;
 #				  - modified plot label
 #	Jun 17, 2015: - added eps.w to plot
 #	Jul 30, 2015: - moved main label and made it blue
+#	Sep 28, 2015: - added a p0fit r test to ensure that correlation has the correct sign
+#	Oct 12, 2015: - BUG: plot was in landscape mode
+#				  - added input run label(s) to plot
+#				  - require ANTSlibs V6.2 for release
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 $ANTS_TOOLS_AVAILABLE = (`which list` ne '');
@@ -256,7 +260,7 @@ if ($opt_p) {												# begin plot
 	$xmin = (&antsParam('output_depth_resolution')>=350) ? 0.012 : 0.018;
 	$xmax = 0.2; $ymin = 1; $ymax = 1e4;
 	$plotsize = 13;
-	GMT_begin($opt_p,"-JX${plotsize}l","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4');	# init plot
+	GMT_begin($opt_p,"-JX${plotsize}l","-R$xmin/$xmax/$ymin/$ymax",'-P -X6 -Y4');	# init plot
 	GMT_psxy('-G25/255/25 -L');
 	printf(GMT "%f %f\n",$xmin,$xmin**(-2)*sqrt(2));
 	printf(GMT "%f %f\n",$xmax,$xmax**(-2)*sqrt(2));
@@ -292,8 +296,12 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 	fit_universal_w_spec($r);													# fit kz^-2 spectrum
 #	normalize_spectral_power($r);												# normalize by p0 (even w/o shortwave cutoff)
 
-	$ants_[$r][$wepsf] = $ants_[$r][$rmsf] <= 0.4 ?								# do not calc eps unless good fit
-					   			($ants_[$r][$p0f] / $opt_e)**2 : nan;
+	if ($ants_[$r][$rmsf] <= 0.4 && $ants_[$r][$rf] < 0) {						# calc eps on good fits
+#	if ($ants_[$r][$rmsf] <= 0.4) {
+		$ants_[$r][$wepsf] = ($ants_[$r][$p0f] / $opt_e)**2;
+	} else {
+		$ants_[$r][$wepsf] = nan;
+	}
 
 	if (numberp($ants_[$r][$p0f])) {											# update min/max depth
 		$min_depth = $ants_[$r][$mindf] if ($ants_[$r][$mindf] < $min_depth);
@@ -311,7 +319,7 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 		GMT_psxy("-W8,$R/$G/$B");
 		for (my($f)=$pg_fmin+1; $f<$pg_fmin+$nfreq; $f++) {						# avg & plot high-quality spectra only
 			next unless numberp($ants_[$r][$f]) && numberp($ants_[$r][$p0f]);	#	- omit zero wavenumber ($pg_fmin)
-			next if ($ants_[$r][$rmsf] > 0.4);
+			next unless numberp($ants_[$r][$wepsf]);
 			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
 			printf(GMT "$k %g\n",$ants_[$r][$f]/$ants_[$r][$p0f]);
 			$nGoodPwr[$f]++;
@@ -392,8 +400,8 @@ if (defined($opt_p)) {															# complete plot
 
 	GMT_unitcoords_logscale();													# print profile number 
 	GMT_pstext('-Gblue');
-	if (defined($outfile)) { printf(GMT "0.98 0.02 14 0 0 BR $outfile %s\n",antsParam('input_data')); }
-	else { printf(GMT "0.98 0.02 14 0 0 BR %03d %s\n",antsParam('profile_id'),antsParam('input_data')); }
+	if (defined($outfile)) { printf(GMT "0.98 0.02 14 0 0 BR $outfile [$P{run_label}] %s\n",antsParam('input_data')); }
+	else { printf(GMT "0.98 0.02 14 0 0 BR %03d [$P{run_label}] %s\n",antsParam('profile_id'),antsParam('input_data')); }
 
 	GMT_set('ANNOT_FONT_SIZE_PRIMARY 10','ANNOT_OFFSET_PRIMARY 0.01c',			# eps profile inset
 			'LABEL_FONT_SIZE 10','LABEL_OFFSET 0');

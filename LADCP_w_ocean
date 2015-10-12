@@ -2,14 +2,12 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Thu Sep  3 11:55:19 2015
+#                    dlm: Mon Oct 12 16:47:18 2015
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 187 45 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 15 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
-#	  detection so that editing stats make sense
-#	- own seabed detection (P403)
 #	- make upcast-flag valid for yoyo casts
 #	- make diagnostic output 3-beam field work for Earth coordinates
 #	- remove water-depth from BT code, which is not really used and a bit of an outlier
@@ -18,7 +16,8 @@
 #	? use instrument tilt in sidelobe editing?
 
 $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
-$antsMinLibVersion = 6.0;
+$VERSION = 1.0;
+$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Dec 17, 2010: - created from [mergeCTD+LADCP]
@@ -184,7 +183,15 @@ $antsMinLibVersion = 6.0;
 #	Jul 28, 2015: - added GMT plot support for all @out_ lists
 #	Jul 29, 2015: - continue adaptation of code for new plotting system
 #	Jul 30, 2015: - cosmetics
-#	Sep  3, 2015: -changed out_w to out_wsamp
+#	Sep  3, 2015: - changed out_w to out_wsamp
+#	Sep 26, 2015: - replaced numberp($water_depth) by defined($water_depth) for consistency
+#				  - implemented secondary sidelobe editing
+#				  - allow for -h <filename>
+#				  - allow $ID as alias for $PROF and $STN
+#	Sep 27, 2015: - BUG: -h filename was broken when water_depth is not known
+#	Oct 12, 2015: - upgraded missing water-depth warnings to L2
+#				  - added -V)ersion
+#                 - require ANTSlibs V6.2 for release
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -271,16 +278,14 @@ my($TINY) = 1e-16;
 # Usage
 #------
 
-#@ARGS = @ARGV;														# save opts & arguments
-
 $antsParseHeader = 0;
-&antsUsage('3:4a:b:c:e:g:h:i:k:m:n:o:p:qs:t:uv:w:x:',1,
-	'[-v)erbosity <level[1]>]',
+&antsUsage('3:4a:b:c:e:g:h:i:k:m:n:o:p:qs:t:uv:Vw:x:',0,
+	'[print software -V)ersion] [-v)erbosity <level[1]>]',
 	'[-q)uick (no single-ping denoising)]',
     '[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]',
 	'[valid LADCP -b)ins <bin[2],bin[*]>',
 	'[-c)orrelation <min[70]>] [-t)ilt <max[10deg]> [-e)rr-vel <max[0.1m/s]>]',
-	'[-h water <depth>]',
+	'[-h water <depth|filename>]',
 	'[max LADCP time-series -g)ap <length[60s]>]',
 	'[offset CTD -d)epth <by[0m]>]',
 	'[-i)nitial CTD time offset <guestimate> [-u)se as final]]',
@@ -291,25 +296,33 @@ $antsParseHeader = 0;
 	'[e-x)ecute <perl-expr>]',
 	'<profile-id> [run-label]');
 
-&antsUsageError() if ($opt_u && !defined($opt_i));
+	if ($opt_V) {
+		printf(STDERR "+-------------------------+\n");
+		printf(STDERR "| LADCP_w Software V%.1f   |\n",$VERSION);
+		printf(STDERR "|(c) 2015- A.M. Thurnherr |\n");
+		printf(STDERR "+-------------------------+\n");
+		exit(0);
+	}
 
-&antsCardOpt(\$opt_s,0);												# skip # initial ensembles
-$opt_p = '+' unless defined($opt_p);									# separate uc/dc time lagging
+	&antsUsageError() if ($opt_u && !defined($opt_i));
+	&antsUsageError() unless (@ARGV==1 || @ARGV==2);
 
-&antsFloatOpt(\$opt_a,1);												# pressure acceleration correction
+	&antsCardOpt(\$opt_s,0);												# skip # initial ensembles
+	$opt_p = '+' unless defined($opt_p);									# separate uc/dc time lagging
 
-$PROF = $STN = &antsCardArg();											# station id ($STN for compatibility)
-if (@ARGV) {															# run label
-	$RUN = $ARGV[0];
-	shift;
-} else {
-	$RUN = 'profiles';
-}
+	&antsFloatOpt(\$opt_a,1);												# pressure acceleration correction
+
+	$ID = $PROF = $STN = &antsCardArg();									# station id ($STN for compatibility)
+	if (@ARGV) {															# run label
+		$RUN = $ARGV[0];
+		shift;
+	} else {
+		$RUN = 'profiles';
+	}
 
 #-----------------------------
 # Handle Processing Parameters
 #-----------------------------
-
 require "$WCALC/defaults.pl";											# load default/option parameters
 do "$processing_param_file";											# load processing parameters
 eval($opt_x) if defined($opt_x);										# eval cmd-line expression to override anything
@@ -958,55 +971,78 @@ correct_backscatter($firstGoodEns,$lastGoodEns);
 #	2) PPI 
 #----------------------------------------------------------------------------
 
-if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
+croak("$0: conflicting water-depth information provided by user\n")
+	if defined($opt_h) && defined($water_depth);
+
+if (defined($opt_h)) {
+	if (numberp($opt_h)) {
+		$water_depth = $opt_h;
+	} elsif (-f $opt_h) {
+		open(WDF,$opt_h) || croak("$opt_h: $_\n");
+		$water_depth = &antsFileScanParam(WDF,'water_depth');
+		close(WDF);
+		undef($water_depth) unless numberp($water_depth);
+	}
+}
+	
+die("assertion failed (water_depth = $water_depth)")
+	unless (!defined($water_depth) || numberp($water_depth));
+
+if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && !defined($water_depth)) {
+	progress("Finding seabed...\n");
+	($water_depth,$sig_water_depth) =
+		find_backscatter_seabed($LADCP{ENSEMBLE}[$LADCP_atbottom]->{CTD_DEPTH});
+	($water_depth_BT,$sig_water_depth_BT) =
+		find_seabed(\%LADCP,$LADCP_atbottom,$LADCP{BEAM_COORDINATES});
+	if (defined($water_depth) && defined($water_depth_BT)) {
+		my($dd) = abs($water_depth_BT - $water_depth);
+		warning(2,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
+			if ($dd > 10);
+	}
+	if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {
+		warning(1,"using water_depth from ADCP BT data\n");
+		$SS_use_BT = 1;
+	}
+	if ($SS_use_BT) {
+		$water_depth = $water_depth_BT;
+		$sig_water_depth = $sig_water_depth_BT;
+    }
+}
+	
+if (defined($water_depth)) {
+	if (defined($water_depth_BT)) {
+		progress("\t%.1f(%.1f) m water depth (%.1f(%.1f)m from ADCP BT data)\n",
+			$water_depth,$sig_water_depth,$water_depth_BT,$sig_water_depth_BT);
+	} else {
+		progress("\t%.1f(%.1f) m water depth\n",$water_depth,$sig_water_depth);
+	}
+	warning(1,sprintf("large uncertainty in water-depth estimation (%.1fm)\n",$sig_water_depth))
+		if ($sig_water_depth > $LADCP{BIN_LENGTH});
+	&antsAddParams('water_depth',$water_depth,'water_depth.sig',$sig_water_depth);
+} else {
+	warning(2,"unknown water depth --- cannot edit sidelobes or PPI near the seabed\n");
+	&antsAddParams('water_depth','unknown','water_depth.sig','nan');
+}
+	
+
+if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {				# DOWNLOOKER
 	&antsAddParams('ADCP_orientation','downlooker');
 
-	if (numberp($opt_h)) {
-		progress("Setting water depth (-h)\n");
-		$water_depth = $opt_h;
-		$sig_water_depth = 0;
-	} else {
-		progress("Finding seabed...\n");
-		($water_depth,$sig_water_depth) =
-			find_backscatter_seabed($LADCP{ENSEMBLE}[$LADCP_atbottom]->{CTD_DEPTH});
-		($water_depth_BT,$sig_water_depth_BT) =
-			find_seabed(\%LADCP,$LADCP_atbottom,$LADCP{BEAM_COORDINATES});
-		if (defined($water_depth) && defined($water_depth_BT)) {
-			my($dd) = abs($water_depth_BT - $water_depth);
-			warning(2,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
-				if ($dd > 5);
-		}
-		if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {
-			warning(1,"using water_depth from ADCP BT data\n");
-			$SS_use_BT = 1;
-		}
-		if ($SS_use_BT) {
-			$water_depth = $water_depth_BT;
-			$sig_water_depth = $sig_water_depth_BT;
-		}
-	}
-	
-	&antsAddParams('water_depth',$water_depth,'water_depth.sig',$sig_water_depth)
-		if defined($water_depth);
-
-	if (numberp($water_depth)) {
-		if (numberp($water_depth_BT)) {
-			progress("\t%.1f(%.1f) m water depth (%.1f(%.1f)m from ADCP BT data)\n",
-				$water_depth,$sig_water_depth,$water_depth_BT,$sig_water_depth_BT);
-		} else {
-			progress("\t%.1f(%.1f) m water depth\n",$water_depth,$sig_water_depth);
-		}
-		warning(1,sprintf("large uncertainty in water-depth estimation (%.1fm)\n",$sig_water_depth))
-			if ($sig_water_depth > $LADCP{BIN_LENGTH});
-
+	if (defined($water_depth)) {
 		progress("Editing data to remove sidelobe interference from seabed...\n");
 		($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,$water_depth);
 		progress("\t$nvrm velocities from $nerm ensembles removed\n");
 
+		if ($sidelobe_editing_DL_surface) {
+			progress("Editing data to remove sidelobe interference from sea surface...\n");
+			($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,undef);
+	        progress("\t$nvrm velocities from $nerm ensembles removed\n");
+	    }
+
 		if ($PPI_editing) {
 			progress("Editing data to remove PPI from seabed...\n");
 			  progress("\tConstructing depth-average soundspeed profile...\n");
-			  die("assertion failed") unless numberp($water_depth);
+			  die("assertion failed") unless defined($water_depth);
 			  my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
 			  my($sum) = $dz * $sVelProf[$#sVelProf];
 			  $DASSprof[$#sVelProf] = $sum/$dz;
@@ -1019,16 +1055,24 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 			($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,$water_depth);
 	        progress("\t$nvrm velocities from $nerm ensembles removed\n");
 	    }
-	} else {
-		info("no seabed found --- cannot edit sidelobe or PPI\n");
 	}
 	
-} else {
+} else {																	# UPLOOKER
 	&antsAddParams('ADCP_orientation','uplooker');
 
 	progress("Editing data to remove sidelobe interference from sea surface...\n");
 	($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,undef);
 	progress("\t$nvrm velocities from $nerm ensembles removed\n");
+
+	if ($sidelobe_editing_UL_seabed) {
+		if (defined($water_depth)) {
+			progress("Editing data to remove sidelobe interference from seabed...\n");
+			($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,$water_depth);
+        	progress("\t$nvrm velocities from $nerm ensembles removed\n");
+        } else {
+			warning(2,"unknown water depth --- cannot edit UL data for sidelobe interference from seabed\n");
+        }
+    }
 
 	if ($PPI_editing) {
 		progress("Editing data to remove PPI from sea surface...\n");

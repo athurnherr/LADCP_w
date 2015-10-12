@@ -1,14 +1,15 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Thu Jul 30 09:50:03 2015
+#                    dlm: Mon Oct 12 13:20:47 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 11 54 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 53 40 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 26, 2015: - created from LWplot_prof_2beam
 #	Jul 30, 2015: - moved main label outside plot area
+#	Oct 12, 2015: - BUG: gaps were not plotted as such
 
 # Tweakables:
 #
@@ -21,34 +22,40 @@ require "$ANTS/libGMT.pl";
 sub setR1() { GMT_setR("-R$plot_wprof_xmin/0.35/0/$plot_wprof_ymax"); }
 sub setR2() { GMT_setR("-R-200/200/0/$plot_wprof_ymax"); }
 
-sub plotDC($)
+sub plotDC($$)
 {
-	my($f) = @_;
+	my($f,$minsamp) = @_;
 	for (my($bi)=0; $bi<=$#{$DNCAST{$f}}; $bi++) {
-		printf(GMT (numberp($DNCAST{$f}[$bi]) ? "%g %g\n" : "nan nan\n"),
-				    $DNCAST{$f}[$bi],($bi+0.5)*$opt_o)
-			if ($DNCAST{N_SAMP}[$bi] >= $opt_k);
+		if (numberp($DNCAST{$f}[$bi]) && $DNCAST{N_SAMP}[$bi]>=$minsamp) {
+			printf(GMT "%g %g\n",$DNCAST{$f}[$bi],($bi+0.5)*$opt_o);
+		} else {
+			print(GMT "nan nan\n");
+		}
 	}
 }
 
-sub plotUC($)
+sub plotUC($$)
 {
-	my($f) = @_;
+	my($f,$minsamp) = @_;
 	for (my($bi)=0; $bi<=$#{$UPCAST{$f}}; $bi++) {
-		printf(GMT (numberp($UPCAST{$f}[$bi]) ? "%g %g\n" : "nan nan\n"),
-					$UPCAST{$f}[$bi],($bi+0.5)*$opt_o)
-			if ($UPCAST{N_SAMP}[$bi] >= $opt_k);
+		if (numberp($UPCAST{$f}[$bi]) && $UPCAST{N_SAMP}[$bi]>=$minsamp) {
+			printf(GMT "%g %g\n",$UPCAST{$f}[$bi],($bi+0.5)*$opt_o);
+		} else {
+			print(GMT "nan nan\n");
+		}
 	}
 }
 
-sub plotBT($)
+sub plotBT($$)
 {
-	my($f) = @_;
+	my($f,$minsamp) = @_;
 	for (my($bi)=0; $bi<=$#{$BT{$f}}; $bi++) {
-		printf(GMT (numberp($BT{$f}[$bi]) ? "%g %g\n" : "nan nan\n"),
-					$BT{$f}[$bi],($bi+0.5)*$opt_o)
-			if ($BT{N_SAMP}[$bi] >= $opt_k);
-	}
+		if (numberp($BT{$f}[$bi]) && $BT{N_SAMP}[$bi]>=$minsamp) {
+			printf(GMT "%g %g\n",$BT{$f}[$bi],($bi+0.5)*$opt_o);
+		} else {
+			print(GMT "nan nan\n");
+		}
+    }
 }
 
 
@@ -85,24 +92,24 @@ sub plot_wprof($)
 		print(GMT ">\n150 0\n 150 $plot_wprof_ymax\n");
 
 	setR1();																			# VERTICAL VELOCITIES
-	GMT_psxy('-Mn -W4,coral,6_2:0'); 		plotDC('MEDIAN_W12');
-	GMT_psxy('-Mn -W4,coral,4_6:0'); 		plotDC('MEDIAN_W34');
-	GMT_psxy('-Mn -W4,SeaGreen,6_2:0'); 	plotUC('MEDIAN_W12');
-	GMT_psxy('-Mn -W4,SeaGreen,4_6:0'); 	plotUC('MEDIAN_W34');
-	GMT_psxy('-Mn -W4,black'); 				plotBT('MEDIAN_W');
+	GMT_psxy('-Mn -W4,coral,6_2:0'); 		plotDC('MEDIAN_W12',$opt_k);
+	GMT_psxy('-Mn -W4,coral,4_6:0'); 		plotDC('MEDIAN_W34',$opt_k);
+	GMT_psxy('-Mn -W4,SeaGreen,6_2:0'); 	plotUC('MEDIAN_W12',$opt_k);
+	GMT_psxy('-Mn -W4,SeaGreen,4_6:0'); 	plotUC('MEDIAN_W34',$opt_k);
+	GMT_psxy('-Mn -W4,black'); 				plotBT('MEDIAN_W',$opt_k);
 
-	GMT_psxy('-Sc0.1c -Gcoral');			plotDC('MAD_W');							# MEAN ABSOLUTE DEVIATIONS
-	GMT_psxy('-Sc0.1c -GSeaGreen');			plotUC('MAD_W');	
-	GMT_psxy('-Sc0.1c -Gblack');			plotBT('MAD_W');	
+	GMT_psxy('-Sc0.1c -Gcoral');			plotDC('MAD_W',0);							# MEAN ABSOLUTE DEVIATIONS
+	GMT_psxy('-Sc0.1c -GSeaGreen');			plotUC('MAD_W',0);	
+	GMT_psxy('-Sc0.1c -Gblack');			plotBT('MAD_W',0);	
 
 	setR2();																			# SAMPLES
-	GMT_psxy('-Mn -W1/coral');				plotDC('N_SAMP');
-	GMT_psxy('-Mn -W1/SeaGreen');			plotUC('N_SAMP');	
-	GMT_psxy('-Mn -W1/black');				plotBT('N_SAMP');	
+	GMT_psxy('-Mn -W1/coral');				plotDC('N_SAMP',0);
+	GMT_psxy('-Mn -W1/SeaGreen');			plotUC('N_SAMP',0);	
+	GMT_psxy('-Mn -W1/black');				plotBT('N_SAMP',0);	
 	
 	GMT_unitcoords();																	# LABELS
 	GMT_pstext('-Gblue -N');
-		print(GMT "0.01 -0.06 14 0 0 TL $P{out_basename} $P{run_label}\n");
+		print(GMT "0.01 -0.06 14 0 0 TL $P{out_basename} [$P{run_label}]\n");
 	GMT_pstext();
 		print(GMT "0.6 0.98 12 0 0 BR m.a.d.\n");
 

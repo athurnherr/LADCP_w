@@ -1,18 +1,20 @@
 #======================================================================
-#                    P L O T _ W . P L 
+#                    P L O T _ W S A M P . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Thu Jul 30 09:54:13 2015
+#                    dlm: Mon Oct 12 13:37:27 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 59 59 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 13 53 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 28, 2015: - created from [LWplot_w]
 #	Jul 30, 2015: - added support for outGrid_*
+#	Sep 21, 2015: - BUG: function was still called plot_w()
+#	Oct 12, 2015: - move main label outside plot area
 
 require "$ANTS/libGMT.pl";
 
-sub plot_w($)
+sub plot_wsamp($)
 {
 	my($pfn) = @_;
 
@@ -52,8 +54,8 @@ sub plot_w($)
 	}
 
 	GMT_unitcoords();																	# LABELS
-	GMT_pstext(-Gblue);
-		print(GMT "0.02 0.98 12 0 0 BL $P{out_basename} $P{run_label}\n");
+	GMT_pstext('-Gblue -N');
+		print(GMT "0.01 -0.06 14 0 0 TL $P{out_basename} [$P{run_label}]\n");
 
 	my($depth_tics) = ($ymax < 1000 ) ? 'f10a100' : 'f100a500';							# AXES
 	my($ens_tics) =   ($ymax < 1000 ) ? 'f50a500' : 'f500a2000';

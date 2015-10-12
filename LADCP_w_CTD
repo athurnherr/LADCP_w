@@ -2,13 +2,13 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Mon Aug 17 18:40:47 2015
+#                    dlm: Mon Oct 12 16:47:50 2015
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 500 105 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 11 24 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
-$antsMinLibVersion = 6.0;
+$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Nov  3, 2014: - created
@@ -37,6 +37,15 @@ $antsMinLibVersion = 6.0;
 #				  - removed a couple of data assertions
 #	Jul 20, 2015: - allow for non-numeric -i
 #	Aug 17, 2015: - modified plots
+#	Sep 21, 2015: - added lat/lon to output if available in input
+#	Sep 22, 2015: - added error on non-numeric station information
+#				  - changed plot output name
+#	Sep 23, 2015: - added -o
+#				  - improved pressure editing
+#				  - modified editing algorithm, primarily reducing temperature resolution
+#					from 0.1deg to 1deg and finding contiguous range up to single gap in histogram
+#					(requring halving of resolution)
+#	Oct 12, 2015: - require ANTSlibs V6.2 for release
 
 ($ANTS) = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 
@@ -47,14 +56,14 @@ require "$ANTS/libSBE.pl";
 require "$ANTS/libEOS83.pl";
 
 $antsParseHeader = 0;											# usage
-&antsUsage('ai:l:rp:s:v:',1,
+&antsUsage('ai:l:orp:s:v:',1,
 	'[-v)erbosity <level[0]>]',
 	'[use -a)lternate sensor pair]',
-	'[-r)etain all data (no editing)]',
+	'[-r)etain all data (no editing)] [allow infinite -o)utliers]',
 	'[-s)ampling <rate[6Hz]>]',
 	'[-l)owpass w <cutoff[2s]>]',
 	'[profile -i)d <id>]',
-	'[-p)lot_basenames <[%03d_wpkg.ps],[%03d_sspd.ps]>]',
+	'[-p)lot_basenames <[%03d_w_CTD.ps],[%03d_sspd.ps]>]',
 	'<SBE CNV file>');
 
 &antsFloatOpt(\$opt_l,2);										# defaults
@@ -76,7 +85,7 @@ print(STDERR "Reading $CNVfile...") if ($opt_v);
 
 croak("$CNVfile: unexpected sampling interval $sampint\n")
 	unless (abs($sampint-1/24) < 1e-5);
-croak("$CNVfile: unknown latitude\n")
+croak("$CNVfile: no latitude in header\n")
 	unless numberp($lat);
 
 $pressF = fnr('prDM');
@@ -85,21 +94,24 @@ if ($opt_a) {													# temp/cond alternate sensor pair
 	$tempF	= fnr('t190C');
 	$condF	= fnrNoErr('c1S/m');
 	if (defined($condF)) {
-		$condHistRes = 10;		# 0.1 bins
+		$condHistRes = 20;										# 0.2 S/m bins
 	} else {
 		$condF  = fnr('c1mS/cm');
-		$condHistRes = 1;		# 1.0 bins
+		$condHistRes = 2;										# 2.0 mS/cm bins
 	}
 } else {														# primary sensor pair
 	$tempF	= fnr('t090C');
 	$condF	= fnrNoErr('c0S/m');
 	if (defined($condF)) {
-		$condHistRes = 10;
+		$condHistRes = 20;
 	} else {
 		$condF  = fnr('c0mS/cm');
-		$condHistRes = 1;
+		$condHistRes = 2;
 	}
 }
+
+$latF = &fnrNoErr('lat');										# GPS data if available (to make files useful for u/v processing)
+$lonF = &fnrNoErr('lon');
 
 &antsInstallBufFull(0);											# read entire CNV file
 &SBEin(F,$ftype,$nfields,$nscans,$badval);
@@ -108,20 +120,22 @@ printf(STDERR "\n\t%d scans",$nscans) if ($opt_v > 1);
 printf(STDERR "\n") if ($opt_v);
 
 #----------------------------------------------------------------------
-# Redirect STDOUT to %.6Hz & create %_wpkg.ps,%_sspd.ps if STDOUT is a tty
+# Redirect STDOUT to %.6Hz & create %_w_CTD.ps,%_sspd.ps if STDOUT is a tty
 #----------------------------------------------------------------------
 
 $id = defined($opt_i) ? $opt_i : &antsParam('station');
 croak("$CNVfile: no station information in header => -i required\n")
 	unless defined($id);
+croak("$CNVfile: non-numeric station information <$id> in header => -i required\n")
+	unless numberp($id);
 	
 if (-t STDOUT) {
 	if (numberp($id)) {
-		$opt_p = '%03d_wpkg.ps,%03d_sspd.ps'
+		$opt_p = '%03d_w_CTD.ps,%03d_sspd.ps'
 			unless defined($opt_p);
 		$outfile = sprintf('%03d.%dHz',$id,$opt_s);
 	} else {
-		$opt_p = '%s_wpkg.ps,%s_sspd.ps'
+		$opt_p = '%s_w_CTD.ps,%s_sspd.ps'
 			unless defined($opt_p);
 		$outfile = sprintf('%s.%dHz',$id,$opt_s);
 	}
@@ -132,7 +146,19 @@ if (-t STDOUT) {
 # Edit Data
 #	- pressure outliers & spikes
 #	- conductivity outliers & spikes
+#	- max_bin+1 is returned to ensure full range
 #----------------------------------------------------------------------
+
+sub validRange($)
+{
+	my($guess_bin) = @_;
+	my($min_bin,$max_bin);
+
+	croak("assertion failed") unless ($hist[$guess_bin]);
+	for ($max_bin=$guess_bin; $hist[$max_bin]; $max_bin++) { }
+	for ($min_bin=$guess_bin; $hist[$min_bin]; $min_bin--) { }
+	return ($min_bin,$max_bin+1);
+}
 
 unless ($opt_r) {
 	print(STDERR "Editing Data...") if ($opt_v);
@@ -149,15 +175,19 @@ unless ($opt_r) {
 	
 	#------------------------------------------------
 	# edit pressure outliers outside contiguous range
+	#	- 2dbar resolution
+	#	- histogram shifted by 100dbar to allow for negative values
 	#------------------------------------------------
-	my($outliers) = 0; my($min) = 9e99; my($max);
+	my($outliers) = my($modeSamp) = 0; my($modeBin,$min,$max); local(@hist);
 	for (my($s)=0; $s<$nscans; $s++) {
 		next unless ($ants_[$s][$pressF]>=-100 && $ants_[$s][$pressF]<=6500);
-		$phist[$ants_[$s][$pressF]+1000]++;
-		$min = $ants_[$s][$pressF] if ($ants_[$s][$pressF] < $min);
+		my($b) = ($ants_[$s][$pressF]+100) / 2;
+		$hist[$b]++;
+		next unless ($hist[$b] > $modeSamp);
+		$modeSamp = $hist[$b]; $modeBin = $b;
 	}
-	for ($max=$min+25; $phist[$max+1000]||$phist[$max+1001]; $max++) {}	# outliers after 2 gaps
-	for ($min=$max;    $phist[$min+1000]||$phist[$min+ 999]; $min--) {}
+	($min,$max) = validRange($modeBin);
+	$min = 2*$min-100; $max = 2*$max-100;
 	for (my($s)=0; $s<$nscans; $s++) {
 		if ($ants_[$s][$pressF] > $max) { $outliers++; $ants_[$s][$pressF] = nan; }
 		if ($ants_[$s][$pressF] < $min) { $outliers++; $ants_[$s][$pressF] = nan; }
@@ -165,24 +195,22 @@ unless ($opt_r) {
 	&antsAddParams("pressure_outliers",sprintf("%d",$outliers));
 	printf(STDERR "\n\tcontinuous pressure range: %d..%d dbar (%d outliers removed)",$min,$max,$outliers) if ($opt_v > 1);
 	croak("$CNVfile: pressure editing removed too many 'outliers'\n")
-		unless ($outliers < 100);
+		unless ($opt_o || $outliers < 100);
 	
 	#----------------------------------------------------
 	# edit conductivity outliers outside contiguous range
 	#----------------------------------------------------
-	$outliers = 0;
-	my($modeSamp)=0;
-	undef(@phist);
+	$outliers = $modeSamp = 0;
+	undef(@hist);
 	for (my($s)=0; $s<$nscans; $s++) {
 		next unless ($ants_[$s][$condF] > 0);
 		my($b) = $ants_[$s][$condF]*$condHistRes;					# 1/10 S/m histogram resolution (1 mS/cm)
-		$phist[$b]++;
-		next unless ($phist[$b] > $modeSamp);
-		$modeSamp = $phist[$b]; $modeBin = $b;
+		$hist[$b]++;
+		next unless ($hist[$b] > $modeSamp);
+		$modeSamp = $hist[$b]; $modeBin = $b;
 	}
-	for ($max=$modeBin; $phist[$max]||$phist[$max+1]; $max++) {}	# outliers after 2 gaps
-	for ($min=$modeBin; $phist[$min]||$phist[$min-1]; $min--) {}
-	$max /= $condHistRes; $min /= $condHistRes;
+	($min,$max) = validRange($modeBin);
+	$min /= $condHistRes; $max /= $condHistRes; 
 	for (my($s)=0; $s<$nscans; $s++) {
 		if ($ants_[$s][$condF] > $max) { $outliers++; $ants_[$s][$condF] = nan; }
 		if ($ants_[$s][$condF] < $min) { $outliers++; $ants_[$s][$condF] = nan; }
@@ -190,32 +218,35 @@ unless ($opt_r) {
 	&antsAddParams("conductivity_outliers",sprintf("%d",$outliers));
 	printf(STDERR "\n\tcontinuous conductivity range: %.1f..%.1f S/m (%d outliers removed)",$min,$max,$outliers) if ($opt_v > 1);
 	croak("$CNVfile: conductivity editing removed too many 'outliers'\n")
-		unless ($outliers/$nscans < 0.4);
+		unless ($opt_o || $outliers/$nscans < 0.4);
 
 	#----------------------------------------------------
 	# edit temperature outliers outside contiguous range
+	#	- Stan's NBP0901 profiles require resolution of 1deg
+	#	- otherwise 0.2deg seems to be fine
 	#----------------------------------------------------
-	$outliers = 0;
-	my($modeSamp)=0;
-	undef(@phist);
+	$outliers = $modeSamp = 0;
+	undef(@hist);
 	for (my($s)=0; $s<$nscans; $s++) {
 		next unless ($ants_[$s][$tempF] > 0);
-		my($b) = $ants_[$s][$tempF]*10;								# 10th of a degree histogram resolution
-		$phist[$b]++;
-		next unless ($phist[$b] > $modeSamp);
-		$modeSamp = $phist[$b]; $modeBin = $b;
+		my($b) = $ants_[$s][$tempF]*1;								# 10th of a degree histogram resolution
+		$hist[$b]++;
+		next unless ($hist[$b] > $modeSamp);
+		$modeSamp = $hist[$b]; $modeBin = $b;
 	}
-	for ($max=$modeBin; $phist[$max]||$phist[$max+1]; $max++) {}	# outliers after 2 gaps
-	for ($min=$modeBin; $phist[$min]||$phist[$min-1]; $min--) {}
-	$max /= 10; $min /= 10;
+	printf(STDERR "\n\ttemperature mode: %.1f degC (%d samples)",$modeBin/10,$modeSamp)
+		if ($opt_v > 1);
+	($min,$max) = validRange($modeBin);
+	$min /= 1; $max /= 1; 
 	for (my($s)=0; $s<$nscans; $s++) {
 		if ($ants_[$s][$tempF] > $max) { $outliers++; $ants_[$s][$tempF] = nan; }
 		if ($ants_[$s][$tempF] < $min) { $outliers++; $ants_[$s][$tempF] = nan; }
 	}
 	&antsAddParams("temperature_outliers",sprintf("%d",$outliers));
-	printf(STDERR "\n\tcontinuous temperature range: %.1f..%.1f degC (%d outliers removed)",$min,$max,$outliers) if ($opt_v > 1);
+	printf(STDERR "\n\tcontinuous temperature range: %.1f..%.1f degC (%d outliers removed)",$min,$max,$outliers)
+		if ($opt_v > 1);
 	croak("$CNVfile: temperature editing removed too many 'outliers'\n")
-		unless ($outliers/$nscans < 0.4);
+		unless ($opt_o || $outliers/$nscans < 0.4);
 
 	#----------------------------------------
 	# edit pressure spikes based on gradients
@@ -354,6 +385,7 @@ my(@press,@temp,@cond);
 my($sp,$np,$st,$nt,$sc,$nc);
 
 $sp = $st = $sc = $np = $nt = $nc = 0;
+$slat = $slon = $nGPS = 0;
 for (my($rec)=1,my($s)=0; $s<$nscans; $s++) {
 	if ($s*$sampint > $rec/$opt_s) {
 		$rec++;
@@ -361,10 +393,20 @@ for (my($rec)=1,my($s)=0; $s<$nscans; $s++) {
 		push(@temp, $nt>0?$st/$nt:nan);
 		push(@cond, $nc>0?$sc/$nc:nan);
 		$sp = $st = $sc = $np = $nt = $nc = 0;
+		if (defined($latF)) {
+			push(@lat,$nGPS>0?$slat/$nGPS:nan);
+			push(@lon,$nGPS>0?$slon/$nGPS:nan);
+			$slat = $slon = $nGPS = 0;
+		}
 	}
 	$sp+=$ants_[$s][$pressF],$np++ if numberp($ants_[$s][$pressF]);
 	$st+=$ants_[$s][$tempF],$nt++ if numberp($ants_[$s][$tempF]);
 	$sc+=$ants_[$s][$condF],$nc++ if numberp($ants_[$s][$condF]);
+	if (defined($latF) && numberp($ants_[$s][$latF])) {
+		$slat += $ants_[$s][$latF];
+		$slon += $ants_[$s][$lonF];
+		$nGPS++;
+	}
 }
 
 printf(STDERR "\n") if ($opt_v);
@@ -518,8 +560,10 @@ if (defined($opt_p)) {
 print(STDERR "Writing output...\n") if ($opt_v);
 
 @antsNewLayout = ('elapsed','press','temp','cond','depth','salin','sspd','w.raw','w');
+push(@antsNewLayout,'lat','lon') if (defined($latF));
 for ($r=0; $r<@w; $r++) {
-	&antsOut($elapsed[$r],$press[$r],$temp[$r],$cond[$r],$depth[$r],$salin[$r],$sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp);
+	&antsOut($elapsed[$r],$press[$r],$temp[$r],$cond[$r],$depth[$r],$salin[$r],
+			 $sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp,$lat[$r],$lon[$r]);
 }
 
 exit(0);															# don't flush @ants_
