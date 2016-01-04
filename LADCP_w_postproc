@@ -2,13 +2,12 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Mon Oct 12 16:48:17 2015
+#                    dlm: Tue Oct 13 10:51:31 2015
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 49 53 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 50 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
-$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Apr 24, 2015: - created
@@ -47,12 +46,16 @@ $antsMinLibVersion = 6.2;
 #				  - BUG: plot was in landscape mode
 #			      - added run-label(s) to plot
 #                 - require ANTSlibs V6.2 for release
+#   Oct 13, 2015: - adapted to [version.pl]
 
-($ANTS) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
+($ANTS)  = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
+($WCALC) = ($0              =~ m{^(.*)/[^/]*$});
+$WCALC = '.' if ($WCALC eq '');
 
 die("$0: ANTSlib required but not found (bad \$PATH?)\n")
 	unless ($ANTS ne '');
 
+require "$WCALC/version.pl";
 require "$ANTS/ants.pl";
 require "$ANTS/libstats.pl";
 require "$ANTS/libGMT.pl";

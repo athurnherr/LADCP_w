@@ -1,21 +1,31 @@
 ======================================================================
                     R E A D M E 
                     doc: Wed Oct 17 11:57:40 2012
-                    dlm: Thu Mar 26 16:01:54 2015
+                    dlm: Tue Dec 22 11:15:33 2015
                     (c) 2012 A.M. Thurnherr
-                    uE-Info: 21 63 NIL 0 0 72 0 2 4 NIL ofnI
+                    uE-Info: 16 0 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
-=Usage=
+=PostProcess.sh=
 
-In oder to use the utilities in this directory, include something like this:
+At the end of LADCP_w_ocean, the external program [PostProcess.sh] is
+called if it is found in the search path and its executable bit is set.
+This program can be used, for example, to correct the bounding boxes of
+the PostScript files, etc. The example provided here is for
+illustration purposes only. It uses a non-public utility called "tile"
+to combine all processing plots on a single page.
+
+
+
+=Hook-Utilities=
+
+There are hooks in the LADCP_w code that allow additional routines to
+be called for non-standard processing. In order to enable them, the
+routines have to be included, e.g. by adding the following statement to
+the relevant ProcessingParams file:
 
 	require "$WCALC/Utilities/post_merge_TL_check.pl";
 
-in the relevant ProcessingParams file.
-
-
-=List of Utilities=
 
 [post_merge_TL_check.pl]	check time lagging (creates .TLcheck files)
 [post_merge_dwdz_filt.pl]	filter ensembles with large |dw/dz|

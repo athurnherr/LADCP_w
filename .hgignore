@@ -1,9 +1,9 @@
 #======================================================================
 #                    . H G I G N O R E 
 #                    doc: Thu Oct 27 10:27:55 2011
-#                    dlm: Mon Oct 12 16:56:09 2015
+#                    dlm: Tue Dec 22 11:01:28 2015
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 13 14 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 16 14 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 syntax: glob
@@ -11,3 +11,12 @@ syntax: glob
 .gmt*
 LWplot_scripts
 README.Publish
+
+Plots/
+Documentation/
+
+Dec_17_2010/
+Dec_24_2010/
+Dec_30_2010/
+Oct_11_2011/
+Jul_04_2011/

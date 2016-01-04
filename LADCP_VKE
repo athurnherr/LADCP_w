@@ -2,13 +2,12 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Mon Oct 12 16:46:13 2015
+#                    dlm: Tue Dec 29 11:04:23 2015
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 39 53 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 43 58 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
-$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Oct 14, 2014: - created from [LADCPfs]
@@ -37,10 +36,18 @@ $antsMinLibVersion = 6.2;
 #	Oct 12, 2015: - BUG: plot was in landscape mode
 #				  - added input run label(s) to plot
 #				  - require ANTSlibs V6.2 for release
+#   Oct 13, 2015: - adapted to [version.pl]
+#	Nov 30, 2015: - BUG: -a was not allowed in usage
+#				  - added -f
+#	Dec 27, 2015: - reduced minlim for eps to 1e-13 W/kg
+#	Dec 29, 2015: - added 3rd consistency check (p0 limit) 
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
+($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
+$WCALC = '.' if ($WCALC eq '');
 $ANTS_TOOLS_AVAILABLE = (`which list` ne '');
 
+require "$WCALC/version.pl";
 require "$ANTSLIB/ants.pl";
 require "$ANTSLIB/libLADCP.pl";
 require "$ANTSLIB/libGMT.pl";
@@ -54,7 +61,7 @@ use IPC::Open2;
 
 my($c) = 0.0215;											# Thurnherr et al. (GRL 2015)
 
-&antsUsage('bc:de:g:i:l:mno:p:r:s:tuw:',0,
+&antsUsage('a:bc:de:f:g:i:l:mno:p:r:s:tuw:',0,
 		    '[poly-o)rder <n[0]> to de-mean data; -1 to disable>] [apply cosine-t)aper]',
 		    '[-d)own/-u)pcast-only] [exclude -b)ottom window]',								# LADCP_wspec options
 			'[-s)urface <layer depth to exclude[150m]>',
@@ -64,6 +71,7 @@ my($c) = 0.0215;											# Thurnherr et al. (GRL 2015)
 			'[o-m)it spectral correction] [spectral-tilt-correction -r)ange <max[0m]>]',
 			'[-l) override ADCP bin <length>] [-a) override pulse <length>]',
 			"[-e)ps-parameterization <scale[$c]>",
+			'[output -f)iles in <dir>]',
 			'[output -i)ndividual spectra <basename>]',
 			'[output -p)lot <ps-file>',
 			'[file]');
@@ -161,11 +169,16 @@ $maxdf = fnr('depth.max');
 #----------------------------------------------------------------------
 
 if (-t STDOUT) {
+	$opt_f = '.' unless defined($opt_f);					# output directory
+	croak("$opt_f: not a directory\n") unless (-d $opt_f);
+
 	my($id) = &antsRequireParam('profile_id');
-	$opt_p = sprintf('%03d_VKE.ps',$id)
+	$opt_p = sprintf('%s/%03d_VKE.ps',$opt_f,$id)
 		unless defined($opt_p);
-	$outfile = sprintf('%03d.VKE',$id);
+	$outfile = sprintf('%s/%03d.VKE',$opt_f,$id);
 	open(STDOUT,">$outfile") || die("$outfile: $!\n");
+} elsif (defined($opt_f)) {
+	croak("-f can only be used without STDOUT redirection\n");
 }
 
 #----------------------------------------------------------------------
@@ -295,10 +308,11 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 	integrate_fs_power($r);														# calculate total finescale power
 	fit_universal_w_spec($r);													# fit kz^-2 spectrum
 #	normalize_spectral_power($r);												# normalize by p0 (even w/o shortwave cutoff)
-
-	if ($ants_[$r][$rmsf] <= 0.4 && $ants_[$r][$rf] < 0) {						# calc eps on good fits
-#	if ($ants_[$r][$rmsf] <= 0.4) {
-		$ants_[$r][$wepsf] = ($ants_[$r][$p0f] / $opt_e)**2;
+																				# consistency checks: 
+	if ($ants_[$r][$rmsf] <= 0.4 &&												#	1) rms from kz fit < 0.4 (as in paper)
+		$ants_[$r][$rf] < 0 &&													#	2) raw spectra are red spectrum
+		$ants_[$r][$p0f] > 1e-7) {												#	3) exclude low-p0 tail apparent at eps<2e-10 W/kg
+			$ants_[$r][$wepsf] = ($ants_[$r][$p0f] / $opt_e)**2;
 	} else {
 		$ants_[$r][$wepsf] = nan;
 	}
@@ -407,7 +421,7 @@ if (defined($opt_p)) {															# complete plot
 			'LABEL_FONT_SIZE 10','LABEL_OFFSET 0');
 	$min_depth = 400 if ($min_depth > 1e4);
 	$max_depth = 1500 if ($max_depth < 0);
-	GMT_setR(sprintf("-R5e-12/1e-7/%d/%d",round($min_depth-250,500),round($max_depth+250,500))); 
+	GMT_setR(sprintf("-R5e-13/1e-7/%d/%d",round($min_depth-250,500),round($max_depth+250,500))); 
 	GMT_setJ(sprintf('-JX%fl/-%f',$plotsize/2.2,$plotsize/2.2));
 	GMT_psbasemap('-X0.3 -Y0.3 -Bg1a1f3p:"@~e@~@-VKE@- [W kg@+-1@+]":/g1000a500f100:"Depth [m]":wEsN');
 	GMT_psxy('-M');

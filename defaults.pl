@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Mon Oct 12 16:00:40 2015
+#                    dlm: Mon Jan  4 10:53:34 2016
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 9 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 65 64 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -61,6 +61,8 @@
 #	Sep  3, 2015: - renamed wsamp output and plot
 #   			  - changed out_w to out_wsamp
 #	Sep 26, 2015: - added sidelobe editing params
+#	Oct 13, 2015: - addded support for $ENV{VERB}
+#	Jan  4, 2016: - decreased default vertical resolution to 20m
 
 #======================================================================
 # Data Input 
@@ -108,7 +110,8 @@ $opt_b = '2,*' unless defined($opt_b);
 #		>2:	debug messges
 #	- the most useful ones of these are 1 & 2
 
-&antsCardOpt(\$opt_v,1);
+&antsCardOpt(\$opt_v,$ENV{VERB});
+$opt_v = 1 unless numberp($opt_v);
 
 
 # output base name
@@ -131,7 +134,7 @@ $data_subdir = $plot_subdir = $log_subdir = $RUN;
 # output grid resolution in meters
 #	- value recorded in %outgrid_dz and used by [LADCP_w_regrid]
 
-&antsFloatOpt(\$opt_o,10);
+&antsFloatOpt(\$opt_o,20);
 
 
 # the following variables limit the bins used to grid w_oean

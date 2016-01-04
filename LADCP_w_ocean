@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon Oct 12 16:47:18 2015
+#                    dlm: Mon Jan  4 10:54:26 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 15 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 196 64 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -16,8 +16,6 @@
 #	? use instrument tilt in sidelobe editing?
 
 $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
-$VERSION = 1.0;
-$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Dec 17, 2010: - created from [mergeCTD+LADCP]
@@ -192,6 +190,10 @@ $antsMinLibVersion = 6.2;
 #	Oct 12, 2015: - upgraded missing water-depth warnings to L2
 #				  - added -V)ersion
 #                 - require ANTSlibs V6.2 for release
+#   Oct 13, 2015: - adapted to [version.pl]
+#	Nov 25, 2015: - made warning disappear on setting $ANTS_TOOLS_AVAILABLE
+#	Nov 27, 2015: - changed RDI_BB_READ.pl to RDI_PD0_IO.pl
+#	Jan  4, 2016: - decreased default vertical resolution to 20m
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -249,7 +251,7 @@ $antsMinLibVersion = 6.2;
 ($ADCP_TOOLS) = (`which mkProfile` =~ m{^(.*)/[^/]*$});
 ($WCALC) 	  = ($0                =~ m{^(.*)/[^/]*$});
 $WCALC = '.' if ($WCALC eq '');
-$ANTS_TOOLS_AVAILABLE = (`which list` ne '');
+$ANTS_TOOLS_AVAILABLE = (`which list 2>/dev/null` ne '');
 
 die("$0: Generic Mapping Tools (GMT) required but not found (bad \$PATH?)\n")
 	unless (`which psxy` ne '');
@@ -258,8 +260,7 @@ die("$0: ANTSlib required but not found (bad \$PATH?)\n")
 die("$0: ADCP Tools required but not found (bad \$PATH?)\n")
 	unless ($ADCP_TOOLS ne '');
 
-require "$ANTS/ants.pl";
-require "$ANTS/libstats.pl";
+require "$WCALC/version.pl";
 require "$WCALC/edit_data.pl";
 require "$WCALC/time_series.pl";
 require "$WCALC/time_lag.pl";
@@ -267,7 +268,9 @@ require "$WCALC/find_seabed.pl";
 require "$WCALC/svel_corrections.pl";
 require "$WCALC/acoustic_backscatter.pl";
 require "$WCALC/bottom_tracking.pl";
-require "$ADCP_TOOLS/RDI_BB_Read.pl";
+require "$ANTS/ants.pl";
+require "$ANTS/libstats.pl";
+require "$ADCP_TOOLS/RDI_PD0_IO.pl";
 require "$ADCP_TOOLS/RDI_Coords.pl";
 
 use IO::Handle;
@@ -292,13 +295,13 @@ $antsParseHeader = 0;
 	'[calculate -n) <lags,lags[10,100]>] [lag -w)indow <sz,sz[240s,20s]>] [lag-p)iece <CTD_elapsed_min|+[,...]>]',
 	'[require top-3) lags to account for <frac[0.6]> of all]',
 	'[pressure-sensor -a)cceleration correction <residual/CTD_w_tt>]',
-	'[-o)utput bin <resolution[10m]>] [-k) require <min[20]> samples]',
+	'[-o)utput bin <resolution[20m]>] [-k) require <min[20]> samples]',
 	'[e-x)ecute <perl-expr>]',
 	'<profile-id> [run-label]');
 
 	if ($opt_V) {
 		printf(STDERR "+-------------------------+\n");
-		printf(STDERR "| LADCP_w Software V%.1f   |\n",$VERSION);
+		printf(STDERR "| LADCP_w Software V%s   |\n",$VERSION);
 		printf(STDERR "|(c) 2015- A.M. Thurnherr |\n");
 		printf(STDERR "+-------------------------+\n");
 		exit(0);

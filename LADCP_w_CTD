@@ -2,13 +2,12 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Mon Oct 12 16:47:50 2015
+#                    dlm: Tue Oct 13 10:51:14 2015
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 11 24 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 50 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
-$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Nov  3, 2014: - created
@@ -46,9 +45,14 @@ $antsMinLibVersion = 6.2;
 #					from 0.1deg to 1deg and finding contiguous range up to single gap in histogram
 #					(requring halving of resolution)
 #	Oct 12, 2015: - require ANTSlibs V6.2 for release
+#	Oct 13, 2015: - added code to deal with CNV files with wrong number of scans in header
+#   Oct 13, 2015: - adapted to [version.pl]
 
-($ANTS) = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
+($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
+($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
+$WCALC   = '.' if ($WCALC eq '');
 
+require "$WCALC/version.pl";
 require "$ANTS/ants.pl";
 require "$ANTS/fft.pl";
 require "$ANTS/libGMT.pl";
@@ -115,6 +119,15 @@ $lonF = &fnrNoErr('lon');
 
 &antsInstallBufFull(0);											# read entire CNV file
 &SBEin(F,$ftype,$nfields,$nscans,$badval);
+
+if (@ants_ != $nscans) {
+	if ($opt_v > 1) {
+		printf(STDERR "\n\nWARNING: $CNVfile has wrong number of scans in header\n");
+	} else {
+		printf(STDERR "WARNING: $CNVfile has wrong number of scans in header\n");
+	}
+	$nscans = @ants_;
+}
 
 printf(STDERR "\n\t%d scans",$nscans) if ($opt_v > 1);
 printf(STDERR "\n") if ($opt_v);
@@ -186,6 +199,8 @@ unless ($opt_r) {
 		next unless ($hist[$b] > $modeSamp);
 		$modeSamp = $hist[$b]; $modeBin = $b;
 	}
+	printf(STDERR "\n\tvalid pressure guess: %d dbar (%d samples)",2*$modeBin-100,$modeSamp)
+		if ($opt_v > 1);
 	($min,$max) = validRange($modeBin);
 	$min = 2*$min-100; $max = 2*$max-100;
 	for (my($s)=0; $s<$nscans; $s++) {

@@ -1,12 +1,30 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Mon Oct 12 16:57:10 2015
+                    dlm: Mon Jan  4 10:57:43 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 11 44 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 30 59 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
 	Oct 12, 2015:
 		- finalized HowTo V1.0 (antsLibVer V6.2, ADCP_tools V1.3)
 		- uploaded to Mercurial server
+
+V1.1:
+	Oct 12, 2015: V1.1beta1
+		- added [version.pl]
+		- adapted to version.pl: [LADCP_w_ocean] [LADCP_w_CTD]
+			[LADCP_VKE] [LADCP_w_postproc]
+		- modified [LADCP_w_CTD] to allow processing ASCII CNV files with
+		  wrong number of scans in header
+	Nov 25-27, 2015:
+		- minor mods to [LADCP_w_ocean] to try to get it to work on
+		  Windows (R. Robertson)
+	Dec 22, 2015:
+		- removed Plots/ Documentation/ Dec_17_2010/ Dec_24_2010/
+				  Dec_30_2010/ Oct_11_2011/ Jul_04_2011/ from repo
+		- moved PostProces.sh to Utilities/ and modified README
+	Jan  4, 2016:
+		- decreased default vertical resolution to 20m [defaults.pl] [LADCP_w_ocean]
+		- removed beta from version [version.pl] [.hg/hgrc]

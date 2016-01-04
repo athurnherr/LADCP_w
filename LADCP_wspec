@@ -2,13 +2,12 @@
 #======================================================================
 #                    L A D C P _ W S P E C 
 #                    doc: Thu Jun 11 12:02:49 2015
-#                    dlm: Mon Oct 12 16:48:49 2015
+#                    dlm: Tue Oct 13 10:50:38 2015
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 21 0 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 21 43 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE window spectra from LADCP profiles';
-$antsMinLibVersion = 6.2;
 
 # HISTORY:
 #	Jun 11, 2015: - adapted from [binpgrams]
@@ -19,10 +18,14 @@ $antsMinLibVersion = 6.2;
 #	Jun 16, 2015: - reversed semantics of -t
 #				  - re-added pwrdens.0 to make output consistent with [binpgrams]
 #	Oct 12, 2015: - require ANTSlibs V6.2 for release
+#	Oct 13, 2015: - adapted to [version.pl]
 
 ($ANTSBIN) = (`which list` =~ m{^(.*)/[^/]*$});
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
+($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
+$WCALC = '.' if ($WCALC eq '');
 
+require "$WCALC/version.pl";
 require "$ANTSLIB/ants.pl";
 require "$ANTSLIB/antsfilters.pl";
 require "$ANTSLIB/libstats.pl";
