@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Sat Sep 26 12:58:46 2015
+#                    dlm: Sun Jan 24 16:22:23 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 34 56 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 433 31 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -32,6 +32,7 @@
 #	May 21, 2014: - got it to work correctly
 #				  - croak -> error
 #	Sep 26, 2015: - added $vessel_draft to editSideLobes
+#	Jan 23, 2016: - added &editBadTimeLagging()
 
 # NOTES:
 #	- editCorr_Earthcoords() is overly conservative and removed most
@@ -415,5 +416,45 @@ sub editSurfLayer($$$)
 	}
 	return $nerm;
 }
+
+
+#===============================================================================
+# $nerm = editBadTimeLagging($fromEns,$toEns,$good_from_elapsed1,$good_to_elapsed1,...)
+#===============================================================================
+
+sub editBadTimeLagging($$@)
+{
+	my($fe,$te,@elim) = @_;
+
+	my($nerm) = 0;													# of ensembles removed
+	my($i) = 0;
+
+	if ($elim[0] < 0) {												# entire piece is bad
+		for (my($e)=$fe; $e<=$te; $e++) {
+			undef($LADCP{ENSEMBLE}[$e]->{REFLR_W});
+			$nerm++;
+		}
+	} elsif (defined($elim[1])) {									# limits in elim
+		my($e);
+		for ($e=$fe; @elim; shift(@elim),shift(@elim)) {
+#			print(STDERR "deleting to $elim[0]\n");
+			while ($LADCP{ENSEMBLE}[$e]->{ELAPSED} < $elim[0]) {
+				undef($LADCP{ENSEMBLE}[$e]->{REFLR_W});
+				$nerm++;
+				$e++;
+			}
+#			print(STDERR "keeping to $elim[1]\n");
+			while ($LADCP{ENSEMBLE}[$e]->{ELAPSED} < $elim[1]) { $e++; }
+	    }
+#		print(STDERR "deleting to $LADCP{ENSEMBLE}[$te]->{ELAPSED}\n");
+		while ($e <= $te) {
+			undef($LADCP{ENSEMBLE}[$e]->{REFLR_W});
+			$nerm++;
+			$e++;
+		}
+	}
+	return $nerm;
+}
+
 
 1;

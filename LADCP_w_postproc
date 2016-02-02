@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Tue Oct 13 10:51:31 2015
+#                    dlm: Sat Jan 30 14:50:53 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 50 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 640 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -47,6 +47,14 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #			      - added run-label(s) to plot
 #                 - require ANTSlibs V6.2 for release
 #   Oct 13, 2015: - adapted to [version.pl]
+#	Jan 20, 2016: - added dc_w.diff, uc_w.diff for dual-head profiles
+#	Jan 21, 2016: - added %_wcorr.ps plot output
+#				  - added correlation-based QC to wprof plot
+#	Jan 22, 2016: - added output -d)ir option
+#	Jan 24, 2016: - BUG: uc_/dc_corr returned single nan on failure
+#   Jan 25, 2016: - added software version %PARAM
+#	Jan 26, 2016: - added -v
+#	Jan 30, 2016: - added -w
 
 ($ANTS)  = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0              =~ m{^(.*)/[^/]*$});
@@ -59,23 +67,62 @@ require "$WCALC/version.pl";
 require "$ANTS/ants.pl";
 require "$ANTS/libstats.pl";
 require "$ANTS/libGMT.pl";
+&antsAddParams('LADCP_w_postproc',"Version $VERSION");
 
-&antsUsage('b:i:k:o:p:',1,
+&antsUsage('b:d:i:k:l:o:p:v:w:',1,
 	'[profile -i)d <id>]',
 	'[-o)utput bin <resolution>] [-k) require <min> samples]',
+	'[-v)alid bins <DL first>,<DL last>[,<UL first>,<UL_last>]',
+	'[-w) <DL_dc_field>,<DL_uc_field>[,<UL_dc_field>,<UL_uc_field>]',
+	'[-s)urface-layer <limit[300m]>]',
+	'[ouptput -d)ir <name>]',
 	'[-p)lot <[%03d_wprof.eps]> [-b)t <wprof>]]',
-	'<.wsamp file> [.wsamp file]');
+	'<DL.wsamp file> [UL.wsamp file] (or only <UL.wsamp file>)');
 
-$dual_head = (@ARGV==1);
+$dual_head = (@ARGV==1);								# single or dual head
 
-if (defined($opt_o)) {
+$id = defined($opt_i) ? $opt_i : &antsParam('profile_id');		# ensure profile id
+croak("$0: no profile_id in first file => -i required\n")
+	unless defined($id);
+	
+if (defined($opt_d)) {									# different output directory
+	croak("$opt_d: no such directory\n")
+		unless (-d "$opt_d");
+}
+
+&antsCardOpt(\$opt_s,300);								# surface layer depth limit
+
+if (defined($opt_v)) {									# bin ranges with valid data to use
+	($fvBin,$lvBin,$UL_fvBin,$UL_lvBin) = split(/,/,$opt_v);
+	croak("$0: cannot decode -v $opt_v\n")
+		unless (defined($lvBin) && (!$dual_head || defined($UL_lvBin)));
+	$fvBin = &antsRequireParam('LADCP_firstBin') if ($fvBin eq '*');	# corresponding UL values set below
+	$lvBin = &antsRequireParam('LADCP_lastBin')  if ($lvBin eq '*');
+	&antsAddParams('DL_first_valid_bin',$fvBin,
+				   'DL_last_valid_bin', $lvBin);
+} else {
+	&antsAddParams('DL_first_valid_bin',&antsRequireParam('outgrid_firstbin'),
+				   'DL_last_valid_bin',&antsRequireParam('outgrid_lastbin'));
+}
+
+if (defined($opt_w)) {									# vertical-velocity fields to use
+	($Ddwf,$Duwf,$Udwf,$Uuwf) = split(/,/,$opt_w);		# DL dc, DL uc, ...
+	croak("$0: cannot decode -w $opt_w\n")
+		unless (defined($Duwf) && (!$dual_head || defined($Uuwf)));
+	&antsAddParams('DL_dc_w_field',$Ddwf,'DL_uc_w_field',$Duwf,
+				   'UL_dc_w_field',$Udwf,'UL_uc_w_field',$Uuwf);
+} else {
+	($Ddwf,$Duwf,$Udwf,$Uuwf) = ('w','w','w','w');
+}
+
+if (defined($opt_o)) {									# output grid resolution
 	$opt_o_override = 1;
 	&antsCardOpt($opt_o);
 } else {
 	$opt_o = &antsRequireParam('outgrid_dz');
 }
 
-if (defined($opt_k)) {
+if (defined($opt_k)) {									# minimum number of required samples
 	$opt_k_override = 1;
 	&antsCardOpt($opt_k);
 } else {
@@ -84,20 +131,19 @@ if (defined($opt_k)) {
 }
 	
 #----------------------------------------------------------------------
-# Redirect STDOUT to %.wprof & create %_wprof.ps if STDOUT is a tty
+# Redirect STDOUT to %.wprof & create plots if STDOUT is a tty
 #----------------------------------------------------------------------
 
-$id = defined($opt_i) ? $opt_i : &antsParam('profile_id');
-croak("$0: no profile_id in first file => -i required\n")
-	unless defined($id);
-	
 if (-t STDOUT) {
-	$opt_p = '%03d_wprof.ps' unless defined($opt_p);
-	$outfile = sprintf('%03d.wprof',$id);
+	$opt_p = defined($opt_d) ? "$opt_d/%03d_wprof.ps,$opt_d/%03d_wcorr.ps"
+							 : '%03d_wprof.ps,%03d_wcorr.ps'
+		unless defined($opt_p);
+	$outfile = defined($opt_d) ? sprintf('%s/%03d.wprof',$opt_d,$id)
+							   : sprintf('%03d.wprof',$id);
 	open(STDOUT,">$outfile") || die("$outfile: $!\n");
 }
 
-croak("$0: -b only makes sense when a plot is produced\n")
+croak("$0: -b only makes sense when plots are produced\n")
 	if $opt_b && !defined($opt_p);
 
 #----------------------------------------------------------------------
@@ -174,10 +220,72 @@ sub isBad()
 }
 
 #----------------------------------------------------------------------
-# Edit Data
+# Main Program
 #----------------------------------------------------------------------
 
-$wF = &fnr('w');
+sub dc_corr()
+{
+	my($n) = 0;
+	my($ax,$ay) = (0,0);
+
+	for (my($bi)=int($opt_s/$opt_o); $bi<@DL_dc_median; $bi++) {
+		next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
+		$n++;
+		$ax += $DL_dc_median[$bi];
+		$ay += $UL_dc_median[$bi];
+	}
+	return (nan,nan,nan) unless ($n > 2);
+	$ax /= $n;
+	$ay /= $n;
+
+	my($syy,$sxy,$sxx) = (0,0,0);
+	for (my($bi)=int($opt_s/$opt_o); $bi<@DL_dc_median; $bi++) {
+		next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
+		my($xt) = $DL_dc_median[$bi] - $ax;
+		my($yt) = $UL_dc_median[$bi] - $ay;
+		$sxx += $xt * $xt;
+		$syy += $yt * $yt;
+		$sxy += $xt * $yt;
+	}
+	my($R) = $sxy/(sqrt($sxx * $syy) + 1e-16);
+	my($esig) = sqrt(($R**2)*$sxx/$n);
+	my($rsig) = sqrt((1-$R**2)*$sxx/$n);
+	return ($R,$esig,$rsig);
+}
+
+sub uc_corr(@)
+{
+	my($n) = 0;
+	my($ax,$ay) = (0,0);
+
+	for (my($bi)=int($opt_s/$opt_o); $bi<@DL_dc_median; $bi++) {
+		next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
+		$n++;
+		$ax += $DL_uc_median[$bi];
+		$ay += $UL_uc_median[$bi];
+	}
+	return (nan,nan,nan) unless ($n > 2);
+	$ax /= $n;
+	$ay /= $n;
+
+	my($syy,$sxy,$sxx) = (0,0,0);
+	for (my($bi)=int($opt_s/$opt_o); $bi<@DL_dc_median; $bi++) {
+		next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
+		my($xt) = $DL_uc_median[$bi] - $ax;
+		my($yt) = $UL_uc_median[$bi] - $ay;
+		$sxx += $xt * $xt;
+		$syy += $yt * $yt;
+		$sxy += $xt * $yt;
+	}
+	my($R) = $sxy/(sqrt($sxx * $syy) + 1e-16);
+	my($esig) = sqrt(($R**2)*$sxx/$n);
+	my($rsig) = sqrt((1-$R**2)*$sxx/$n);
+	return ($R,$esig,$rsig);
+}
+
+#----------------------------------------------------------------------
+
+$dcwF = &fnr($Ddwf); $ucwF = &fnr($Duwf);
 $eF = &fnr('elapsed');
 $dF = &fnr('depth');
 $bF = &fnr('bin');
@@ -191,8 +299,14 @@ $blanking_dist  = &antsRequireParam('ADCP_blanking_distance');
 croak("$0: cannot determine day number\n")
 	unless defined($dayNoP);
 
+if (defined($opt_p)) {
+	($sumPF,$corrPF) = split(/,/,$opt_p);
+	croak("$0: cannot decode -p $opt_p\n")
+		unless (length($corrPF)>0);
+}
+
 my($R,$R2);
-if ($opt_p) {												# begin plot
+if (defined($opt_p)) {												# begin summary plot
 	$xmin = -0.1; $x2min = -200;
 	$xmax = 0.35; $x2max =	200;
 	$ymin =  0;
@@ -201,7 +315,7 @@ if ($opt_p) {												# begin plot
 	$plotsize = 13;
 	$R	= "-R$xmin/$xmax/$ymin/$ymax";
 	$R2 = "-R$x2min/$x2max/$ymin/$ymax";
-	GMT_begin(sprintf($opt_p,$id),"-JX$plotsize/-$plotsize",$R,'-P -X6 -Y4');
+	GMT_begin(sprintf($sumPF,$id),"-JX$plotsize/-$plotsize",$R,'-P -X6 -Y4');
 	GMT_psxy('-W1');
 	print(GMT "0 $ymin\n0 $ymax");
 	GMT_psxy('-L -G200');
@@ -237,19 +351,36 @@ if ($opt_p) {												# begin plot
 $min_depth =  9e99;										# sentinels
 $max_depth = -9e99;
 
-$curF = '';												# current input file (sentinel)
+$curF = $P{PATHNAME};															# current input file (sentinel)
 $filt = 0;
-for (my($curF),$r=0; &antsIn(); $r++) {
-	if ($P{PATHNAME} ne $curF) {						# new file
+for ($r=0; &antsIn(); $r++) {
+	if ($P{PATHNAME} ne $curF) {												# 2nd file (UL data)
 		$curF = $P{PATHNAME};
 
-		&antsInfo("WARNING: inconsistent %%outgrid_dz in input files")
+		$dcwF = &fnr($Udwf); $ucwF = &fnr($Uuwf);
+
+		&antsInfo("WARNING: inconsistent %%outgrid_dz in input files")			# consistency checks
 			if (defined($P{outgrid_dz}) && $P{outgrid_dz}!=$opt_o &&!$opt_o_override);
 		&antsInfo("WARNING: inconsistent %%outgrid_minsamp in input files")
 			if defined($P{outgrid_minsamp}) && !$opt_k_override &&
 					(( $dual_head && $P{outgrid_minsamp}*2!=$opt_k) ||
 					 (!$dual_head && $P{outgrid_minsamp}!=$opt_k));
 		
+		if (defined($opt_v)) {
+			$fvBin = &antsRequireParam('LADCP_firstBin') if ($UL_fvBin eq '*');	# valid bin ranges
+			$lvBin = &antsRequireParam('LADCP_lastBin')  if ($UL_lvBin eq '*');
+			&antsAddParams('UL_first_valid_bin',$fvBin,
+	        	           'UL_last_valid_bin', $lvBin);
+	    } else {
+			&antsAddParams('UL_first_valid_bin',&antsRequireParam('outgrid_firstbin'),
+						   'UL_last_valid_bin',&antsRequireParam('outgrid_lastbin'));
+		}
+
+		for (my($bi)=0; $bi<=$#dcw1; $bi++) {									# calc DL median profile
+			$DL_dc_median[$bi] = median(@{$dcw1[$bi]});
+			$DL_uc_median[$bi] = median(@{$ucw1[$bi]});
+		}
+
 		$bin_length = sprintf('%d & %d',round($bin_length),($P{ADCP_bin_length}))
 			unless (round($bin_length) == round($P{ADCP_bin_length}));
 		$pulse_length = sprintf('%d & %d',round($pulse_length),round($P{ADCP_pulse_length}))
@@ -259,48 +390,73 @@ for (my($curF),$r=0; &antsIn(); $r++) {
 
 		$PROF = $STN = $ID = $id; $RUN = antsRequireParam('run_label');
 		undef(@rngMin); undef(@rngMax); undef(@bins);
-		unless ($return = do "./EditParams") {					# man perlfunc
+		unless ($return = do "./EditParams") {									# man perlfunc
 			croak("./EditParams: $@\n") if ($@);
-#	        croak("do ./EditParams: $!\n") unless defined($return);		# happens when EditParams does not exist
-#	        croak("couldn't run ./EditParams\n") unless $return;		# happens when EditParams does not exist
 		}
 
-		if ($opt_p && @dcw1) {									# 2nd file in dual-head profile => plot 1st
+		if (defined($opt_p)) {													# 2nd file in dual-head profile => plot 1st
 			GMT_psxy('-W2,255/127/80,-');
 			for (my($bi)=0; $bi<=$#dcw1; $bi++) {
-				printf(GMT "%f %f\n",median(@{$dcw1[$bi]}),($bi+0.5)*$opt_o);
+				printf(GMT "%f %f\n",$DL_dc_median[$bi],($bi+0.5)*$opt_o);
 			}
 			GMT_psxy('-W2,46/139/87,-');
 			for (my($bi)=0; $bi<=$#ucw1; $bi++) {
-				printf(GMT "%f %f\n",median(@{$ucw1[$bi]}),($bi+0.5)*$opt_o);
+				printf(GMT "%f %f\n",$DL_uc_median[$bi],($bi+0.5)*$opt_o);
 			}
 			undef(@dcw1); undef(@ucw1);
 		}
+	} # of 2nd file started
+
+	if (defined($opt_v)) {														# explicit ranges of validity given
+		next if ($ants_[0][$bF]<$fvBin-1 ||										#  => apply them
+				 $ants_[0][$bF]>$lvBin-1);
+	} else {																	# no range of valid bins given
+		next if ($ants_[0][$bF]<$P{outgrid_firstbin}-1 ||						# 	=> use values from [LADCP_w_ocean]
+				 $ants_[0][$bF]>$P{outgrid_lastbin}-1);
 	}
-	next if ($ants_[0][$bF]<$P{outgrid_firstbin}-1 || $ants_[0][$bF]>$P{outgrid_lastbin}-1);
-	$filt++,next if &isBad();
-	$min_depth = $ants_[0][$dF] if ($ants_[0][$dF] < $min_depth);
+	
+	$filt++,next if &isBad();													# additional editing
+	
+	$min_depth = $ants_[0][$dF] if ($ants_[0][$dF] < $min_depth);				# update depth limits
 	$max_depth = $ants_[0][$dF] if ($ants_[0][$dF] > $max_depth);
+	
 	my($bi) = $ants_[0][$dF]/$opt_o;
-	if ($ants_[0][$dcF]) {										# downcast
-		push(@{$dcw[$bi]},$ants_[0][$wF]);						# vertical velocity
-		push(@{$dcw1[$bi]},$ants_[0][$wF]) if ($dual_head);
-		push(@{$dce[$bi]},$ants_[0][$eF]);	 					# elapsed time
-	} else {								 					# upcast
-		push(@{$ucw[$bi]},$ants_[0][$wF]);
-		push(@{$ucw1[$bi]},$ants_[0][$wF]) if ($dual_head);
+	if ($ants_[0][$dcF]) {														# downcast
+		push(@{$dcw[$bi]},$ants_[0][$dcwF]);									# 	vertical velocity
+		push(@{$dcw1[$bi]},$ants_[0][$dcwF]) if ($dual_head);					# 	single-instrument w
+		push(@{$dce[$bi]},$ants_[0][$eF]);	 									# 	elapsed time
+	} else {								 									# upcast
+		push(@{$ucw[$bi]},$ants_[0][$ucwF]);
+		push(@{$ucw1[$bi]},$ants_[0][$ucwF]) if ($dual_head);
 		push(@{$uce[$bi]},$ants_[0][$eF]);
 	}
-}
+} # file-read loop
 
-if ($opt_p && @dcw1) {											# 2nd file in dual-head profile in buffer => plot it
-	GMT_psxy('-W2,255/127/80,.');
-	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
-		printf(GMT "%f %f\n",median(@{$dcw1[$bi]}),($bi+0.5)*$opt_o);
+if ($dual_head) {
+	for (my($bi)=0; $bi<=$#dcw1; $bi++) {										# calc UL median & difference profiles
+		$UL_dc_median[$bi] = median(@{$dcw1[$bi]});
+		$UL_uc_median[$bi] = median(@{$ucw1[$bi]});
+		$dc_diff[$bi] = numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi])
+					  ? $DL_dc_median[$bi] - $UL_dc_median[$bi] : nan;
+		$uc_diff[$bi] = numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi])
+					  ? $DL_uc_median[$bi] - $UL_uc_median[$bi] : nan;
 	}
-	GMT_psxy('-W2,46/139/87,.');
-	for (my($bi)=0; $bi<=$#ucw1; $bi++) {
-		printf(GMT "%f %f\n",median(@{$ucw1[$bi]}),($bi+0.5)*$opt_o);
+
+	($dc_R,$dc_esig,$dc_rsig) = &dc_corr();										# correlation statistics
+	($uc_R,$uc_esig,$uc_rsig) = &uc_corr();
+	&antsAddParams('dc_R',$dc_R,'uc_R',$uc_R,
+				   'dc_explained_stddev',$dc_esig,'uc_explained_stddev',$uc_esig,
+				   'dc_residual_stddev',$dc_rsig,'uc_residual_stddev',$uc_rsig);
+
+	if (defined($opt_p)) {														# plot 2nd-instrument profiles
+		GMT_psxy('-W2,255/127/80,.');
+		for (my($bi)=0; $bi<=$#dcw1; $bi++) {
+			printf(GMT "%f %f\n",$UL_dc_median[$bi],($bi+0.5)*$opt_o);
+		}
+		GMT_psxy('-W2,46/139/87,.');
+		for (my($bi)=0; $bi<=$#ucw1; $bi++) {
+			printf(GMT "%f %f\n",$UL_uc_median[$bi],($bi+0.5)*$opt_o);
+		}
 	}
 }
 
@@ -308,23 +464,24 @@ if ($opt_p && @dcw1) {											# 2nd file in dual-head profile in buffer => pl
 	if ($filt > 0);
 
 #----------------------------------------------------------------------
-# Average and Output Profile, Add to Plot
+# Average and Output Profiles, Add to Summary Plot
 #----------------------------------------------------------------------
 
-@antsNewLayout = ('depth','hab',
-				  'dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp',
-				  'uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp');
-				  		  
 if ($dual_head) {										# selected %PARAMs only
+	@antsNewLayout = ('depth','hab',
+					  'dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp',
+	                  'uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp',
+					  'dc_w.diff','uc_w.diff');
 	&antsAddParams('profile_id',$id,'lat',$P{lat},'lon',$P{lon});
 	&antsAddParams($dayNoP,$dn,'run_label',"$first_label & $P{run_label}");
 	&antsAddParams('outgrid_dz',$opt_o,'outgrid_minsamp',$opt_k);
-	&antsAddParams('outgrid_firstbin',$P{outgrid_firstbin},'outgrid_lastbin',$P{outgrid_lastbin});
-	&antsAddParams('ADCP_bin_length',round($bin_length),'ADCP_pulse_length',round($pulse_length))
-	&antsAddParams('ADCP_blanking_distance',round($blanking_dist));
 	&antsAddParams('min_depth',round($min_depth),'max_depth',round($max_depth));
 	&antsAddParams('water_depth',$P{water_depth},'water_depth.sig',$P{water_depth.sig});
 	undef($antsOldHeaders);
+} else {
+	@antsNewLayout = ('depth','hab',
+					  'dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp',
+	                  'uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp');
 }
 
 &antsInfo("WARNING: unknown water depth (no height-above-bottom)")
@@ -347,10 +504,35 @@ for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
 			 avg(@{$uce[$bi]}),
 			 (($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),(($ucns[$bi]>=$opt_k)?$ucwmad[$bi]:nan),
 			 scalar(@{$ucw[$bi]}));
+	push(@{$out[$bi]},$dc_diff[$bi],$uc_diff[$bi])
+		if ($dual_head);
 	&antsOut(@{$out[$bi]});				 
 }
 
-if ($opt_p) {																		# complete plot
+if (defined($opt_p)) {																# complete summary plot
+	GMT_psxy('-W2/100/100/255');
+		print(GMT "-0.1 $opt_s\n0.07 $opt_s\n");
+	if ($dc_R < 0.3 || !numberp($dc_R)) {
+		&antsInfo("WARNING: low dc correlation (r = %.1f) between UL and DL data",$dc_R);
+		GMT_pstext('-Gwhite -Wred');
+	} elsif ($dc_R < 0.5) {		GMT_pstext('-Gblack -Wyellow'); }
+	else {						GMT_pstext('-Gblack -Wgreen'); }
+		printf(GMT "%f %f 12 0 0 BL %.1f\n",-0.07,0.9*$ymax,$dc_R);
+	GMT_pstext('-G255/127/80');
+		printf(GMT "%f %f 12 0 0 BL dc\n",-0.095,0.9*$ymax);
+		printf(GMT "%f %f 12 0 0 BL [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
+			0.02,0.9*$ymax,100*$dc_esig,100*$dc_rsig);
+	if ($uc_R < 0.3 || !numberp($uc_R)) {
+		&antsInfo("WARNING: low uc correlation (r = %.1f) between UL and DL data",$uc_R);
+		GMT_pstext('-Gwhite -Wred');
+	} elsif ($uc_R < 0.5) {		GMT_pstext('-Gblack -Wyellow'); }
+	else {						GMT_pstext('-Gblack -Wgreen'); }
+		printf(GMT "%f %f 12 0 0 BL %.1f\n",-0.07,0.95*$ymax,$uc_R);
+	GMT_pstext('-G46/139/87');
+		printf(GMT "%f %f 12 0 0 BL uc\n",-0.095,0.95*$ymax);
+		printf(GMT "%f %f 12 0 0 BL [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
+			0.02,0.95*$ymax,100*$uc_esig,100*$uc_rsig);
+
 	GMT_setR($R);
 
 	GMT_psxy('-W4,255/127/80');														# median profiles
@@ -397,6 +579,70 @@ if ($opt_p) {																		# complete plot
 	GMT_pstext();
 	print(GMT '0.62 0.98 12 0 0 MR m.a.d.');
 	GMT_end();
+
+	if ($dual_head) {																# correlation plot
+		my($mwm) = 0.05; # max(|w|) for axes
+		for (my($bi)=0; $bi<@DL_dc_median; $bi++) {
+			next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
+			$mwm = abs($DL_dc_median[$bi]) if abs($DL_dc_median[$bi]) > $mwm;
+			$mwm = abs($UL_dc_median[$bi]) if abs($UL_dc_median[$bi]) > $mwm;
+		}
+		for (my($bi)=0; $bi<@DL_uc_median; $bi++) {
+			next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
+			$mwm = abs($DL_uc_median[$bi]) if abs($DL_uc_median[$bi]) > $mwm;
+			$mwm = abs($UL_uc_median[$bi]) if abs($UL_uc_median[$bi]) > $mwm;
+		}
+		$mwm = int(100*$mwm+0.9999) / 100;
+		$R = "-R-$mwm/$mwm/-$mwm/$mwm";
+
+		GMT_begin(sprintf($corrPF,$id),"-JX$plotsize/$plotsize",$R,'-P -X6 -Y4');
+		GMT_psxy('-Ggrey80 -L');
+			printf(GMT "%g %g\n%g %g\n%g %g\n%g %g\n%g %g\n%g %g\n",
+							-$mwm,		-$mwm+0.01,
+							-$mwm,		-$mwm,
+							-$mwm+0.01,	-$mwm,
+							 $mwm,		 $mwm-0.01,
+							 $mwm,		 $mwm,
+							 $mwm-0.01,	 $mwm);
+													   
+		GMT_psxy('-W4,grey50');
+			print(GMT "-$mwm -$mwm\n$mwm $mwm\n");
+		GMT_psxy('-Sc0.12c -G255/127/80 -W1,blue,-');
+			for (my($bi)=0; $bi<@DL_dc_median; $bi++) {
+				next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
+				my($depth) = ($bi+0.5)*$opt_o;
+				last if ($depth > $opt_s);
+				print(GMT "$DL_dc_median[$bi] $UL_dc_median[$bi]\n");
+	        }
+		GMT_psxy('-Sc0.12c -G255/127/80');
+			for (my($bi)=0; $bi<@DL_dc_median; $bi++) {
+				next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
+				my($depth) = ($bi+0.5)*$opt_o;
+				next unless ($depth > $opt_s);
+				print(GMT "$DL_dc_median[$bi] $UL_dc_median[$bi]\n");
+	        }
+		GMT_psxy('-Sc0.12c -G46/139/87 -W1,blue,-');
+			for (my($bi)=0; $bi<@DL_uc_median; $bi++) {
+				next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
+				my($depth) = ($bi+0.5)*$opt_o;
+				last if ($depth > $opt_s);
+				print(GMT "$DL_uc_median[$bi] $UL_uc_median[$bi]\n");
+	        }
+		GMT_psxy('-Sc0.12c -G46/139/87');
+			for (my($bi)=0; $bi<@DL_uc_median; $bi++) {
+				next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
+				my($depth) = ($bi+0.5)*$opt_o;
+				next unless ($depth > $opt_s);
+				print(GMT "$DL_uc_median[$bi] $UL_uc_median[$bi]\n");
+	        }
+		GMT_pstext('-Gblue -N');
+			if (defined($outfile)) { printf(GMT "%f %f 14 0 0 TL $outfile [$P{run_label}]\n",-$mwm,1.1*$mwm); }
+		    else { 					 printf(GMT "%f %f 14 0 0 TL %03d\n [$P{run_label}]",$id,-$mwm,1.1*$wmw); }
+		GMT_psbasemap('-Bf0.01a0.05:"DL Vertical Velocity [m/s]":/f0.01a0.05:"UL Vertical Velocity [m/s]":WeSn');
+		GMT_end();
+		
+    } # if dual_head		
+
 }
 
 &antsExit(0);

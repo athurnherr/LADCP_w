@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Mon Jan  4 10:53:34 2016
+#                    dlm: Thu Jan 28 16:55:23 2016
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 65 64 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 466 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -63,39 +63,41 @@
 #	Sep 26, 2015: - added sidelobe editing params
 #	Oct 13, 2015: - addded support for $ENV{VERB}
 #	Jan  4, 2016: - decreased default vertical resolution to 20m
+#	Jan 22, 2016: - changed outGrid_firstBin default to 1
+#	Jan 26, 2016: - removed -d
+#				  - changed outGrid_firstBin default to '*', also lastBin
+#	Jan 27, 2016: - added documentation
 
 #======================================================================
 # Data Input 
 #======================================================================
 
-# CTD depth adjustment
-#	- set with -d (-a up to 2013/05/16)
-#	- value is added to CTD pressure
-#	- use when CTD has -ve pressures
-
-&antsFloatOpt(\$opt_d,0);
-
-
-# set $opt_4 to 1 to suppress 3-beam LADCP solutions
+# Set $opt_4 to 1 (or use the -4 option) to suppress 3-beam LADCP 
+# solutions
 
 #$opt_4 = 1;
 
 
-# correct attiude sensors
+# The following variables allow bias-correcting the attiude 
+# sensors.
 # NB: heading is not used for vertical-velocity processing!
 
-$pitch_bias = $roll_bias = $heading_bias = 0;
+$pitch_bias 	= 0;
+$roll_bias 		= 0;
+$heading_bias 	= 0;
 
 
-# minimum valid velocities to require in a LADCP file
-# 	throws an error if not enough valid vels in a file
+# The following variable defines the minimum valid velocities 
+# required in a LADCP file. If there are fewer data, an
+# error is produced
 
 $min_valid_vels = 50;
 
 
-# bins to use in w calculations
-#	- set with -b
-#	- defaults to 2-last
+# The -b option defines the range of bins to use in w calculations.
+# The '*' indicates the last bin in the ADCP file. For data
+# collected with non-zero blanking distance, -b '1,*' should 
+# likely be used.
 
 $opt_b = '2,*' unless defined($opt_b);
 
@@ -114,50 +116,52 @@ $opt_b = '2,*' unless defined($opt_b);
 $opt_v = 1 unless numberp($opt_v);
 
 
-# output base name
+# The "base name" of all output files (usually 0-padded 3-digits)
 
 $out_basename = sprintf('%03d',$PROF);
 
 
-# output subdirectories
+# Output subdirectories
 
 error("$RUN: no such directory\n") unless (-d $RUN);
 $data_subdir = $plot_subdir = $log_subdir = $RUN;
 
 
-# min w samples required for each vertical-velocity bin
-#	- value recorded in %outgrid_minsamp and used by [LADCP_w_regrid]
+# The -k option defines the minimum number of w samples required in each 
+# vertical-velocity bin. The following sets the default value.
 
 &antsCardOpt(\$opt_k,20);
 
 
-# output grid resolution in meters
-#	- value recorded in %outgrid_dz and used by [LADCP_w_regrid]
+# The -o option sets the output grid resolution in meters. The following
+# sets the default value.
 
 &antsFloatOpt(\$opt_o,20);
 
 
-# the following variables limit the bins used to grid w_oean
+# The following variables limit the bins used to grid w_oean
 #	- in contrast to -b, the other bins are still used e.g. for BT 
 #	- values recorded in %outgrid_firstbin, %outgrid_lastbin
 #	- values beyond range are:
 #		- greyed out in *_mean_residuals.ps
 #		- not used in *_w.ps, *_residuals.ps
 
-$outGrid_firstBin = 0;
-$outGrid_lastBin  = 999;
+$outGrid_firstBin = '*';			# use $LADCP_firstBin (-b)
+$outGrid_lastBin  = '*';			# use $LADCP_lastBin (-b)
 
 
 #======================================================================
 # Data Editing
 #======================================================================
 
-# min correlation
+# The following sets the default correlation limit; measurements with
+# correlations below this limit are discarded.
 
 &antsFloatOpt(\$opt_c,70);
 
 
-# max tilt (pitch/roll) 
+# The following sets the default limit for instrument attitude 
+# (pitch/roll).
 # 
 # The default value was established with IWISE profiles 004, 005, 045
 # and 049, which all show considerabe tilt-related discrepancies between
@@ -177,56 +181,64 @@ $outGrid_lastBin  = 999;
 &antsFloatOpt(\$opt_t,12);
 
 
-# max err vel
+# The following sets the default error velocity limit; measurements 
+# with error velocities below this limit are discarded.
 
 &antsFloatOpt(\$opt_e,0.1);
 
 
-# truncate farthest valid velocities
+# The following variable allows editing the velocities farthest
+# from the transducer. It defines how many velocities are to be
+# removed from each ensemble. 
 
 $truncate_farthest_valid_bins = 0;
 
 
-# discard velocities from chosen beam (1-4)
+# The following variable allows editing all data from a given
+# beam. Set to 1-4 to enable.
 
 $bad_beam = 0;
 
 
-# max LADCP gap length in seconds
+# The following sets the maximum gap length in the w time series that
+# is simply ignored.
 
 &antsFloatOpt(\$opt_g,60);
 
 
-# max allowed vertical velocity in m/s
+# The following variable sets the max allowed vertical ocean velocity 
+# in m/s. Measurements with |w| this limit are discarded.
 
 $w_max_lim = 1;
 
 
-# in each ensemble, vertical velocities differing more than this
-# parameter times mean absolute deviation from median, are considered 
-# outliers and removed
+# In each ensemble, vertical velocities differing more than this
+# parameter times the mean absolute deviation from the median, are 
+# considered outliers and removed.
 
 $per_ens_outliers_mad_limit = 2;
 
 
-# data from bins with less valid velocities than the following parameter
-# are considered bad and removed
+# Data from bins with less valid velocities than the following parameter
+# are considered bad and removed. It is not clear whether this really
+# makes sense, but this editing is likely safe because it only affects
+# ensebles with the largest ranges.
 
 $per_bin_valid_frac_lim = 0.15;
 
 
-# ensembles when instrument is shallower than 
-# $surface_layer_depth in meters are removed.
-# possible contamination: ship's hull, thrusters, bubble clouds
-# Inspired by 2011_IWISE station 8
+# All ensembles recorded when the CTD is shallower than 
+# the following parameter (depth in meters) are discarded.
+# Possible contamination: ship's hull, thrusters, bubble clouds
+# Inspired by 2011_IWISE station 8.
 
 $surface_layer_depth = 25;
 
 
-# PPI editing as described in [edit_data.pl]
+# Previous Ping Interference editing as described in [edit_data.pl]
 #	- enabled by default for WH150 data
-#	- variable sets an expression, to be evaluated once the data 
-#	  have been loaded
+#	- the variable defines a string with a perl expression, which is
+#	  evaluated once the data are loaded
 #	- 2014 CLIVAR P16 #47 has a slight discontinuity at 4000m; this
 #	  discontinuity is there without PPI filtering but gets slightly
 #	  worse with PPI filtering. Setting $PPI_extend_upper_limit to 
@@ -239,23 +251,21 @@ $surface_layer_depth = 25;
 
 $PPI_editing_required = '($LADCP{BEAM_FREQUENCY} < 300)';
 
-# arbitrarily increase calculated max dist from seabed by 3%
-
-#$PPI_extend_upper_limit = 1.03;		
+#$PPI_extend_upper_limit = 1.03;		# see comments above
 
 
 # The following variables control the "non-obvious" sidelobe editing for
 # contamination from the seabed for the UL and from the sea surface for the
 # DL. Tests with DoMORE-2 data (WH150 DL, WH300 UL) strongly suggest that
 # it is not necessary to edit DL data for surface contamination. However,
-# at least for that instrument combination, UL contamination from the
+# at least for that instrument combination, UL (WH300) contamination from the
 # seabed should clearly be removed.
 
 $sidelobe_editing_DL_surface	= 0;
 $sidelobe_editing_UL_seabed		= 1;
 
 # The following variable sets the depth for sidelobe contamination
-# from the surface.
+# from the surface. 
 
 $vessel_draft					= 6;		# in meters
 
@@ -264,34 +274,42 @@ $vessel_draft					= 6;		# in meters
 # Time Lagging
 #======================================================================
 
-# externally supplied lag initial guess
+# The -i option allows defining an initial guess for the time lag between
+# the LADCP and the CTD data.
 
 # $opt_i = 567;
 
 
-# reference layer bins for w for time matching
+# The following variables define the bins used to calculate the reference-
+# layer velocities used for time lagging.
 
 ($refLr_firstBin,$refLr_lastBin) = (2,6);
 
 
-# number of time lags during each of 2 lagging steps
+# The -n option defines the number of windows used to calculate
+# the optimal time lag. There's one value for each time-lagging step.
 
 $opt_n = '10,100' unless defined($opt_n);
 
 
-# time lag search window widths for each of 2 lagging steps
-#	- full width in seconds
+# The -w option defines the width of the window (in seconds) used
+# to calculate the optimal time lag. There's one value for each 
+# time-lagging step.
 
 $opt_w = '240,20' unless defined($opt_w);
 
 
-# if top 3 lags have spread greater than $TL_max_allowed_three_lag_spread
+# The following parameters control whether the top three time lags 
+# are accepted or not.
+# If the top 3 lags have spread greater than $TL_max_allowed_three_lag_spread
 # (in CTD scans) they must account for at least $TL_required_timelag_top_three_fraction
-# or there is an error
+# or an error is generated.
+# Notes:
 #	- $TL_max_allowed_three_lag_spread default was initially set to 2 but found to be 
 #	  violated quite often during 2011_IWISE
 # 	- large spread may indicate dropped CTD scans
-# 	- the optimum value of $TL_max_allowed_three_lag_spread may be cast-duration dependent
+# 	- the optimum value of $TL_max_allowed_three_lag_spread may be 
+#	  cast-duration dependent
 
 $TL_max_allowed_three_lag_spread = 3;
 &antsFloatOpt(\$opt_3,0.6);
@@ -319,7 +337,7 @@ $SS_use_BT = 0;
 
 
 # The following variable defines the minimum Sv signal in a bin (max - min)
-# required for reliable seabed detection. A limiting value of 40dB is
+# required for reliable seabed detection FROM ECHO AMPLITUDES. A limit of 40dB is
 # indicated based on GoM#13, where the seabed is only visible in the last 
 # bin (#25). 30dB is chosen as the default to allow for variability. 
 # This value may need to be changed for data not collected with WH300
@@ -331,9 +349,9 @@ $SS_use_BT = 0;
 $SS_min_signal = 30;
 
 
-# Require at minimum nubmer of valid samples for seabed detection. Each
-# sample is a bin with a clear seabed maximum. With a proper setting
-# of $SS_min_signal, the algorithm is stable even with only a single
+# Require at minimum nubmer of valid samples for seabed detection FROM ECHO
+# AMPLITUDES. Each sample is a bin with a clear seabed maximum. With a proper 
+# setting of $SS_min_signal, the algorithm is stable even with only a single
 # sample (GoM#13). However, a default of 3 required samples is chosen
 # to make seabed detection less sensitive to $SS_min_signal. 
 # This parameter is only used when $SS_use_BT == 0.
@@ -342,15 +360,16 @@ $SS_min_samp = 3;
 
 
 # The following numbers define the valid range of height-above bottom
-# for seabed detection. For data collected with WH300 instruments and
-# 8m bins, the maximum range needs to be greater than 250m (based on 
-# GoM#13).
+# for seabed detection FROM ECHO AMPLITUDE. For data collected with WH300 
+# instruments and 8m bins, the maximum range needs to be greater than 250m 
+# (based on # GoM#13).
 
 $SS_min_allowed_range = 0;
 $SS_max_allowed_range = 350;
 
 
-# Number of ensembles around bottom to search. Only used with $SS_use_BT == 1.
+# Number of ensembles around bottom to search sabed IN BT DATA. 
+# Only used with $SS_use_BT == 1.
 
 $SS_search_window_halfwidth = 200;	 
 
@@ -436,11 +455,13 @@ $out_log = "$log_subdir/$out_basename.log";
 #	*_correlation.ps	correlation time-depth plot
 #----------------------------------------------------------------------
 
-@out_wsamp = ("plot_residuals($plot_subdir/${out_basename}_residuals.ps)",
-		      "plot_backscatter($plot_subdir/${out_basename}_backscatter.ps)",
-#		  	  "plot_correlation($plot_subdir/${out_basename}_correlation.ps)",
-		  	  "plot_wsamp($plot_subdir/${out_basename}_wsamp.ps)",
-		  	  "$data_subdir/$out_basename.wsamp");
+push(@out_wsamp,"$data_subdir/$out_basename.wsamp");
+
+push(@out_wsamp,"plot_residuals($plot_subdir/${out_basename}_residuals.ps)");
+push(@out_wsamp,"plot_backscatter($plot_subdir/${out_basename}_backscatter.ps)");
+push(@out_wsamp,"plot_wsamp($plot_subdir/${out_basename}_wsamp.ps)");
+
+#push(@out_wsamp,"plot_correlation($plot_subdir/${out_basename}_correlation.ps)");
 
 
 #----------------------------------------------------------------------

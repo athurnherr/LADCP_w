@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Thu Jun 18 13:04:26 2015
+#                    dlm: Tue Jan 26 19:24:42 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 27 82 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 171 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -25,6 +25,7 @@
 #	Apr 21, 2015: - added debug statements
 #	May 14, 2015: - BUG: code did not work for partial-depth casts
 #	Jun 18, 2015: - removed assertion marked by ##???, which bombed on P16N1#41 DL
+#	Jan 26, 2016: - adeed %PARAMs
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -96,9 +97,6 @@ sub calc_backscatter_profs($$)
 			my($range_to_bin) = abs($bd[$bin] - $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH})
 									/ cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}))
 									/ $cosBeamAngle;
-#			next
-#				if ($range_to_bin < $SS_min_allowed_range ||
-#					$range_to_bin > $SS_max_allowed_range);
 			my($temp) = defined($CTD_temp)
 					  ? $CTD{TEMP}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]
 					  : $LADCP{ENSEMBLE}[$ens]->{TEMPERATURE};
@@ -144,6 +142,8 @@ sub correct_backscatter($$)
 	my($bin) = $LADCP_firstBin-1;
 	my(@refSvProf,@refSvSamp,$depth,$i);
 
+	&antsAddParams('Sv_ref_bin',$Sv_ref_bin);
+
 RETRY:
 	for ($depth=0; $depth<@nSv; $depth++) {						# create reference profile
 		next unless ($nSv[$depth][$Sv_ref_bin-1] > 0);
@@ -167,11 +167,6 @@ RETRY:
 		$refSvSamp[$i] = $refSvSamp[$i+1];
 	}
 	info("\tusing bin %d as reference\n",$Sv_ref_bin);
-
-#	for ($i=0; $i<@refSvProf; $i++) {
-#		print(STDERR "$i $refSvProf[$i] $refSvSamp[$i]\n");
-#	}
-#	die;
 
 	my(@dSvProf);												# create profiles for all bins
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {	
@@ -230,6 +225,9 @@ sub find_backscatter_seabed($)
 	my($search_below) = int($_[0]);										# grid index to begin search
 	my(@wdepth,@Sv_rng);												# list of water_depth indices
 
+	&antsAddParams('SS_min_signal',$SS_min_signal,'SS_min_samp',$SS_min_samp,
+				   'SS_max_allowed_depth_range',$SS_max_allowed_depth_range);
+				   
 	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) { 	# find backscatter min/max below $search_below in each bin
 		my($minSv,$maxSv,$depthmaxSv,$lastvalid) = (1e99,-1e99,-1,-1);
 		for (my($depth)=$search_below; $depth<@nSv; $depth++) {

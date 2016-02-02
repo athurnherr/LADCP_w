@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W S A M P . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Mon Oct 12 13:37:27 2015
+#                    dlm: Tue Jan 26 20:46:47 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 13 53 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 22 31 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -11,12 +11,15 @@
 #	Jul 30, 2015: - added support for outGrid_*
 #	Sep 21, 2015: - BUG: function was still called plot_w()
 #	Oct 12, 2015: - move main label outside plot area
+#   Jan 26, 2016: - added return on no data to plot
 
 require "$ANTS/libGMT.pl";
 
 sub plot_wsamp($)
 {
 	my($pfn) = @_;
+
+	return unless ($P{max_depth});
 
 	my($xmin) = $P{min_ens}-0.5;
 	my($xmax) = $P{max_ens}+0.5;

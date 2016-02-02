@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Wed Jul 29 14:43:08 2015
+#                    dlm: Tue Jan 26 15:04:54 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 272 59 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 68 33 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -60,6 +60,12 @@
 #	May 15, 2015: - fiddled with assertions
 #	Jun 19, 2015: - disabled L2 warning on partial-depth time-lagging failures
 #	Jul 29, 2015: - support for new plotting system
+#	Jan 22, 2016: - started adding support for timelag-filtering
+#	Jan 23, 2016: - continued
+#	Jan 24, 2016: - made it work
+#				  - BUG: time-lag plot was not produced when final lag piece had problems
+#	Jan 25, 2016: - search-radius-doubling heuristic had typo
+#				  - added %PARAMs
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -127,16 +133,20 @@ sub bestLag($$$$)								# find best lag in window
 
 { # STATIC SCOPE
 
-local(@elapsed_buf,@so_buf,@mad_buf,@bmo_buf,@te_buf,$elapsed_min_buf);		# available to plot routines
+local(@elapsed_buf,@so_buf,@mad_buf,@bmo_buf,@fg_buf,$lg_buf,$elapsed_min_buf);		# available to plot routines
 
 sub calc_lag($$$$$)
 {
 	my($n_windows,$w_size,$scan_increment,$first_ens,$last_ens) = @_;
 	my($search_radius) = $scan_increment==1 ? 3 : $w_size;
 
+	&antsAddParams('TL_max_allowed_three_lag_spread',$TL_max_allowed_three_lag_spread);
+
 	my($ctmsg);
 	if ($first_ens==$firstGoodEns && $last_ens==$lastGoodEns) 	{ $ctmsg = "full-cast"; }
 	else														{ $ctmsg = "partial-cast"; }
+
+	my($last_lag_piece) = ($last_ens == $lastGoodEns);								# none is following
 
 RETRY:
 	my($failed) = undef;
@@ -160,11 +170,10 @@ RETRY:
 
 	$first_ens = $approx_joint_profile_start_ens
 		if ($first_ens < $approx_joint_profile_start_ens);
-	my($last_lag_piece) = ($last_ens == $lastGoodEns);							# none is following
 	$last_ens = $approx_joint_profile_end_ens
 		if ($last_ens > $approx_joint_profile_end_ens);
 
-	for (my($wi)=0; $wi<$n_windows; $wi++) {
+	for (my($wi)=0; $wi<$n_windows; $wi++) {									# use bestLag() in each window
 		my($fe) = $first_ens + int(($last_ens-$first_ens-$window_ens)*$wi/($n_windows-1)+0.5);
 		die("assertion failed\n\tfe = $fe, first_ens = $first_ens, last_ens = $last_ens, window_ens = $window_ens, firstGoodEns = $firstGoodEns, lastGoodEns = $lastGoodEns")
 			unless ($fe>=$firstGoodEns && $fe+$window_ens<=$lastGoodEns);
@@ -188,7 +197,7 @@ RETRY:
 		$nBest{$lag} = 0;
 	}
 
-	my(@best_lag);
+	my(@best_lag);															# find 3 most popular lags
 	foreach my $lag (keys(%nBest)) {
 		$best_lag[0] = $lag if ($nBest{$lag} > $nBest{$best_lag[0]});
 	}
@@ -200,21 +209,23 @@ RETRY:
 		next if ($lag == $best_lag[0] || $lag == $best_lag[1]);
 		$best_lag[2] = $lag if ($nBest{$lag} > $nBest{$best_lag[2]});
 	}
-	if ($nBest{$best_lag[2]}) {
+	if ($nBest{$best_lag[2]}) {												# there are at least 3 lags
 		progress("\t3 most popular offsets: %d (%d%% %.1fcm/s mad), %d (%d%% %.1fcm/s mad), %d (%d%% %.1fcm/s mad)\n",
 			$best_lag[0],int(($nBest{$best_lag[0]}/$n_valid_windows)*100+0.5),100*$madBest{$best_lag[0]},
 			$best_lag[1],int(($nBest{$best_lag[1]}/$n_valid_windows)*100+0.5),100*$madBest{$best_lag[1]},
 	        $best_lag[2],int(($nBest{$best_lag[2]}/$n_valid_windows)*100+0.5),100*$madBest{$best_lag[2]});
-	} elsif ($nBest{$best_lag[1]}) {
+	} elsif ($nBest{$best_lag[1]}) {										# there are only 2 lags
 		progress("\toffsets: %d (%d%% %.1fcm/s mad), %d (%d%% %.1fcm/s mad)\n",
 			$best_lag[0],int(($nBest{$best_lag[0]}/$n_valid_windows)*100+0.5),100*$madBest{$best_lag[0]},
 			$best_lag[1],int(($nBest{$best_lag[1]}/$n_valid_windows)*100+0.5),100*$madBest{$best_lag[1]});
-	} else {
+	} else {																# there is only 1 lag
 		progress("\toffset: %d (%d%% %.1fcm/s mad)\n",
 			$best_lag[0],int(($nBest{$best_lag[0]}/$n_valid_windows)*100+0.5),100*$madBest{$best_lag[0]});
 	}
 
-	unless ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]} >= $opt_3*$n_valid_windows) {
+																			
+	unless ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]}	# require quorum
+				>= $opt_3*$n_valid_windows) {
 		if (max(@best_lag)-min(@best_lag) > $TL_max_allowed_three_lag_spread) {
 			warning(2,"$0: cannot determine a valid $ctmsg lag; top 3 tags account for %d%% of total (use -3 to relax criterion)\n",
 				int(100*($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]})/$n_valid_windows+0.5))
@@ -226,16 +237,15 @@ RETRY:
 		}
 	}
 
-	my($bmo) = $best_lag[0];
-
-	if ($bmo > 0.9*$search_radius/2/$CTD{DT}) {
+	my($bmo) = $best_lag[0];												# best mean offset
+	if ($bmo > 0.9*$search_radius/2/$CTD{DT}) { 							# cannot be near edge of window
 		if ($search_radius == $w_size) {
 			warning(0,"lag too close to edge of search --- trying again after shifting the initial offset\n");
 			$CTD{TIME_LAG} += $search_radius/2;
 		} else {
 			warning(0,"lag too close to edge of search --- trying again after doubling the search radius\n");
 			$search_radius *= 2;
-			$search_radius =- $w_size if ($search_radius > $w_size);
+			$search_radius = $w_size if ($search_radius > $w_size);
 		}
 		undef(%nBest); undef(%madBest); undef(@best_lag);
 		goto RETRY;
@@ -247,28 +257,123 @@ RETRY:
 		} else {
 			warning(0,"lag too close to edge of search --- trying again after doubling the search radius\n");
 			$search_radius *= 2;
-			$search_radius =- $w_size if ($search_radius > $w_size);
+			$search_radius = $w_size if ($search_radius > $w_size);
 		}
 		undef(%nBest); undef(%madBest); undef(@best_lag);
 		goto RETRY;
+    }
+
+	#----------------------------------------------------
+	# Here, either $failed is set, or we have a valid lag.
+	# If we have a valid lag, a continuous range of good 
+	# lags is determined using a finite-state machine.
+	# 	state == 0		no good run found yet
+	# 	state == 1		good run found, $fg is set
+	# A good run is at least $min_runlength long,
+	# and every $scan_runlength-long sequence contains at
+	# least $min_good scan offsets that
+	# agree with the median offset within +/- $good_diff.
+	#----------------------------------------------------
+
+	my(@fg,@lg);
+	my($min_runlength) = 7; my($scan_runlength) = 7; my($min_good) = 4; my($good_diff) = 2;
+	unless ($failed || $scan_increment>1) {
+		my($state) = 0; 
+		for (my($i)=0; 1; $i++) {
+#			printf(STDERR "$i: state = $state\n");
+			if ($state == 0) {
+				last if ($i >= @elapsed-$scan_runlength);
+				my($ngood) = 0;
+				for (my($j)=0; $j<$scan_runlength; $j++) {
+					$ngood += (abs($bmo-$so[$i+$j]) <= $good_diff);
+				}
+#				printf(STDERR "$i: ngood = $ngood\n");
+				if ($ngood >= $min_good) {							# we want at least 3 out of 5
+					$state = 1;
+					if ($i == 0) {									# run begins at start
+						push(@fg,0);
+					} else {										# run begins at first matching offset
+						my($fg);
+						for (my($j)=0; $j<$scan_runlength; $j++) {
+							$fg = $i+$scan_runlength-1-$j
+								if (abs($bmo-$so[$i+$scan_runlength-1-$j]) <= $good_diff);
+						}
+						push(@fg,$fg);
+					}
+				}
+			} elsif ($state == 1) {									# growing run
+				die("assertion failed (i = $i)")
+					if ($i > @elapsed-$scan_runlength);
+				if ($i == @elapsed-$scan_runlength) {				# run extends to end
+					push(@lg,$#elapsed);
+					last;
+				}
+				my($ngood) = 0;
+				for (my($j)=0; $j<$scan_runlength; $j++) {
+					$ngood += (abs($bmo-$so[$i+$j]) <= $good_diff);
+				}
+#				printf(STDERR "$i: ngood = $ngood\n");
+				if ($ngood < $min_good) {							# run ended
+					my($lg);
+					for (my($j)=0; $j<$scan_runlength; $j++) {
+						$lg = $i if (abs($bmo-$so[$i+$j]) <= 1);
+					}
+					push(@lg,$lg);
+					$state = 0;
+				}
+			} # if state == 1
+		} # for i
+#		printf(STDERR "%d runs found\n",scalar(@lg));
+	} # unless $failed || scan_increment > 1
+
+	#--------------------------------------------------
+	# Filter LADCP data for measurements during times
+	# of uncertain time lags
+	#--------------------------------------------------
+
+	if ($scan_increment == 1) {
+		progress("\tEditing data with unknown time-lags...\n");
+		my(@elim);
+#		print(STDERR "fg = @fg; lg = @lg\n");
+		for (my($i)=0; $i<@fg; $i++) {
+			next if ($lg[$i]-$fg[$i] < $min_runlength);
+			push(@elim,($fg[$i] == 0) ? $elapsed[$first_ens] : $elapsed[$fg[$i]],
+					   ($lg[$i] == $n_windows-1) ? $elapsed[$last_ens] : $elapsed[$lg[$i]]);
+		}
+#		print(STDERR "elim = @elim\n");
+		$nerm = $failed
+			  ? editBadTimeLagging($first_ens,$last_ens,-1)
+			  : editBadTimeLagging($first_ens,$last_ens,@elim);
+	    progress("\t\t$nerm ensembles removed (%d%% of total), leaving %d run\n",round(100*$nerm/($last_ens-$first_ens+1)),scalar(@elim)/2);
 	}
+
+	#------------------------------------------------------
+	# Produce plot on fine-grained time-lagging
+	#	- accumulate data into plot buffer
+	#	- on last lag piece (usually upcast), plot is drawn
+	#------------------------------------------------------
 
 	if (@out_TL && $scan_increment==1) {
 		push(@elapsed_buf,@elapsed);								# buffer elapsed data in static scope
 		push(@so_buf,@so);											# scan offset
 		push(@mad_buf,@mad);										# mean absolute deviation
-		push(@bmo_buf,$bmo);										# best median offset
-		push(@te_buf,$elapsed[$#elapsed]);							# to elapsed (from elapsed to elapsed, capisc?)
+
+		for (my($i)=0; $i<@fg; $i++) {
+			next if ($lg[$i]-$fg[$i] < $min_runlength);
+			push(@bmo_buf,$bmo);									# best median offset (copy for each run)
+			push(@fg_buf,$elapsed[$fg[$i]]);						# first good so in lag-piece
+			push(@lg_buf,$elapsed[$lg[$i]]);						# last good so in lag-piece
+		}
 		$elapsed_min_buf = $elapsed[0]								# min of valid elapsed (for plotting)
 			unless defined($elapsed_min_buf);
 
-		if ($last_lag_piece) {										# output all data
-			progress("\tWriting time-lagging time series to ");
+		if ($last_lag_piece) {										
+			progress("\tWriting time-lagging time series to ");		# output all data
 			my($saveParams) = $antsCurParams;
 			@antsNewLayout = ('elapsed.LADCP','scan_offset','mad','downcast');
 	
 			&antsAddParams('best_scan_offsets',"@bmo_buf");
-			&antsAddParams('to_elapsed_limits',"@te_buf");
+#			&antsAddParams('to_elapsed_limits',"@te_buf");
 			&antsAddParams('elapsed.min',$elapsed_min_buf);
 			&antsAddParams('elapsed.max',$elapsed_buf[$#elapsed_buf]);
 			&antsAddParams('elapsed.bot',$LADCP{ENSEMBLE}[$LADCP_atbottom]->{ELAPSED});

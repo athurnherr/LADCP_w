@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Tue Dec 29 11:04:23 2015
+#                    dlm: Mon Jan 25 09:31:12 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 43 58 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 44 49 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -40,7 +40,8 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #	Nov 30, 2015: - BUG: -a was not allowed in usage
 #				  - added -f
 #	Dec 27, 2015: - reduced minlim for eps to 1e-13 W/kg
-#	Dec 29, 2015: - added 3rd consistency check (p0 limit) 
+#	Dec 29, 2015: - added 3rd consistency check (p0 limit)
+#	Jan 25, 2016: - added software version %PARAM
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -51,6 +52,7 @@ require "$WCALC/version.pl";
 require "$ANTSLIB/ants.pl";
 require "$ANTSLIB/libLADCP.pl";
 require "$ANTSLIB/libGMT.pl";
+&antsAddParams('LADCP_VKE',"Version $VERSION");
 
 use FileHandle;
 use IPC::Open2;

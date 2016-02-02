@@ -1,9 +1,9 @@
 #======================================================================
 #                    F I N D _ S E A B E D . P L 
 #                    doc: Sun May 23 20:26:11 2010
-#                    dlm: Wed Oct 19 14:25:27 2011
+#                    dlm: Tue Jan 26 15:22:26 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 15 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 16 33 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,7 @@
 #				  - increased z_offset from 10km to 15km
 #	Oct 19, 2011: - added $SS_max_allowed_range
 #				  - renamed $SS_min_allowed_hab to *_range
+#	Jan 26, 2016: - added %PARAMs
 
 # NOTES:
 #	1) BT range is corrected for sound speed at the transducer. This is not
@@ -35,6 +36,11 @@ sub find_seabed($$$)
 	my($d,$be,$beamCoords) = @_;
 	my($i,$dd,$sd,$nd);
 	my(@guesses);
+
+	&antsAddParams('SS_min_allowed_range',$SS_min_allowed_range,
+				   'SS_max_allowed_range',$SS_max_allowed_range,
+				   'SS_search_window_halfwidth',$SS_search_window_halfwidth,
+				   'SS_max_allowed_depth_range',$SS_max_allowed_depth_range);
 
 	return undef unless ($be-$SS_search_window_halfwidth >= 0 &&
 						 $be+$SS_search_window_halfwidth <= $#{$d->{ENSEMBLE}});

@@ -1,19 +1,22 @@
 #======================================================================
 #                    P L O T _ T I M E _ L A G S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed Jul 29 14:47:57 2015
+#                    dlm: Tue Jan 26 20:14:53 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 39 30 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 19 38 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 29, 2015: - created from [LWplot_TL]
+#   Jan 26, 2016: - added return on no data to plot
 
 require "$ANTS/libGMT.pl";
 
 sub plot_time_lags($)
 {
 	my($pfn) = @_;
+
+	return unless ($P{'elapsed.min'});
 
 	my($xmin) = $P{'elapsed.min'}/60;
 	my($xmax) = $P{'elapsed.max'}/60;
@@ -34,13 +37,11 @@ sub plot_time_lags($)
 			printf(GMT "%f %f\n",$elapsed_buf[$wi]/60,$so_buf[$wi]);
         }
 
-	my($fel) = $P{min_elapsed};									# from-elapsed limit
 	GMT_psxy('-W4/grey20 -M');
 	for (my($i)=0; $i<@bmo_buf; $i++) {
 		printf(GMT ">\n%f %f\n%f %f\n",
-			$fel/60,		 $bmo_buf[$i],
-			$te_buf[$i]/60+1,$bmo_buf[$i]);
-			$fel = $te_buf[$i];
+			$fg_buf[$i]/60-0.5,$bmo_buf[$i],
+			$lg_buf[$i]/60+0.5,$bmo_buf[$i]);
 	}
 
 	GMT_unitcoords();																	# LABELS

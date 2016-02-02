@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Mon Jan  4 10:57:43 2016
+                    dlm: Sun Jan 24 13:47:15 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 30 59 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 39 40 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -28,3 +28,12 @@ V1.1:
 	Jan  4, 2016:
 		- decreased default vertical resolution to 20m [defaults.pl] [LADCP_w_ocean]
 		- removed beta from version [version.pl] [.hg/hgrc]
+
+V1.2:
+	Jan  5, 2016: V1.2beta
+		- updated [version.pl]
+		- added support for [ADCP_tools_lib.pl]: [version.pl] [LADCP_w_ocean]
+	Jan 24, 2016:
+		- added QC for mean residuals
+		- added QC for dual-head wprofs
+		- added automatic editing of bad time lagged data

@@ -1,21 +1,24 @@
 #======================================================================
 #                    P L O T _ R E S I D U A L S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Thu Jul 30 09:52:39 2015
+#                    dlm: Tue Jan 26 20:45:58 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 73 59 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 21 31 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 28, 2015: - created from [LWplot_residuals]
 #	Jul 30, 2015: - made it respect outGrid_ selection
 #				  - modified $ens_tics
+#   Jan 26, 2016: - added return on no data to plot
 
 require "$ANTS/libGMT.pl";
 
 sub plot_residuals($)
 {
 	my($pfn) = @_;
+
+	return unless ($P{max_depth});
 
 	my($xmin) = $P{min_ens}-0.5;
 	my($xmax) = $P{max_ens}+0.5;

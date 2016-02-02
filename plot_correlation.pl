@@ -1,19 +1,22 @@
 #======================================================================
 #                    P L O T _ C O R R E L A T I O N . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Thu Jul 30 09:53:49 2015
+#                    dlm: Tue Jan 26 20:46:18 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 57 59 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 19 31 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 28, 2015: - created from [LWplot_corr]
+#   Jan 26, 2016: - added return on no data to plot
 
 require "$ANTS/libGMT.pl";
 
 sub plot_correlation($)
 {
 	my($pfn) = @_;
+
+	return unless ($P{max_depth});
 
 	my($xmin) = $P{min_ens}-0.5;
 	my($xmax) = $P{max_ens}+0.5;

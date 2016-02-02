@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W S P E C 
 #                    doc: Thu Jun 11 12:02:49 2015
-#                    dlm: Tue Oct 13 10:50:38 2015
+#                    dlm: Mon Jan 25 09:33:54 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 21 43 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 39 0 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE window spectra from LADCP profiles';
@@ -19,6 +19,7 @@ $antsSummary = 'calculate VKE window spectra from LADCP profiles';
 #				  - re-added pwrdens.0 to make output consistent with [binpgrams]
 #	Oct 12, 2015: - require ANTSlibs V6.2 for release
 #	Oct 13, 2015: - adapted to [version.pl]
+#   Jan 25, 2016: - added software version %PARAM
 
 ($ANTSBIN) = (`which list` =~ m{^(.*)/[^/]*$});
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -34,6 +35,7 @@ require "$ANTSLIB/lfit.pl";
 require "$ANTSLIB/nrutil.pl";
 require "$ANTSBIN/.lsfit.poly";
 require "$ANTSBIN/.nminterp.linear";
+&antsAddParams('LADCP_wspec',"Version $VERSION");
 
 #----------------------------------------------------------------------
 # Usage

@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon Jan  4 10:54:26 2016
+#                    dlm: Wed Jan 27 20:55:29 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 196 64 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 450 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -194,6 +194,15 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Nov 25, 2015: - made warning disappear on setting $ANTS_TOOLS_AVAILABLE
 #	Nov 27, 2015: - changed RDI_BB_READ.pl to RDI_PD0_IO.pl
 #	Jan  4, 2016: - decreased default vertical resolution to 20m
+#	Jan  5, 2016: - adapted to [ADCP_tools_lib.pl]
+#	Jan 22, 2016: - updated for improved mean_residuals plot
+#				  - added per-bin residual quality check
+#	Jan 25, 2016: - added antsAddParams() with version number
+#	Jan 26, 2016: - added %processing_params, many others
+#				  - expunged -d
+#				  - implemented outGrid_firstBin eq '*' (also lastBin)
+#	Jan 27, 2016: - BUG: outGrid_lastBin eq '*' did not work
+#				  - removed large ref-lr w warning
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -270,8 +279,8 @@ require "$WCALC/acoustic_backscatter.pl";
 require "$WCALC/bottom_tracking.pl";
 require "$ANTS/ants.pl";
 require "$ANTS/libstats.pl";
-require "$ADCP_TOOLS/RDI_PD0_IO.pl";
-require "$ADCP_TOOLS/RDI_Coords.pl";
+require "$ADCP_TOOLS/ADCP_tools_lib.pl";
+&antsAddParams('LADCP_w_ocean',"Version $VERSION");
 
 use IO::Handle;
 
@@ -290,7 +299,6 @@ $antsParseHeader = 0;
 	'[-c)orrelation <min[70]>] [-t)ilt <max[10deg]> [-e)rr-vel <max[0.1m/s]>]',
 	'[-h water <depth|filename>]',
 	'[max LADCP time-series -g)ap <length[60s]>]',
-	'[offset CTD -d)epth <by[0m]>]',
 	'[-i)nitial CTD time offset <guestimate> [-u)se as final]]',
 	'[calculate -n) <lags,lags[10,100]>] [lag -w)indow <sz,sz[240s,20s]>] [lag-p)iece <CTD_elapsed_min|+[,...]>]',
 	'[require top-3) lags to account for <frac[0.6]> of all]',
@@ -328,23 +336,41 @@ $antsParseHeader = 0;
 #-----------------------------
 require "$WCALC/defaults.pl";											# load default/option parameters
 do "$processing_param_file";											# load processing parameters
-eval($opt_x) if defined($opt_x);										# eval cmd-line expression to override anything
 
-$RDI_Coords::minValidVels = 4 if ($opt_4);								# decode cmd-line arguments
-($LADCP_firstBin,$LADCP_lastBin) = split(',',$opt_b);
+$processing_options = "-k $opt_k -o $opt_o -c $opt_c -t $opt_t -e $opt_e -g $opt_g -3 $opt_3";
+$processing_options .= "-i $opt_i" if defined($opt_i);
+
+if (defined($opt_x)) {													# eval cmd-line expression to override anything
+	$processing_options .= " -x $opt_x";
+	eval($opt_x);
+}
+
+if ($opt_4) {															# disallow 3-beam solutions
+	$processing_options .= " -4";
+	$RDI_Coords::minValidVels = 4;
+}
+	
+($LADCP_firstBin,$LADCP_lastBin) = split(',',$opt_b);					# select valid bins
 	croak("$0: cannot decode -b $opt_b\n")
     	unless (numberp($LADCP_firstBin) &&
         	    ($LADCP_lastBin eq '*' || numberp($LADCP_lastBin)));
+$processing_options .= " -b $opt_b";
+
+$outGrid_firstBin = $LADCP_firstBin if ($outGrid_firstBin eq '*');		# default bins to use in gridded output
+$outGrid_lastBin  = $LADCP_lastBin  if ($outGrid_lastBin  eq '*');		# NB: can still be '*'!!!
+        	    
 @number_of_timelag_windows = split(',',$opt_n);
 	croak("$0: cannot decode -n $opt_n\n")
 		unless numberp($number_of_timelag_windows[0]) && numberp($number_of_timelag_windows[1]);
+$processing_options .= " -n $opt_n";
 @length_of_timelag_windows = split(',',$opt_w);
 	croak("$0: cannot decode -w $opt_w\n")
 		unless numberp($length_of_timelag_windows[0]) && numberp($length_of_timelag_windows[1]);
-
+$processing_options .= " -w $opt_w";
 
 croak("$0: \$out_basename undefined\n")									# all plotting routines use this
 	unless defined($out_basename);
+&antsAddParams('processing_options',$processing_options);
 &antsAddParams('out_basename',$out_basename);
 &antsAddParams('profile_id',$PROF,'run_label',$RUN);
 
@@ -419,15 +445,17 @@ error("$0: last reference-layer bin outside valid range\n")
 	unless ($refLr_lastBin>=1 && $refLr_lastBin<=$LADCP{N_BINS});
 error("$0: first reference-layer bin > last reference-layer bin\n")
 	unless ($refLr_firstBin <= $refLr_lastBin);
+&antsAddParams('refLr_firstBin',$refLr_firstBin,'refLr_lastBin',$refLr_lastBin);	
 
-$LADCP_lastBin = $LADCP{N_BINS}
-	if ($LADCP_lastBin eq '*');
+$LADCP_lastBin 	 = $LADCP{N_BINS} if ($LADCP_lastBin eq '*');
+$outGrid_lastBin = $LADCP{N_BINS} if ($outGrid_lastBin eq '*');
 error("$0: first valid LADCP bin outside valid range\n")
 	unless ($LADCP_firstBin>=1 && $LADCP_firstBin<=$LADCP{N_BINS});
 error("$0: last valid LADCP bin outside valid range\n")
 	unless ($LADCP_lastBin>=1 && $LADCP_lastBin<=$LADCP{N_BINS});
 error("$0: first valid LADCP bin > last valid LADCP bin\n")
 	unless ($LADCP_firstBin <= $LADCP_lastBin);
+&antsAddParams('LADCP_firstBin',$LADCP_firstBin,'LADCP_lastBin',$LADCP_lastBin);
 
 warning(0,"first reference-layer bin < first valid LADCP bin\n")
 	unless ($refLr_firstBin >= $LADCP_firstBin);
@@ -478,11 +506,18 @@ if ($LADCP{BEAM_COORDINATES}) {
 	}
 
 	$nvv = $cte = 0;
+
+	if ($pitch_bias || $roll_bias || $heading_bias) {
+		&antsAddParams('pitch_bias',$pitch_bias,
+					   'roll_bias',$roll_bias,
+					   'heading_bias',$heading_bias);
+		for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
+			correctAttitude($ens,$pitch_bias,$roll_bias,$heading_bias);
+		}
+	}
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
-		correctAttitude($ens,$pitch_bias,$roll_bias,$heading_bias);
 		$nvv += countValidBeamVels($ens);
 		$cte += editCorr($ens,$opt_c);
-#		$pte += editTilt($ens,$opt_t);
 	}
 	error("$LADCP_file: no valid data\n") unless ($nvv > 0);
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$opt_c,$cte,round(100*$cte/$nvv));
@@ -495,7 +530,6 @@ if ($LADCP{BEAM_COORDINATES}) {
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
 		$nvv += countValidBeamVels($ens);
 		$cte += editCorr_Earthcoords($ens,$opt_c);
-#		$pte += editTilt($ens,$opt_t);
 	}
 	error("$LADCP_file: no valid data\n") unless ($nvv > 0);
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$opt_c,$cte,round(100*$cte/$nvv));
@@ -515,8 +549,10 @@ if ($LADCP{BEAM_COORDINATES}) {
 if ($LADCP{BEAM_COORDINATES}) {
 	my($dummy);
 	progress("Calculating earth-coordinate velocities...\n");
-	progress("\tdiscarding velocities from beam $bad_beam\n")
-		if ($bad_beam);
+	if ($bad_beam) {
+		progress("\tdiscarding velocities from beam $bad_beam\n");
+		&antsAddParams('bad_beam_discarded',$bad_beam);
+	}
 	$nvw = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
@@ -586,11 +622,14 @@ error("$LADCP_file: insufficient valid velocities\n") unless ($nvw >= $min_valid
 
 progress("Editing earth-coordinate velocity data...\n");
 
+&antsAddParams('per_ens_outliers_mad_limit',$per_ens_outliers_mad_limit)
+&antsAddParams('farthest_valid_bins_truncated',$truncate_farthest_valid_bins)
+	if ($truncate_farthest_valid_bins);
 $evrm = $trrm = $worm = 0;
 for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
 	$evrm += editErrVel($ens,$opt_e);
 	$worm += editWOutliers($ens,$per_ens_outliers_mad_limit);
-	$trrm += editTruncRange($ens,$truncate_farthest_valid_bins) if ($truncate_farthest_valid_bins > 0);
+	$trrm += editTruncRange($ens,$truncate_farthest_valid_bins) if ($truncate_farthest_valid_bins);
 }
 progress("\terror-velocity threshold (-e %.2f m/s): %d velocites removed (%d%% of total in bins $LADCP_firstBin-$LADCP_lastBin)\n",
 	$opt_e,$evrm,round(100*$evrm/$nvw));
@@ -676,6 +715,7 @@ error("deepest depth is at end of cast (no upcast data)\n")
 #----------------------------------------------------------------------
 
 progress("Editing additional earth-coordinate velocity data...\n");
+&antsAddParams('per_bin_valid_frac_lim',$per_bin_valid_frac_lim);
 
 my($first_bad_bin);
 for (my($bin)=$LADCP_firstBin-1; $bin<$LADCP_lastBin-1; $bin++) {
@@ -738,14 +778,6 @@ for (my($s)=1; $s<@{$CTD{ELAPSED}}-1; $s++) {								# centered differences for 
 
 error("$0: CTD start depth must be numeric\n")
 	unless numberp($CTD{DEPTH}[0]);
-if (($CTD{DEPTH}[0] < -$opt_d) && !defined($opt_d)) {
-	$opt_d = -1 * round($CTD{DEPTH}[0]);
-}
-if ($opt_d > 0) {
-	progress("\tadding $opt_d dbar offset to pressure data\n");
-	for (my($i)=0; $i<@{$CTD{DEPTH}}; $i++) { $CTD{DEPTH}[$i] += $opt_d; }
-	$CTD_maxdepth += $opt_d;
-}
 
 progress("\tstart depth = %.1fm\n",$CTD{DEPTH}[0]);
 progress("\tmax depth   = %dm (# $CTD_atbottom)\n",$CTD_maxdepth);
@@ -880,6 +912,8 @@ undef($CTD{TIME_LAG}); 														# to avoid confusion, clear old 1Hz-based l
 
 progress("Merging CTD with LADCP data...\n");
 
+&antsAddParams('w_max_lim',$w_max_lim);
+
 my($cli) = 0;																	# current-lag index
 my($lag) = $CTD_time_lag[$cli];													# current lag
 
@@ -946,10 +980,11 @@ if ($nWsq > 0 && $nWsqI > 0) {
 	&antsAddParams('rms_w_reflr_err',sqrt($sumWsq/$nWsq),'rms_w_reflr_err_interior',sqrt($sumWsqI/$nWsqI));
 	progress("\t%.2f cm/s rms reference-layer w_ocean, %.2f cm/s away from boundaries\n",
 						100*sqrt($sumWsq/$nWsq),100*sqrt($sumWsqI/$nWsqI));
-	if (sqrt($sumWsqI/$nWsqI) > 0.05) {
-		warning(1,"%.2f cm/s (large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
-	} elsif (sqrt($sumWsqI/$nWsqI) > 0.1) {
-		warning(2,"%.2f cm/s (very large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
+#	if (sqrt($sumWsqI/$nWsqI) > 0.05) {
+#		warning(0,"%.2f cm/s (large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
+#	} els
+	if (sqrt($sumWsqI/$nWsqI) > 0.15) {
+		warning(2,"%.2f cm/s (implausibly large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
 	}
 } elsif ($nWsq > 0) {
 	&antsAddParams('rms_w_reflr_err',sqrt($sumWsq/$nWsq),'rms_w_reflr_err_interior',nan);
@@ -965,8 +1000,10 @@ if ($nWsq > 0 && $nWsqI > 0) {
 progress("Calculating volume-scattering coefficients (Sv)...\n");
 calc_backscatter_profs($firstGoodEns,$lastGoodEns);
 
-progress("\tapplying empirical Sv correction\n");
-correct_backscatter($firstGoodEns,$lastGoodEns);
+if (@nSv) {
+	progress("\tapplying empirical Sv correction\n");
+	correct_backscatter($firstGoodEns,$lastGoodEns);
+}
 
 #----------------------------------------------------------------------------
 # Find Seabed & Edit data
@@ -999,7 +1036,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && !defined($water_d
 		find_seabed(\%LADCP,$LADCP_atbottom,$LADCP{BEAM_COORDINATES});
 	if (defined($water_depth) && defined($water_depth_BT)) {
 		my($dd) = abs($water_depth_BT - $water_depth);
-		warning(2,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
+		warning(0,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
 			if ($dd > 10);
 	}
 	if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {
@@ -1007,9 +1044,12 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && !defined($water_d
 		$SS_use_BT = 1;
 	}
 	if ($SS_use_BT) {
+		&antsAddParams('water_depth_from','BT_data');
 		$water_depth = $water_depth_BT;
 		$sig_water_depth = $sig_water_depth_BT;
-    }
+    } else {
+		&antsAddParams('water_depth_from','echo_amplitudes');
+	}
 }
 	
 if (defined($water_depth)) {
@@ -1027,7 +1067,6 @@ if (defined($water_depth)) {
 	&antsAddParams('water_depth','unknown','water_depth.sig','nan');
 }
 	
-
 if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {				# DOWNLOOKER
 	&antsAddParams('ADCP_orientation','downlooker');
 
@@ -1040,9 +1079,15 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {				# DOWNLOOKER
 			progress("Editing data to remove sidelobe interference from sea surface...\n");
 			($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,undef);
 	        progress("\t$nvrm velocities from $nerm ensembles removed\n");
+	        &antsAddParams('sidelobe_editing','surface+seabed','vessel_draft',$vessel_draft);
+	    } else {
+	        &antsAddParams('sidelobe_editing','seabed');
 	    }
 
 		if ($PPI_editing) {
+			&antsAddParams('PPI_editing','seabed');
+			&antsAddParams('PPI_extend_upper_limit',$PPI_extend_upper_limit)
+				if numberp($PPI_extend_upper_limit);
 			progress("Editing data to remove PPI from seabed...\n");
 			  progress("\tConstructing depth-average soundspeed profile...\n");
 			  die("assertion failed") unless defined($water_depth);
@@ -1075,9 +1120,14 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {				# DOWNLOOKER
         } else {
 			warning(2,"unknown water depth --- cannot edit UL data for sidelobe interference from seabed\n");
         }
-    }
-
+        &antsAddParams('sidelobe_editing','surface+seabed','vessel_draft',$vessel_draft);
+    } else {
+        &antsAddParams('sidelobe_editing','surface','vessel_draft',$vessel_draft);
+    } 
 	if ($PPI_editing) {
+		&antsAddParams('PPI_editing','surface');
+		&antsAddParams('PPI_extend_upper_limit',$PPI_extend_upper_limit)
+			if numberp($PPI_extend_upper_limit);
 		progress("Editing data to remove PPI from sea surface...\n");
 		  progress("\tConstructing depth-average soundspeed profile...\n");
 		  $DASSprof[0] = my($sum) = 0;
@@ -1098,6 +1148,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {				# DOWNLOOKER
 #----------------------------------------------------------------------
 
 progress("Removing data from instrument at surface...\n");
+&antsAddParams('surface_layer_depth',$surface_layer_depth);
 $nerm = editSurfLayer($firstGoodEns,$lastGoodEns,$surface_layer_depth);
 progress("\t$nerm ensembles removed\n");
 
@@ -1347,9 +1398,9 @@ unless ($opt_q) {
 
 } # unless ($opt_q);
 
-#-------------------------
-# Output Per-Bin Resiudals
-#-------------------------
+#--------------------------------------------
+# Calculate and Output Bin-Averaged Resiudals
+#--------------------------------------------
 
 if (@out_BR) {
 	progress("Binning residuals...");
@@ -1375,14 +1426,49 @@ if (@out_BR) {
 					- $UPCAST{MEDIAN_W}[$bindepth[$bin]/$opt_o]);
 		}
 	}
-	local(@dc_avg_bres,@uc_avg_bres);
-	for (my($bin)=0; $bin<max(scalar(@dc_bres),scalar(@uc_bres)); $bin++) {		# calc means/stddevs
-		$dc_avg_bres[$bin] = avg(@{$dc_bres[$bin]});
-		$uc_avg_bres[$bin] = avg(@{$uc_bres[$bin]});
-		$dc_sig_bres[$bin] = stddev2($dc_avg_bres[$bin],@{$dc_bres[$bin]}),scalar(@{$dc_bres[$bin]});
-		$uc_sig_bres[$bin] = stddev2($uc_avg_bres[$bin],@{$uc_bres[$bin]}),scalar(@{$uc_bres[$bin]});
+	local(@dc_avg_bres,@uc_avg_bres,@dc_avg_bres_nsamp,@uc_avg_bres_nsamp);			# calc means/stddevs
+	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {		
+		$dc_bres_nsamp[$bin] = @{$dc_bres[$bin]};
+		if ($dc_bres_nsamp[$bin] > 0) {
+			$dc_avg_bres[$bin] = avg(@{$dc_bres[$bin]}); 
+			$dc_sig_bres[$bin] = stddev2($dc_avg_bres[$bin],@{$dc_bres[$bin]});
+		} else {
+			$dc_avg_bres[$bin] = nan;
+			$dc_sig_bres[$bin] = nan;
+		}
+		$uc_bres_nsamp[$bin] = @{$uc_bres[$bin]};
+		if ($uc_bres_nsamp[$bin] > 0) {
+			$uc_avg_bres[$bin] = avg(@{$uc_bres[$bin]}); 
+			$uc_sig_bres[$bin] = stddev2($uc_avg_bres[$bin],@{$uc_bres[$bin]});
+		} else {
+			$uc_avg_bres[$bin] = nan;
+			$uc_sig_bres[$bin] = nan;
+		}
 	}
 
+	local($uc_bres_max_nsamp,$dc_bres_max_nsamp) = (0,0);							# calc rms in block of well-determined bins
+	for (my($bin)=$LADCP_firstBin; $bin<=$LADCP_lastBin-1; $bin++) {				# SKIP 1ST BIN!!!
+		next if ($bin+1<$outGrid_firstBin || $bin+1>$outGrid_lastBin);				# skip bins not included in gridded output
+		$dc_bres_max_nsamp = $dc_bres_nsamp[$bin]									# nsamp in best sampled bin
+			if ($dc_bres_nsamp[$bin] > $dc_bres_max_nsamp);
+		$uc_bres_max_nsamp = $uc_bres_nsamp[$bin]
+			if ($uc_bres_nsamp[$bin] > $uc_bres_max_nsamp);
+	}
+	my($dc_sumsq,$uc_sumsq,$dc_n,$uc_n) = (0,0,0,0);								# calc rms residual
+	for (my($bin)=$LADCP_firstBin; $bin<=$LADCP_lastBin-1; $bin++) {				# SKIP 1ST BIN
+		next if ($bin+1<$outGrid_firstBin || $bin+1>$outGrid_lastBin);				# skip bins not included in gridded output
+		if ($dc_bres_nsamp[$bin] >= $dc_bres_max_nsamp/3) {							# skip bins with < 1/3 max(nsamp)
+			$dc_sumsq += $dc_avg_bres[$bin]**2;
+			$dc_n++;
+		}
+		if ($uc_bres_nsamp[$bin] >= $uc_bres_max_nsamp/3) {
+			$uc_sumsq += $uc_avg_bres[$bin]**2;
+			$uc_n++;
+		}
+	}
+	local($dc_bres_rms) = sqrt($dc_sumsq/$dc_n);
+	local($uc_bres_rms) = sqrt($uc_sumsq/$uc_n);
+	
 	progress("\nWriting binned residuals to ");
 
 	my($saveParams) = $antsCurParams;
@@ -1402,8 +1488,8 @@ if (@out_BR) {
 		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 		for (my($bin)=0; $bin<max(scalar(@dc_bres),scalar(@uc_bres)); $bin++) {
-			&antsOut($bin+1,$dc_avg_bres[$bin],$dc_sig_bres[$bin],scalar(@{$dc_bres[$bin]}),
-							$uc_avg_bres[$bin],$uc_sig_bres[$bin],scalar(@{$uc_bres[$bin]}));
+			&antsOut($bin+1,$dc_avg_bres[$bin],$dc_sig_bres[$bin],$dc_bres_nsamp[$bin],
+							$uc_avg_bres[$bin],$uc_sig_bres[$bin],$uc_bres_nsamp[$bin]);
 		}
 	    &antsOut('EOF'); open(STDOUT,">&2");
 	}

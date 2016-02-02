@@ -1,9 +1,9 @@
 #======================================================================
 #                    B O T T O M _ T R A C K I N G . P L 
 #                    doc: Wed Oct 20 21:05:37 2010
-#                    dlm: Tue Mar  4 13:54:15 2014
+#                    dlm: Tue Jan 26 15:25:14 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 15 43 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 16 33 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,7 @@
 #	Oct 24, 2011: - disabled not-very-useful %BT-params
 #	Apr 22, 2013: - replace output_bin_size by opt_o
 #	Mar  4, 2014: - removed old unused code
+#	Jan 26, 2016: - added %PARAMs
 
 # This code is essentially identical to the one used in LADCPproc. Differences:
 #	1) velocity editing is simpler: no wake editing, no PPI editing, no shear
@@ -114,6 +115,10 @@ sub binBTprof($$$)
 sub calc_BTprof($$$$)
 {
 	my($LADCP_start,$LADCP_end,$wd,$sig_wd) = @_;
+
+	&antsAddParams('BT_max_range',$BT_max_range,
+				   'BT_max_bin_range_diff',$BT_max_bin_range_diff,
+				   'BT_max_w_error',$BT_max_w_error);
 
 	for (my($ens)=$LADCP_start; $ens<=$LADCP_end; $ens++) {
 		next unless ($wd-$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH} < $BT_max_range);

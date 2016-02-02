@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Tue Oct 13 10:51:14 2015
+#                    dlm: Mon Jan 25 09:32:32 2016
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 50 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 51 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -47,6 +47,7 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	Oct 12, 2015: - require ANTSlibs V6.2 for release
 #	Oct 13, 2015: - added code to deal with CNV files with wrong number of scans in header
 #   Oct 13, 2015: - adapted to [version.pl]
+#   Jan 25, 2016: - added software version %PARAM
 
 ($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
@@ -58,6 +59,7 @@ require "$ANTS/fft.pl";
 require "$ANTS/libGMT.pl";
 require "$ANTS/libSBE.pl";
 require "$ANTS/libEOS83.pl";
+&antsAddParams('LADCP_w_CTD',"Version $VERSION");
 
 $antsParseHeader = 0;											# usage
 &antsUsage('ai:l:orp:s:v:',1,
