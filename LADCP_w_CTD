@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Mon Jan 25 09:32:32 2016
+#                    dlm: Fri Feb 19 08:01:38 2016
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 51 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 241 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -48,6 +48,10 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	Oct 13, 2015: - added code to deal with CNV files with wrong number of scans in header
 #   Oct 13, 2015: - adapted to [version.pl]
 #   Jan 25, 2016: - added software version %PARAM
+#	Feb 16, 2016: - BUG: %sampling_interval was erroenously called %sampling_frequency
+#	Feb 19, 2016: - improved on-surface data detection (conductivity <= 10mS/cm)
+#				  - BUG: temperatures < 0 were not allowed
+#				  - temperature histogram resolution increased from 1degC to 0.5degC for no good reason
 
 ($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
@@ -169,7 +173,7 @@ sub validRange($)
 	my($guess_bin) = @_;
 	my($min_bin,$max_bin);
 
-	croak("assertion failed") unless ($hist[$guess_bin]);
+	die("assertion failed") unless ($hist[$guess_bin]);
 	for ($max_bin=$guess_bin; $hist[$max_bin]; $max_bin++) { }
 	for ($min_bin=$guess_bin; $hist[$min_bin]; $min_bin--) { }
 	return ($min_bin,$max_bin+1);
@@ -179,12 +183,18 @@ unless ($opt_r) {
 	print(STDERR "Editing Data...") if ($opt_v);
 
 	#----------------------------------------
-	# trim initial records with nan pressures
+	# trim initial records with
+	# 	- nan pressure
+	#	- nan conductivity
+	#	- conductivity <= 10 mS/cm
 	#----------------------------------------
 	my($trimmed) = 0;												# trim leading nan pressures
 	shift(@ants_),$trimmed++
-		until numberp($ants_[0][$pressF]) && numberp($ants_[0][$condF]);
-	printf(STDERR "\n\t%d initial records with nan pressure and/or conductivity trimmed",$trimmed) if ($opt_v > 1);
+		until numberp($ants_[0][$pressF]) &&
+			  numberp($ants_[0][$condF]) &&
+			  (($P{cond.unit} eq 'mS/cm' && $ants_[0][$condF] > 10) ||
+			   ($P{cond.unit} eq 'S/m'   && $ants_[0][$condF] > 1));
+	printf(STDERR "\n\t%d initial at-surface records trimmed",$trimmed) if ($opt_v > 1);
 	my($lvp) = $ants_[0][$pressF];
 	my($lvc) = $ants_[0][$condF];
 	
@@ -227,7 +237,7 @@ unless ($opt_r) {
 		$modeSamp = $hist[$b]; $modeBin = $b;
 	}
 	($min,$max) = validRange($modeBin);
-	$min /= $condHistRes; $max /= $condHistRes; 
+	$min /= $condHistRes; $max /= $condHistRes;
 	for (my($s)=0; $s<$nscans; $s++) {
 		if ($ants_[$s][$condF] > $max) { $outliers++; $ants_[$s][$condF] = nan; }
 		if ($ants_[$s][$condF] < $min) { $outliers++; $ants_[$s][$condF] = nan; }
@@ -241,20 +251,24 @@ unless ($opt_r) {
 	# edit temperature outliers outside contiguous range
 	#	- Stan's NBP0901 profiles require resolution of 1deg
 	#	- otherwise 0.2deg seems to be fine
+	#	- however, on Feb 19, 2016 it was found that the
+	#     resolution had been left at 1degC without any
+	#     apparent adverse effects
 	#----------------------------------------------------
 	$outliers = $modeSamp = 0;
 	undef(@hist);
 	for (my($s)=0; $s<$nscans; $s++) {
-		next unless ($ants_[$s][$tempF] > 0);
-		my($b) = $ants_[$s][$tempF]*1;								# 10th of a degree histogram resolution
+		next unless ($ants_[$s][$tempF] >= -10);
+		my($b) = ($ants_[$s][$tempF] + 10) * 0.5;
 		$hist[$b]++;
 		next unless ($hist[$b] > $modeSamp);
 		$modeSamp = $hist[$b]; $modeBin = $b;
 	}
-	printf(STDERR "\n\ttemperature mode: %.1f degC (%d samples)",$modeBin/10,$modeSamp)
-		if ($opt_v > 1);
+#	printf(STDERR "\n\ttemperature mode: %.1f degC (%d samples)",$modeBin/0.5-10,$modeSamp)
+#		if ($opt_v > 1);
 	($min,$max) = validRange($modeBin);
-	$min /= 1; $max /= 1; 
+	$min = ($min / 0.5) - 10;
+	$max = ($max / 0.5) - 10;
 	for (my($s)=0; $s<$nscans; $s++) {
 		if ($ants_[$s][$tempF] > $max) { $outliers++; $ants_[$s][$tempF] = nan; }
 		if ($ants_[$s][$tempF] < $min) { $outliers++; $ants_[$s][$tempF] = nan; }
@@ -395,8 +409,8 @@ printf(STDERR "\n") if ($opt_v);
 
 my($sps) = round(1 / $sampint / $opt_s);
 print(STDERR "Creating ${opt_s}Hz time series ($sps samples per bin)...") if ($opt_v);
-&antsAddParams('sampling_frequency',1/$opt_s);
-&antsAddParams('sampling_rate',$opt_s);
+&antsAddParams('sampling_interval',1/$opt_s);
+&antsAddParams('sampling_frequency',$opt_s);
 
 my(@press,@temp,@cond);
 my($sp,$np,$st,$nt,$sc,$nc);

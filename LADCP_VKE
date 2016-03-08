@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Mon Jan 25 09:31:12 2016
+#                    dlm: Tue Mar  8 13:53:35 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 44 49 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 195 24 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -42,6 +42,12 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #	Dec 27, 2015: - reduced minlim for eps to 1e-13 W/kg
 #	Dec 29, 2015: - added 3rd consistency check (p0 limit)
 #	Jan 25, 2016: - added software version %PARAM
+#	Mar  7, 2016: - removed unused spectral normalization code
+#				  - added latitude constraint for calculation of eps.w
+#	Mar  8, 2016: - renamed fs_pwr to pwr.fs for consistency
+#				  - renamed eps.w to eps.VKE for consistency
+#				  - changed default output filenames for -d and -u
+#				  - removed ./ from figure label
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -127,12 +133,12 @@ if (defined(fnrNoErr('dc_w'))) {							# pre-process with LADCP_wspec when hande
 
 if (defined($opt_c)) {										# shortwave cutoff supplied
 	$lmin = ($opt_c < 1) ? 2*$PI/$opt_c : $opt_c;
-	&antsAddParams('LADCP_VKE::shortwave_cutoff',2*$PI/$lmin);	# ensure eps.w is calculated below
+	&antsAddParams('LADCP_VKE::shortwave_cutoff',2*$PI/$lmin);	# ensure eps.VKE is calculated below
 } elsif (defined(antsParam('shortwave_cutoff'))) {			# cutoff already applied
 	$lmin = 2*$PI/antsParam('shortwave_cutoff');
 } else {													# use 100m default cutoff
 	$lmin = 100;
-	&antsAddParams('LADCP_VKE::shortwave_cutoff',2*$PI/$lmin);	# ensure eps.w is calculated below
+	&antsAddParams('LADCP_VKE::shortwave_cutoff',2*$PI/$lmin);	# ensure eps.VKE is calculated below
 }
 $lmax = 9e99;												# no longwave cutoff implemented yet
 
@@ -175,9 +181,18 @@ if (-t STDOUT) {
 	croak("$opt_f: not a directory\n") unless (-d $opt_f);
 
 	my($id) = &antsRequireParam('profile_id');
-	$opt_p = sprintf('%s/%03d_VKE.ps',$opt_f,$id)
-		unless defined($opt_p);
-	$outfile = sprintf('%s/%03d.VKE',$opt_f,$id);
+
+	if ($opt_d) {
+		$opt_p = sprintf('%s/%03d_dc_VKE.ps',$opt_f,$id) unless defined($opt_p);
+		$outfile = sprintf('%s/%03d_dc.VKE',$opt_f,$id);
+	} elsif ($opt_u) {
+		$opt_p = sprintf('%s/%03d_uc_VKE.ps',$opt_f,$id) unless defined($opt_p);
+		$outfile = sprintf('%s/%03d_uc.VKE',$opt_f,$id);
+	} else {
+		$opt_p = sprintf('%s/%03d_VKE.ps',$opt_f,$id) unless defined($opt_p);
+		$outfile = sprintf('%s/%03d.VKE',$opt_f,$id);
+	}
+	$outfile =~ s@^./@@;
 	open(STDOUT,">$outfile") || die("$outfile: $!\n");
 } elsif (defined($opt_f)) {
 	croak("-f can only be used without STDOUT redirection\n");
@@ -196,16 +211,6 @@ sub integrate_fs_power($)									# integrate fs spectrum
 		$ants_[$r][$fspwrf] += $ants_[$r][$f];
 	}
 	$ants_[$r][$fspwrf] *= antsParam('resolution_bandwidth');
-}
-
-
-sub normalize_spectral_power($)								# scale pwrdens by p0
-{
-	my($r) = @_;
-	
-	for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
-		$ants_[$r][$f] /= $ants_[$r][$p0f];
-	}
 }
 
 
@@ -254,13 +259,13 @@ sub fit_universal_w_spec($)									# vertical velocity => p0
 # Process File
 #----------------------------------------------------------------------
 
-$fspwrf = &antsNewField('fs_pwr');							# derived fields
+$fspwrf = &antsNewField('pwr.fs');							# derived fields
 
 $p0f	 = &antsNewField('p0');								# VKE parameterization
 $rmsf	 = &antsNewField('p0fit.rms');
 $sampf	 = &antsNewField('p0fit.nsamp');
 $rf      = &antsNewField('p0fit.r');
-$wepsf   = &antsNewField('eps.w');
+$wepsf   = &antsNewField('eps.VKE');
 
 my(@outLayout) = @antsNewLayout;							# save for later
 for ($f=0; $f<@outLayout; $f++) {							# determine last spectral field in input
@@ -288,14 +293,18 @@ my(@sumGoodPwr,@nGoodPwr);
 my($min_depth) =  9e99;
 my($max_depth) = -9e99;
 
-for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
+my($latM) = abs(&antsRequireParam('lat'));
+&antsInfo("WARNING: low latitude-profile no epsilon estimated")
+	unless ($latM > 5);
+
+for (my($r)=0; $r<@ants_; $r++) {													# loop over all windows
 
 	#--------------------------
 	# apply spectral correction
 	#--------------------------
 
 	unless ($opt_m) {
-		for (my($i)=0; $i<$nfreq; $i++) {										# loop over wavenumbers
+		for (my($i)=0; $i<$nfreq; $i++) {											# loop over wavenumbers
 			$ants_[$r][$i+$pg_fmin] *=
 				T_w(antsParam("k.$i"),antsParam('ADCP_bin_length'),
 				    antsParam('ADCP_pulse_length'),antsParam('input_depth_resolution'),
@@ -309,9 +318,9 @@ for (my($r)=0; $r<@ants_; $r++) {							# loop over all windows
 
 	integrate_fs_power($r);														# calculate total finescale power
 	fit_universal_w_spec($r);													# fit kz^-2 spectrum
-#	normalize_spectral_power($r);												# normalize by p0 (even w/o shortwave cutoff)
-																				# consistency checks: 
-	if ($ants_[$r][$rmsf] <= 0.4 &&												#	1) rms from kz fit < 0.4 (as in paper)
+
+	if ($latM > 5 &&															# Tests: 0) not equatorial
+		$ants_[$r][$rmsf] <= 0.4 &&												#	1) rms from kz fit < 0.4 (as in paper)
 		$ants_[$r][$rf] < 0 &&													#	2) raw spectra are red spectrum
 		$ants_[$r][$p0f] > 1e-7) {												#	3) exclude low-p0 tail apparent at eps<2e-10 W/kg
 			$ants_[$r][$wepsf] = ($ants_[$r][$p0f] / $opt_e)**2;

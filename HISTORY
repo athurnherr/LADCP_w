@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Sun Jan 24 13:47:15 2016
+                    dlm: Tue Mar  8 13:57:23 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 39 40 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 41 47 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -37,3 +37,5 @@ V1.2:
 		- added QC for mean residuals
 		- added QC for dual-head wprofs
 		- added automatic editing of bad time lagged data
+	Jan 25 -- Mar 8:
+		- many bug fixes and small improvements

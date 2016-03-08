@@ -2,18 +2,18 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Wed Jan 27 20:55:29 2016
+#                    dlm: Tue Mar  8 14:07:23 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 450 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 215 54 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
+#	! use instrument tilt in sidelobe editing
+#	! worry about water-depth differences (disabled warning) 
 #	- make upcast-flag valid for yoyo casts
 #	- make diagnostic output 3-beam field work for Earth coordinates
-#	- remove water-depth from BT code, which is not really used and a bit of an outlier
+#	? remove water-depth from BT code, which is not really used and a bit of an outlier
 #	  because mean and stddev are used instead of median/mad
-#	- read assumed ADCP soundspeed from data file, instead of assuming 1500m/s
-#	? use instrument tilt in sidelobe editing?
 
 $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 
@@ -203,6 +203,16 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - implemented outGrid_firstBin eq '*' (also lastBin)
 #	Jan 27, 2016: - BUG: outGrid_lastBin eq '*' did not work
 #				  - removed large ref-lr w warning
+#	Feb 14, 2016: - fiddled with ping-coherent residuals code, fixing
+#				    0-2 potential (minor?) bugs related to outGrid_{first,last}Bin;
+#					output of new code checked against old code => identical
+#	Feb 16, 2016: - BUG: per-bin-residual QC could cause division by zero
+#	Feb 19, 2016: - added -l (disable time-lag filtering)
+#	Mar  7, 2016: - added error message when -h is neither number nor file
+#				  - BUG: -ve depth error message referred to obsolete -d
+#				  - BUG: dn field name did not use zero filling for year number
+#	Mar  8, 2016: - removed L0 water-depth-difference warning
+#				  - added test for 1500m/s sound speed
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -291,7 +301,7 @@ my($TINY) = 1e-16;
 #------
 
 $antsParseHeader = 0;
-&antsUsage('3:4a:b:c:e:g:h:i:k:m:n:o:p:qs:t:uv:Vw:x:',0,
+&antsUsage('3:4a:b:c:e:g:h:i:k:lm:n:o:p:qs:t:uv:Vw:x:',0,
 	'[print software -V)ersion] [-v)erbosity <level[1]>]',
 	'[-q)uick (no single-ping denoising)]',
     '[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]',
@@ -302,6 +312,7 @@ $antsParseHeader = 0;
 	'[-i)nitial CTD time offset <guestimate> [-u)se as final]]',
 	'[calculate -n) <lags,lags[10,100]>] [lag -w)indow <sz,sz[240s,20s]>] [lag-p)iece <CTD_elapsed_min|+[,...]>]',
 	'[require top-3) lags to account for <frac[0.6]> of all]',
+	'[disable time-l)ag filtering]',
 	'[pressure-sensor -a)cceleration correction <residual/CTD_w_tt>]',
 	'[-o)utput bin <resolution[20m]>] [-k) require <min[20]> samples]',
 	'[e-x)ecute <perl-expr>]',
@@ -655,8 +666,14 @@ my($cast_duration) = $LADCP{ENSEMBLE}[$lastGoodEns]->{ELAPSED} -
 error("$0: implausibly short cast ($cast_duration seconds)\n")
 	unless ($cast_duration > 600);
 
+for (my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
+	croak("$LADCP_file: unexpected sound speed (%d m/s != 1500 m/s) at ensemble \#%d\n",
+		$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND},$LADCP{ENSEMBLE}[$ens]->{NUMBER})
+			unless ($LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND} == 1500);
+}
+
 my($year) = $LADCP{ENSEMBLE}[$firstGoodEns]->{YEAR} % 100;
-&antsAddParams("dn$year",$LADCP{ENSEMBLE}[$firstGoodEns]->{DAYNO});
+&antsAddParams(sprintf('dn%02d',$year),$LADCP{ENSEMBLE}[$firstGoodEns]->{DAYNO});
 
 $LADCP{MEAN_DT} = $cast_duration / ($lastGoodEns-$firstGoodEns-1);
 
@@ -953,7 +970,7 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 			&& numberp($CTD{DEPTH}[$scan])) {
 		$LADCP{ENSEMBLE}[$ens]->{REFLR_W_NOSSCORR} = $LADCP{ENSEMBLE}[$ens]->{REFLR_W};				
 	    $LADCP{ENSEMBLE}[$ens]->{REFLR_W} *= $CTD{SVEL}[$scan]/1500; 	# correct for sound-speed variations at source
-		error(sprintf("\n$0: negative depth (%.1fm) in CTD file at elapsed(CTD) = %.1fs (use -d?)\n",
+		error(sprintf("\n$0: negative depth (%.1fm) in CTD file at elapsed(CTD) = %.1fs\n",
 			$CTD{DEPTH}[$scan],$CTD{ELAPSED}[$scan]))
 				unless ($CTD{DEPTH}[$scan] >= 0);
 		$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH} = $CTD{DEPTH}[$scan];
@@ -1022,7 +1039,9 @@ if (defined($opt_h)) {
 		$water_depth = &antsFileScanParam(WDF,'water_depth');
 		close(WDF);
 		undef($water_depth) unless numberp($water_depth);
-	}
+	} else {
+		croak("$0: -h $opt_h defines neither number nor existing file\n");
+    }
 }
 	
 die("assertion failed (water_depth = $water_depth)")
@@ -1036,8 +1055,8 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && !defined($water_d
 		find_seabed(\%LADCP,$LADCP_atbottom,$LADCP{BEAM_COORDINATES});
 	if (defined($water_depth) && defined($water_depth_BT)) {
 		my($dd) = abs($water_depth_BT - $water_depth);
-		warning(0,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
-			if ($dd > 10);
+#		warning(0,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
+#			if ($dd > 10);
 	}
 	if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {
 		warning(1,"using water_depth from ADCP BT data\n");
@@ -1320,8 +1339,8 @@ for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 			   'max_elapsed',$LADCP{ENSEMBLE}[$realLastGoodEns]->{CTD_ELAPSED});
 
 #------------------------------------------------------------------------------------------------------
-# remove ping-coherent errors
-#	- error sources:
+# remove ping-coherent residuals
+#	- potential error sources:
 #		1) acceleration-dependence of Paroscientific pressure measurements; O(10cm/s) [IWISE 28]
 #		2) residual CTD/LADCP mismatch errors; O(1cm/s) [Thurnherr, CWTMC 2011]
 #		3) ADCP short-term variability; O(1cm/s) for vertical?
@@ -1334,7 +1353,7 @@ for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 #------------------------------------------------------------------------------------------------------
 
 unless ($opt_q) {
-	progress("Removing ping-coherent errors...\n");
+	progress("Removing ping-coherent residuals...\n");
 	
 	for ($ens=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
@@ -1351,9 +1370,10 @@ unless ($opt_q) {
 											  : $UPCAST{MEDIAN_W}[$bi]));
 		}
 		$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W} = median(@residuals);	# NB: can be nan!
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W});
 		
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {		# remove from ocean velocities
-			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);			# also ensures that MEDIAN_RESIDUAL_W is not nan
+			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] -=
 				$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W};
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] -=
@@ -1364,9 +1384,9 @@ unless ($opt_q) {
 					if numberp($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
 		}
 		
-		$LADCP{ENSEMBLE}[$ens]->{REFLR_W} -=								# reflr_ocean_w is calculated below
-			$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W}						# NB: this can be set to nan here
-				if numberp($LADCP{ENSEMBLE}[$ens]->{REFLR_W})
+		$LADCP{ENSEMBLE}[$ens]->{REFLR_W} -=								# NB: this can be nan here
+			$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W}
+				if numberp($LADCP{ENSEMBLE}[$ens]->{REFLR_W});
     }
 
 	#------------------------------------------------------------
@@ -1374,7 +1394,7 @@ unless ($opt_q) {
     progress("\tre-binning profile data...\n");
     
 	for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {					# bin data
-		for (my($i)=0; $i<@{$DNCAST{W}[$bi]}; $i++) {
+		for (my($i)=0; $i<@{$DNCAST{W}[$bi]}; $i++) {						# code works if MEDIAN_RESIDUAL_W is nan (possible?) 
 			$DNCAST{W}  [$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
 			$DNCAST{W12}[$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
 			$DNCAST{W34}[$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
@@ -1466,8 +1486,8 @@ if (@out_BR) {
 			$uc_n++;
 		}
 	}
-	local($dc_bres_rms) = sqrt($dc_sumsq/$dc_n);
-	local($uc_bres_rms) = sqrt($uc_sumsq/$uc_n);
+	local($dc_bres_rms) = ($dc_n > 0) ? sqrt($dc_sumsq/$dc_n) : nan;
+	local($uc_bres_rms) = ($uc_n > 0) ? sqrt($uc_sumsq/$uc_n) : nan;
 	
 	progress("\nWriting binned residuals to ");
 

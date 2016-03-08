@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Tue Jan 26 15:04:54 2016
+#                    dlm: Mon Mar  7 18:31:34 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 68 33 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 71 68 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -66,6 +66,9 @@
 #				  - BUG: time-lag plot was not produced when final lag piece had problems
 #	Jan 25, 2016: - search-radius-doubling heuristic had typo
 #				  - added %PARAMs
+#	Feb 19, 2016: - added support for -l
+#				  - added warning
+#	Mar  7, 2016: - BUG: editing did not work correctly in all cases
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -331,20 +334,23 @@ RETRY:
 	# of uncertain time lags
 	#--------------------------------------------------
 
-	if ($scan_increment == 1) {
+	if ($scan_increment == 1 && !$opt_l) {
 		progress("\tEditing data with unknown time-lags...\n");
 		my(@elim);
 #		print(STDERR "fg = @fg; lg = @lg\n");
 		for (my($i)=0; $i<@fg; $i++) {
 			next if ($lg[$i]-$fg[$i] < $min_runlength);
-			push(@elim,($fg[$i] == 0) ? $elapsed[$first_ens] : $elapsed[$fg[$i]],
-					   ($lg[$i] == $n_windows-1) ? $elapsed[$last_ens] : $elapsed[$lg[$i]]);
+			push(@elim,($fg[$i] == 0) 			 ? $LADCP{ENSEMBLE}[$firstGoodEns]->{ELAPSED} : $elapsed[$fg[$i]],
+					   ($lg[$i] == $n_windows-1) ? $LADCP{ENSEMBLE}[$lastGoodEns]->{ELAPSED}  : $elapsed[$lg[$i]]);
 		}
 #		print(STDERR "elim = @elim\n");
 		$nerm = $failed
 			  ? editBadTimeLagging($first_ens,$last_ens,-1)
 			  : editBadTimeLagging($first_ens,$last_ens,@elim);
-	    progress("\t\t$nerm ensembles removed (%d%% of total), leaving %d run\n",round(100*$nerm/($last_ens-$first_ens+1)),scalar(@elim)/2);
+		my($pct) = round(100*$nerm/($last_ens-$first_ens+1));
+	    progress("\t\t$nerm ensembles removed ($pct%% of total), leaving %d run(s)\n",scalar(@elim)/2);
+		warning(1,"time-lag editing removed large fraction of samples (%d%% of total)\n",$pct)
+			if ($pct > 30);
 	}
 
 	#------------------------------------------------------

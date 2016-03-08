@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W S P E C 
 #                    doc: Thu Jun 11 12:02:49 2015
-#                    dlm: Mon Jan 25 09:33:54 2016
+#                    dlm: Tue Mar  1 21:27:41 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 39 0 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 26 29 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE window spectra from LADCP profiles';
@@ -20,6 +20,10 @@ $antsSummary = 'calculate VKE window spectra from LADCP profiles';
 #	Oct 12, 2015: - require ANTSlibs V6.2 for release
 #	Oct 13, 2015: - adapted to [version.pl]
 #   Jan 25, 2016: - added software version %PARAM
+#	Mar  1, 2016: - made trailing message much less frequent
+#				  - BUG: program croaked gracelessly or entered infinite loop
+#						 when presented with insufficient (no valid) input
+#						 data
 
 ($ANTSBIN) = (`which list` =~ m{^(.*)/[^/]*$});
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -104,15 +108,19 @@ $habfnr = fnrNoErr('hab');										# optional fields
 &antsInstallBufFull(0);											# read entire file
 &antsIn();
 
-while ($ants_[0][$zfnr] < $opt_s) {								# remove surface layer
+while (@ants_ && $ants_[0][$zfnr] < $opt_s) {					# remove surface layer
 	shift(@ants_);
 }
+croak("$0: insufficient data (no valid records found)\n")
+	unless (@ants_);
 
-for ($trimmed=0; !numberp($ants_[$#ants_][$dcwfnr]) && !numberp($ants_[$#ants_][$ucwfnr]); $trimmed++) {
+for ($trimmed=0; @ants_ && !numberp($ants_[$#ants_][$dcwfnr]) && !numberp($ants_[$#ants_][$ucwfnr]); $trimmed++) {
 	pop(@ants_);
 }
 &antsInfo("$trimmed trailing non-numeric records trimmed")
-	if ($trimmed);
+	if ($trimmed > 1);											# 1 is very common
+croak("$0: insufficient data (no valid records found)\n")
+	unless (@ants_);
 
 $dz = &antsXCheck($zfnr,0,$#ants_,1.01);						# calc dT; 1% jitter
 &antsAddParams("wspec::input_depth_resolution",$dz);

@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Sat Jan 30 14:50:53 2016
+#                    dlm: Mon Mar  7 21:03:31 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 640 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 199 71 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -55,6 +55,11 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #   Jan 25, 2016: - added software version %PARAM
 #	Jan 26, 2016: - added -v
 #	Jan 30, 2016: - added -w
+#	Feb 14, 2016: - BUG: all bins were off by 1! (-v, inherited limits)
+#	Mar  1, 2016: - added required ADCP sampling %PARAMs to dual-head
+#					output
+#	Mar  7, 2016: - BUG: correlation stats were defined/used for single-head data
+#				  - removed good_bins() from library as -v allows more control
 
 ($ANTS)  = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0              =~ m{^(.*)/[^/]*$});
@@ -151,7 +156,6 @@ croak("$0: -b only makes sense when plots are produced\n")
 #
 #	output_resolution(dz)								output_resolution(40)
 #	bad_range[_dc|_uc](field,min_val,max_val)			bad_range_uc('depth',3500,3600)
-#	good_bins(first_good,last_good)						good_bins(2,'*')
 #	
 #----------------------------------------------------------------------
 
@@ -192,14 +196,7 @@ sub bad_range_uc($$$)
 	push(@brDUc,0);
 }
 	
-sub good_bins($$)
-{
-	push(@gbFirst,shift); push(@gbLast,shift);
-	$gbFirst[$#gbFirst] = 1    if ($gbFirst[$#gbFirst] eq '*');
-	$gbLast[$#gbLast]   = 9e99 if ($gbLast[$#gbLast] eq '*');
-}	
-	
-	
+#----------------------------------------------------------------------
 
 sub isBad()
 {
@@ -376,19 +373,42 @@ for ($r=0; &antsIn(); $r++) {
 						   'UL_last_valid_bin',&antsRequireParam('outgrid_lastbin'));
 		}
 
-		for (my($bi)=0; $bi<=$#dcw1; $bi++) {									# calc DL median profile
+		for (my($bi)=0; $bi<=$#dcw1; $bi++) {									# calc DL median profile (before reading UL data)
 			$DL_dc_median[$bi] = median(@{$dcw1[$bi]});
 			$DL_uc_median[$bi] = median(@{$ucw1[$bi]});
 		}
 
-		$bin_length = sprintf('%d & %d',round($bin_length),($P{ADCP_bin_length}))
-			unless (round($bin_length) == round($P{ADCP_bin_length}));
-		$pulse_length = sprintf('%d & %d',round($pulse_length),round($P{ADCP_pulse_length}))
-			unless (round($pulse_length) == round($P{ADCP_pulse_length}));
-		$blanking_dist = sprintf('%d & %d',round($blanking_dist),($P{ADCP_blanking_distance}))
-			unless (round($blanking_dist) == round($P{ADCP_blanking_distance}));
+		#
+		# ADCP bin length, pulse length, and blanking distance for dual head casts
+		# with inconsistent values:
+		#	bin length: 		use smaller value, which will lead to smaller spectral correction
+		#	pulse length:		same
+		#	blanking distance:	use smaller value, which is conservative e.g. for filters for ringing
+		#
+		my($warned);
+		unless (round($bin_length) == round($P{ADCP_bin_length})) {
+			unless ($warned) {
+				&antsInfo("WARNING: inconsistent ADCP sampling parameters --- using conservative values");
+				$warned = 1;
+			}
+			$bin_length = min($bin_length,$P{ADCP_bin_length});
+		}
+		unless (round($pulse_length) == round($P{ADCP_pulse_length})) {
+			unless ($warned) {
+				&antsInfo("WARNING: inconsistent ADCP sampling parameters --- using conservative values");
+				$warned = 1;
+			}
+			$pulse_length = min($pulse_length,$P{ADCP_pulse_length});
+		}
+		unless (round($blanking_dist) == round($P{ADCP_blanking_distance})) {
+			unless ($warned) {
+				&antsInfo("WARNING: inconsistent ADCP sampling parameters --- using conservative values");
+				$warned = 1;
+			}
+			$blanking_dist = min($blanking_dist,$P{ADCP_blanking_distance});
+		}
 
-		$PROF = $STN = $ID = $id; $RUN = antsRequireParam('run_label');
+		$PROF = $STN = $ID = $id; $RUN = antsRequireParam('run_label');			# set variables for editing
 		undef(@rngMin); undef(@rngMax); undef(@bins);
 		unless ($return = do "./EditParams") {									# man perlfunc
 			croak("./EditParams: $@\n") if ($@);
@@ -408,11 +428,11 @@ for ($r=0; &antsIn(); $r++) {
 	} # of 2nd file started
 
 	if (defined($opt_v)) {														# explicit ranges of validity given
-		next if ($ants_[0][$bF]<$fvBin-1 ||										#  => apply them
-				 $ants_[0][$bF]>$lvBin-1);
+		next if ($ants_[0][$bF]<$fvBin ||										#  => apply them
+				 $ants_[0][$bF]>$lvBin);
 	} else {																	# no range of valid bins given
-		next if ($ants_[0][$bF]<$P{outgrid_firstbin}-1 ||						# 	=> use values from [LADCP_w_ocean]
-				 $ants_[0][$bF]>$P{outgrid_lastbin}-1);
+		next if ($ants_[0][$bF]<$P{outgrid_firstbin} ||							# => use values from [LADCP_w_ocean]
+				 $ants_[0][$bF]>$P{outgrid_lastbin});
 	}
 	
 	$filt++,next if &isBad();													# additional editing
@@ -477,6 +497,8 @@ if ($dual_head) {										# selected %PARAMs only
 	&antsAddParams('outgrid_dz',$opt_o,'outgrid_minsamp',$opt_k);
 	&antsAddParams('min_depth',round($min_depth),'max_depth',round($max_depth));
 	&antsAddParams('water_depth',$P{water_depth},'water_depth.sig',$P{water_depth.sig});
+	&antsAddParams('ADCP_bin_length',$bin_length,'ADCP_pulse_length',$pulse_length);
+	&antsAddParams('ADCP_blanking_distance',$blanking_dist);
 	undef($antsOldHeaders);
 } else {
 	@antsNewLayout = ('depth','hab',
@@ -510,28 +532,32 @@ for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
 }
 
 if (defined($opt_p)) {																# complete summary plot
-	GMT_psxy('-W2/100/100/255');
-		print(GMT "-0.1 $opt_s\n0.07 $opt_s\n");
-	if ($dc_R < 0.3 || !numberp($dc_R)) {
-		&antsInfo("WARNING: low dc correlation (r = %.1f) between UL and DL data",$dc_R);
-		GMT_pstext('-Gwhite -Wred');
-	} elsif ($dc_R < 0.5) {		GMT_pstext('-Gblack -Wyellow'); }
-	else {						GMT_pstext('-Gblack -Wgreen'); }
-		printf(GMT "%f %f 12 0 0 BL %.1f\n",-0.07,0.9*$ymax,$dc_R);
+	if ($dual_head) {
+		GMT_psxy('-W2/100/100/255');												# surface layer limit
+			print(GMT "-0.1 $opt_s\n0.07 $opt_s\n");
+		if ($dc_R < 0.3 || !numberp($dc_R)) {										# correlation statistics
+			&antsInfo("WARNING: low dc correlation (r = %.1f) between UL and DL data",$dc_R);
+			GMT_pstext('-Gwhite -Wred');
+		} elsif ($dc_R < 0.5) { 	GMT_pstext('-Gblack -Wyellow'); }
+		else {						GMT_pstext('-Gblack -Wgreen'); }
+	        printf(GMT "%f %f 12 0 0 BL %.1f\n",-0.07,0.9*$ymax,$dc_R);
+	}
 	GMT_pstext('-G255/127/80');
 		printf(GMT "%f %f 12 0 0 BL dc\n",-0.095,0.9*$ymax);
 		printf(GMT "%f %f 12 0 0 BL [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
-			0.02,0.9*$ymax,100*$dc_esig,100*$dc_rsig);
-	if ($uc_R < 0.3 || !numberp($uc_R)) {
-		&antsInfo("WARNING: low uc correlation (r = %.1f) between UL and DL data",$uc_R);
-		GMT_pstext('-Gwhite -Wred');
-	} elsif ($uc_R < 0.5) {		GMT_pstext('-Gblack -Wyellow'); }
-	else {						GMT_pstext('-Gblack -Wgreen'); }
-		printf(GMT "%f %f 12 0 0 BL %.1f\n",-0.07,0.95*$ymax,$uc_R);
+			0.02,0.9*$ymax,100*$dc_esig,100*$dc_rsig) if ($dual_head);
+	if ($dual_head) {
+		if ($uc_R < 0.3 || !numberp($uc_R)) {
+			&antsInfo("WARNING: low uc correlation (r = %.1f) between UL and DL data",$uc_R);
+			GMT_pstext('-Gwhite -Wred');
+		} elsif ($uc_R < 0.5) { 	GMT_pstext('-Gblack -Wyellow'); }
+		else {						GMT_pstext('-Gblack -Wgreen'); }
+	        printf(GMT "%f %f 12 0 0 BL %.1f\n",-0.07,0.95*$ymax,$uc_R);
+	}
 	GMT_pstext('-G46/139/87');
 		printf(GMT "%f %f 12 0 0 BL uc\n",-0.095,0.95*$ymax);
 		printf(GMT "%f %f 12 0 0 BL [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
-			0.02,0.95*$ymax,100*$uc_esig,100*$uc_rsig);
+			0.02,0.95*$ymax,100*$uc_esig,100*$uc_rsig) if ($dual_head);
 
 	GMT_setR($R);
 
