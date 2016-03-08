@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Tue Mar  8 13:57:23 2016
+                    dlm: Tue Mar  8 16:21:03 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 41 47 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 45 31 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -39,3 +39,7 @@ V1.2:
 		- added automatic editing of bad time lagged data
 	Jan 25 -- Mar 8:
 		- many bug fixes and small improvements
+	Mar 8, 2016:
+		- added updated howto pdf
+		- updated [version.pl] with new ANTSlib prerequisite version
+		- published as V1.2beta

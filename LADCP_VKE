@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Tue Mar  8 13:53:35 2016
+#                    dlm: Tue Mar  8 15:55:52 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 195 24 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 48 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -48,6 +48,7 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #				  - renamed eps.w to eps.VKE for consistency
 #				  - changed default output filenames for -d and -u
 #				  - removed ./ from figure label
+#				  - update ANTSlib to 6.3
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
