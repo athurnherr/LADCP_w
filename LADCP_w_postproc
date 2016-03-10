@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Mon Mar  7 21:03:31 2016
+#                    dlm: Wed Mar  9 17:20:46 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 199 71 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 510 1 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -487,12 +487,12 @@ if ($dual_head) {
 # Average and Output Profiles, Add to Summary Plot
 #----------------------------------------------------------------------
 
-if ($dual_head) {										# selected %PARAMs only
+if ($dual_head) {																# dual-head output
 	@antsNewLayout = ('depth','hab',
 					  'dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp',
 	                  'uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp',
-					  'dc_w.diff','uc_w.diff');
-	&antsAddParams('profile_id',$id,'lat',$P{lat},'lon',$P{lon});
+					  'dc_w.diff','uc_w.diff');									# DL-UL differences
+	&antsAddParams('profile_id',$id,'lat',$P{lat},'lon',$P{lon});				# selected %PARAMs
 	&antsAddParams($dayNoP,$dn,'run_label',"$first_label & $P{run_label}");
 	&antsAddParams('outgrid_dz',$opt_o,'outgrid_minsamp',$opt_k);
 	&antsAddParams('min_depth',round($min_depth),'max_depth',round($max_depth));
@@ -501,13 +501,13 @@ if ($dual_head) {										# selected %PARAMs only
 	&antsAddParams('ADCP_blanking_distance',$blanking_dist);
 	undef($antsOldHeaders);
 } else {
-	@antsNewLayout = ('depth','hab',
+	@antsNewLayout = ('depth','hab',											# single-head output
 					  'dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp',
 	                  'uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp');
 }
 
-&antsInfo("WARNING: unknown water depth (no height-above-bottom)")
-	unless numberp($P{water_depth});
+#&antsInfo("WARNING: unknown water depth (no height-above-bottom)")
+#	unless numberp($P{water_depth});
 
 my(@dcwm,@ucwm,@dcns,@ucns,@dcwmad,@ucwmad);
 for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {

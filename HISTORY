@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Tue Mar  8 16:21:03 2016
+                    dlm: Wed Mar  9 17:26:35 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 45 31 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 48 0 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -43,3 +43,5 @@ V1.2:
 		- added updated howto pdf
 		- updated [version.pl] with new ANTSlib prerequisite version
 		- published as V1.2beta
+	Mar 9, 2016: V1.2beta2
+		- added hab field to .wprof output [LADCP_w_ocean]

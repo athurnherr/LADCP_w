@@ -2,14 +2,23 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Tue Mar  8 14:07:23 2016
+#                    dlm: Wed Mar  9 17:18:37 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 215 54 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 225 46 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
-#	! use instrument tilt in sidelobe editing
-#	! worry about water-depth differences (disabled warning) 
+#	! plots:
+#		- make blue labels consistent
+#		- avoid over-plotting axis labels
+#		- allow for different nsamp magnitudes
+#		- add "dc" "uc" labels
+#		- add software version
+#		- eps.VKE limits
+#		- add seabed to eps.VKE profile
+#		- add seabed to LADCP_w_postproc .wprof output
+#	- use instrument tilt in sidelobe editing
+#	- worry about water-depth differences (disabled warning) 
 #	- make upcast-flag valid for yoyo casts
 #	- make diagnostic output 3-beam field work for Earth coordinates
 #	? remove water-depth from BT code, which is not really used and a bit of an outlier
@@ -213,6 +222,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - BUG: dn field name did not use zero filling for year number
 #	Mar  8, 2016: - removed L0 water-depth-difference warning
 #				  - added test for 1500m/s sound speed
+#	Mar  9, 2016: - added hab field to .wprof output
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -1645,9 +1655,9 @@ if (@out_wsamp) {
 
 if (@out_profile) {
 	progress("Writing vertical-velocity profiles to ");
-	@antsNewLayout = ('depth','dc_depth','dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp','dc_w12','dc_w34',
-							  'uc_depth','uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp','uc_w12','uc_w34',
-	                          'BT_w','BT_w.mad','BT_w.nsamp');
+	@antsNewLayout = ('depth','hab','dc_depth','dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp','dc_w12','dc_w34',
+							  		'uc_depth','uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp','uc_w12','uc_w34',
+	                          		'BT_w','BT_w.mad','BT_w.nsamp');
 
 	foreach my $of (@out_profile) {
 	    progress("<$of> ");
@@ -1664,16 +1674,17 @@ if (@out_profile) {
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
 	    
 		for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
-			&antsOut(($bi+0.5)*$opt_o,					# nominal depth
-					 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],
+			&antsOut(($bi+0.5)*$opt_o,												# nominal depth
+					 defined($water_depth)?$water_depth-($bi+0.5)*$opt_o:nan,		# nominal hab
+					 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],			# dc data
 					 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W}[$bi]:nan,
 					 $DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
 					 $DNCAST{MEDIAN_W12}[$bi],$DNCAST{MEDIAN_W34}[$bi],
-					 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],
+					 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],			# uc data
 					 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
 					 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
 					 $UPCAST{MEDIAN_W12}[$bi],$UPCAST{MEDIAN_W34}[$bi],
-					 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,
+					 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,				# BT data
 					 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
 			);
 		}
