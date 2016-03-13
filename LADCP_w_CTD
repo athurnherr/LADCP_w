@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Fri Feb 19 08:01:38 2016
+#                    dlm: Sun Mar 13 11:53:56 2016
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 241 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 222 67 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -52,6 +52,8 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	Feb 19, 2016: - improved on-surface data detection (conductivity <= 10mS/cm)
 #				  - BUG: temperatures < 0 were not allowed
 #				  - temperature histogram resolution increased from 1degC to 0.5degC for no good reason
+#	Mar 13, 2016: - added simple ASCII file format
+#				  - BUG: Layout error when input had no lat/lon
 
 ($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
@@ -90,49 +92,71 @@ open(F,&antsFileArg());
 
 print(STDERR "Reading $CNVfile...") if ($opt_v);
 
-($nfields,$nscans,$sampint,$badval,$ftype,$lat,$lon) =			# decode SBE header	
-    SBE_parseHeader(F,0,0);										# SBE field names, no time check
+chomp($rec = <F>);
+croak("$CNVfile: no data\n")
+	unless defined($rec);
 
-croak("$CNVfile: unexpected sampling interval $sampint\n")
-	unless (abs($sampint-1/24) < 1e-5);
-croak("$CNVfile: no latitude in header\n")
-	unless numberp($lat);
-
-$pressF = fnr('prDM');
-
-if ($opt_a) {													# temp/cond alternate sensor pair
-	$tempF	= fnr('t190C');
-	$condF	= fnrNoErr('c1S/m');
-	if (defined($condF)) {
-		$condHistRes = 20;										# 0.2 S/m bins
-	} else {
-		$condF  = fnr('c1mS/cm');
-		$condHistRes = 2;										# 2.0 mS/cm bins
+if ($rec =~ /^\*/) {												# SBE CNV file
+	($nfields,$nscans,$sampint,$badval,$ftype,$lat,$lon) =			# decode SBE header 
+		SBE_parseHeader(F,0,0); 									# SBE field names, no time check
+	
+	croak("$CNVfile: unexpected sampling interval $sampint\n")
+		unless (abs($sampint-1/24) < 1e-5);
+	croak("$CNVfile: no latitude in header\n")
+		unless numberp($lat);
+	
+	$pressF = fnr('prDM');
+	
+	if ($opt_a) {													# temp/cond alternate sensor pair
+		$tempF	= fnr('t190C');
+		$condF	= fnrNoErr('c1S/m');
+		if (defined($condF)) {
+			$condHistRes = 20;										# 0.2 S/m bins
+		} else {
+			$condF	= fnr('c1mS/cm');
+			$condHistRes = 2;										# 2.0 mS/cm bins
+		}
+	} else {														# primary sensor pair
+		$tempF	= fnr('t090C');
+		$condF	= fnrNoErr('c0S/m');
+		if (defined($condF)) {
+			$condHistRes = 20;
+		} else {
+			$condF	= fnr('c0mS/cm');
+			$condHistRes = 2;
+		}
 	}
-} else {														# primary sensor pair
-	$tempF	= fnr('t090C');
-	$condF	= fnrNoErr('c0S/m');
-	if (defined($condF)) {
-		$condHistRes = 20;
-	} else {
-		$condF  = fnr('c0mS/cm');
-		$condHistRes = 2;
+	
+	$latF = &fnrNoErr('lat');										# GPS data if available (to make files useful for u/v processing)
+	$lonF = &fnrNoErr('lon');
+	
+	&antsInstallBufFull(0); 										# read entire CNV file
+	&SBEin(F,$ftype,$nfields,$nscans,$badval);
+	
+	if (@ants_ != $nscans) {
+		if ($opt_v > 1) {
+			printf(STDERR "\n\nWARNING: $CNVfile has wrong number of scans in header\n");
+		} else {
+			printf(STDERR "WARNING: $CNVfile has wrong number of scans in header\n");
+		}
+		$nscans = @ants_;
 	}
-}
-
-$latF = &fnrNoErr('lat');										# GPS data if available (to make files useful for u/v processing)
-$lonF = &fnrNoErr('lon');
-
-&antsInstallBufFull(0);											# read entire CNV file
-&SBEin(F,$ftype,$nfields,$nscans,$badval);
-
-if (@ants_ != $nscans) {
-	if ($opt_v > 1) {
-		printf(STDERR "\n\nWARNING: $CNVfile has wrong number of scans in header\n");
-	} else {
-		printf(STDERR "WARNING: $CNVfile has wrong number of scans in header\n");
+} else { 																			# simple ASCII file format:
+	croak("$CNVfile: ASCII file format error (1st rec must be latitude)\n")			#	header: lat
+		unless numberp($rec) && $rec>=-90 && $rec<=90;
+	&antsAddParams('lat',$lat=$rec);		
+	$sampint = 1/24; $condHistRes = 2;												# 	assumptions: 24Hz
+	&antsAddParams('ITS',90,'cond.unit','mS/cm');									#	ITS-90, mS/cm
+	$pressF = 1; $tempF = 2; $condF = 3;											# 	Layout: scan press temp cond
+	for ($nscans=0; <F>; $nscans++) {
+		chomp;
+		@{$ants_[$nscans]} = split(',');											# 	CSV format
+		croak("$CNVfile: unexpected scan #$ants_[$nscans][0] (%d expected)\n",$nscans+1)
+			unless ($ants_[$nscans][0] == $nscans+1);
+		$ants_[$nscans][$pressF] = nan unless defined($ants_[$nscans][$pressF]);	# missing values
+		$ants_[$nscans][$tempF] = nan unless defined($ants_[$nscans][$tempF]);
+		$ants_[$nscans][$condF] = nan unless defined($ants_[$nscans][$condF]);
 	}
-	$nscans = @ants_;
 }
 
 printf(STDERR "\n\t%d scans",$nscans) if ($opt_v > 1);
@@ -190,10 +214,13 @@ unless ($opt_r) {
 	#----------------------------------------
 	my($trimmed) = 0;												# trim leading nan pressures
 	shift(@ants_),$trimmed++
-		until numberp($ants_[0][$pressF]) &&
-			  numberp($ants_[0][$condF]) &&
-			  (($P{cond.unit} eq 'mS/cm' && $ants_[0][$condF] > 10) ||
-			   ($P{cond.unit} eq 'S/m'   && $ants_[0][$condF] > 1));
+		until !@ants_ ||
+				numberp($ants_[0][$pressF]) &&
+			  	numberp($ants_[0][$condF]) &&
+			  	(($P{'cond.unit'} eq 'mS/cm' && $ants_[0][$condF] > 10) ||
+			     ($P{'cond.unit'} eq 'S/m'   && $ants_[0][$condF] > 1));
+	croak("\n$CNVfile: no valid records (wrong conductivity units?)\n")
+		unless (@ants_);			     
 	printf(STDERR "\n\t%d initial at-surface records trimmed",$trimmed) if ($opt_v > 1);
 	my($lvp) = $ants_[0][$pressF];
 	my($lvc) = $ants_[0][$condF];
@@ -454,6 +481,7 @@ for (my($r)=0; $r<@press; $r++) {
 	$maxP=$press[$r],$atBtm=$r if ($press[$r] > $maxP);
 	$elapsed[$r] = $r/$opt_s;
 	$depth[$r] = &depth($press[$r],$lat);
+#	print(STDERR "depth[$r] = depth($press[$r],$lat) = $depth[$r]\n");
 	$salin[$r] = &salin($cond[$r],$temp[$r],$press[$r]);
 	$sspd[$r]  = &sVel($salin[$r],$temp[$r],$press[$r]);
 	$min_sspd = $sspd[$r] if ($sspd[$r] < $min_sspd);
@@ -590,8 +618,7 @@ if (defined($opt_p)) {
 
 print(STDERR "Writing output...\n") if ($opt_v);
 
-@antsNewLayout = ('elapsed','press','temp','cond','depth','salin','sspd','w.raw','w');
-push(@antsNewLayout,'lat','lon') if (defined($latF));
+@antsNewLayout = ('elapsed','press','temp','cond','depth','salin','sspd','w.raw','w','lat','lon');
 for ($r=0; $r<@w; $r++) {
 	&antsOut($elapsed[$r],$press[$r],$temp[$r],$cond[$r],$depth[$r],$salin[$r],
 			 $sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp,$lat[$r],$lon[$r]);

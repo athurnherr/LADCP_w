@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Thu Jan 28 16:55:23 2016
+#                    dlm: Sun Mar 13 10:50:09 2016
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 466 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 130 13 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -67,6 +67,7 @@
 #	Jan 26, 2016: - removed -d
 #				  - changed outGrid_firstBin default to '*', also lastBin
 #	Jan 27, 2016: - added documentation
+#	Mar 16, 2016: - added auto creation of output directory
 
 #======================================================================
 # Data Input 
@@ -123,7 +124,11 @@ $out_basename = sprintf('%03d',$PROF);
 
 # Output subdirectories
 
-error("$RUN: no such directory\n") unless (-d $RUN);
+unless (-d $RUN) {
+	warning(0,"Creating output directory ./$RUN\n");
+	mkdir($RUN);
+	error("./$RUN: no such directory\n") unless (-d $RUN);
+}
 $data_subdir = $plot_subdir = $log_subdir = $RUN;
 
 

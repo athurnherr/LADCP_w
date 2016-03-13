@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Thu Mar 10 11:26:21 2016
+                    dlm: Sun Mar 13 12:32:46 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 49 10 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 51 41 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -46,4 +46,10 @@ V1.2:
 	Mar 9, 2016: V1.2beta2
 		- added hab field to .wprof output [LADCP_w_ocean]
 	Mar 10, 2016:
+		- published
+	Mar 13, 2016: V1.2beta3
+		- updated [version.pl] [.hg/hgrc]
+		- added simple ASCII CTD format [LADCP_w_CTD]
+		- added auto directory creation to [defaults.pl]
+		- updated howto
 		- published

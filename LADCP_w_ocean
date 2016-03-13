@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Wed Mar  9 17:18:37 2016
+#                    dlm: Sun Mar 13 10:48:17 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 225 46 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 226 76 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -223,6 +223,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Mar  8, 2016: - removed L0 water-depth-difference warning
 #				  - added test for 1500m/s sound speed
 #	Mar  9, 2016: - added hab field to .wprof output
+#	Mar 13, 2016: - cleaned up warnings created before LADCP_file is defined
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -431,7 +432,8 @@ sub warning(@)
 	return if ($opt_v == 0);
 
 	if ($opt_v == 1) {
-		print(STDERR "$LADCP_file: WARNING (L$lvl): ");
+		print(STDERR "$LADCP_file: ") if defined($LADCP_file);
+		print(STDERR "WARNING (L$lvl): ");
 		printf(STDERR @msg);
 	} else {
 		print(STDERR "\n-------------\nWARNING (L$lvl): ");
