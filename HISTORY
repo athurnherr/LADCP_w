@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Sun Mar 13 12:32:46 2016
+                    dlm: Wed Mar 16 08:25:15 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 51 41 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 60 0 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -52,4 +52,11 @@ V1.2:
 		- added simple ASCII CTD format [LADCP_w_CTD]
 		- added auto directory creation to [defaults.pl]
 		- updated howto
-		- published
+		- published V1.2beta3
+		- updated [version.pl] [.hg/hgrc] to V1.2beta4
+		- added ADCP-file checks in [LADCP_w_ocean]
+		- updated howto
+	Mar 16, 2016: V1.2beta4
+		- published on server		
+		
+		

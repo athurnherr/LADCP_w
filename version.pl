@@ -1,7 +1,7 @@
 #======================================================================
 #                    V E R S I O N . P L 
 #                    doc: Tue Oct 13 10:40:57 2015
-#                    dlm: Sun Mar 13 09:36:41 2016
+#                    dlm: Sun Mar 13 14:54:32 2016
 #                    (c) 2015 A.M. Thurnherr
 #                    uE-Info: 15 20 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
@@ -12,7 +12,7 @@
 #	Mar  8, 2016: - updated antsMinLibVersion to 6.3
 
 #$VERSION = '1.1';				# Jan  4, 2016
-$VERSION = '1.2beta3';			# Jan  5, 2016
+$VERSION = '1.2beta4';			# Jan  5, 2016
 
 $antsMinLibVersion 		= 6.3;
 $ADCP_tools_minVersion 	= 1.4;

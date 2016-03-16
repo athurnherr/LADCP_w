@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Sun Mar 13 10:48:17 2016
+#                    dlm: Sun Mar 13 15:08:59 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 226 76 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 473 122 NIL 0 3 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -224,6 +224,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - added test for 1500m/s sound speed
 #	Mar  9, 2016: - added hab field to .wprof output
 #	Mar 13, 2016: - cleaned up warnings created before LADCP_file is defined
+#				  - added sanity checks and warnings
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -451,13 +452,30 @@ sub error($)
 sub debugmsg(@)
 { printf(STDERR @_) if ($opt_v > 2); }
 
-#----------------
+#---------------------------
 # Read LADCP data
-#----------------
+#
+# sanity checks:
+#	- 1500m/s sound speed
+#	- single-ping ensembles
+#
+# warnings:
+#	- high bandwidth
+#	- low transmit power
+#---------------------------
 
 progress("Reading LADCP data from <$LADCP_file>...\n");
 readData($LADCP_file,\%LADCP);
 progress("\t%d ensembles\n",scalar(@{$LADCP{ENSEMBLE}}));
+
+error("$LADCP_file: cannot process multi-ping ensembles\n")
+	unless ($LADCP{PINGS_PER_ENSEMBLE} == 1);
+error(sprintf("$LADCP_file: unsupported soundspeed setting (%d m/s != 1500 m/s)\n",$LADCP{ENSEMBLE}[0]->{SPEED_OF_SOUND}))
+	unless ($LADCP{ENSEMBLE}[0]->{SPEED_OF_SOUND} == 1500);
+warning(2,"$LADCP_file: wide-bandwidth setting\n")
+	if ($LADCP{WIDE_BANDWIDTH});
+warning(2,"$LADCP_file: low transmit-power setting\n")
+	unless ($LADCP{TRANSMIT_POWER_HIGH});
 
 error("$LADCP_file: not enough LADCP bins ($LADCP{N_BINS}) for choice of -r\n")
 	unless ($LADCP{N_BINS} >= $refLr_lastBin);
@@ -677,12 +695,6 @@ my($cast_duration) = $LADCP{ENSEMBLE}[$lastGoodEns]->{ELAPSED} -
 				     $LADCP{ENSEMBLE}[$firstGoodEns]->{ELAPSED};
 error("$0: implausibly short cast ($cast_duration seconds)\n")
 	unless ($cast_duration > 600);
-
-for (my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
-	croak("$LADCP_file: unexpected sound speed (%d m/s != 1500 m/s) at ensemble \#%d\n",
-		$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND},$LADCP{ENSEMBLE}[$ens]->{NUMBER})
-			unless ($LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND} == 1500);
-}
 
 my($year) = $LADCP{ENSEMBLE}[$firstGoodEns]->{YEAR} % 100;
 &antsAddParams(sprintf('dn%02d',$year),$LADCP{ENSEMBLE}[$firstGoodEns]->{DAYNO});
@@ -1040,19 +1052,19 @@ if (@nSv) {
 #	2) PPI 
 #----------------------------------------------------------------------------
 
-croak("$0: conflicting water-depth information provided by user\n")
+error("$0: conflicting water-depth information provided by user\n")
 	if defined($opt_h) && defined($water_depth);
 
 if (defined($opt_h)) {
 	if (numberp($opt_h)) {
 		$water_depth = $opt_h;
 	} elsif (-f $opt_h) {
-		open(WDF,$opt_h) || croak("$opt_h: $_\n");
+		open(WDF,$opt_h) || error("$opt_h: $_\n");
 		$water_depth = &antsFileScanParam(WDF,'water_depth');
 		close(WDF);
 		undef($water_depth) unless numberp($water_depth);
 	} else {
-		croak("$0: -h $opt_h defines neither number nor existing file\n");
+		error("$0: -h $opt_h defines neither number nor existing file\n");
     }
 }
 	

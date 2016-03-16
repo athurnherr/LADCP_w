@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Sun Mar 13 11:53:56 2016
+#                    dlm: Sun Mar 13 15:00:12 2016
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 222 67 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 57 52 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -54,6 +54,7 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #				  - temperature histogram resolution increased from 1degC to 0.5degC for no good reason
 #	Mar 13, 2016: - added simple ASCII file format
 #				  - BUG: Layout error when input had no lat/lon
+#				  - added lon to simple ASCII format
 
 ($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
@@ -142,9 +143,13 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 		$nscans = @ants_;
 	}
 } else { 																			# simple ASCII file format:
-	croak("$CNVfile: ASCII file format error (1st rec must be latitude)\n")			#	header: lat
-		unless numberp($rec) && $rec>=-90 && $rec<=90;
-	&antsAddParams('lat',$lat=$rec);		
+	($lat,$lon) = split(',',$rec);
+	croak("$CNVfile: ASCII file format error (1st rec must be lat,lon)\n")			#	header: lat,lon
+		unless numberp($lat) && numberp($lon) &&
+				$lat>=-90 && $lat<=90 &&
+				$lon>=-360 && $lon<=360;
+				
+	&antsAddParams('lat',$lat,'lon',$lon);		
 	$sampint = 1/24; $condHistRes = 2;												# 	assumptions: 24Hz
 	&antsAddParams('ITS',90,'cond.unit','mS/cm');									#	ITS-90, mS/cm
 	$pressF = 1; $tempF = 2; $condF = 3;											# 	Layout: scan press temp cond
