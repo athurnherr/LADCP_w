@@ -1,15 +1,17 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Mon Oct 12 13:20:47 2015
+#                    dlm: Thu Mar 17 06:02:11 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 53 40 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 144 24 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 26, 2015: - created from LWplot_prof_2beam
 #	Jul 30, 2015: - moved main label outside plot area
 #	Oct 12, 2015: - BUG: gaps were not plotted as such
+#	Mar 16, 2016: - adapted to gmt5
+#	Mar 17, 2016: - improved
 
 # Tweakables:
 #
@@ -20,7 +22,8 @@
 require "$ANTS/libGMT.pl";
 
 sub setR1() { GMT_setR("-R$plot_wprof_xmin/0.35/0/$plot_wprof_ymax"); }
-sub setR2() { GMT_setR("-R-200/200/0/$plot_wprof_ymax"); }
+#sub setR2() { GMT_setR("-R-200/200/0/$plot_wprof_ymax"); }
+sub setR2() { GMT_setR("-R-450/350/0/$plot_wprof_ymax"); }
 
 sub plotDC($$)
 {
@@ -51,6 +54,7 @@ sub plotBT($$)
 	my($f,$minsamp) = @_;
 	for (my($bi)=0; $bi<=$#{$BT{$f}}; $bi++) {
 		if (numberp($BT{$f}[$bi]) && $BT{N_SAMP}[$bi]>=$minsamp) {
+			$have_BT = 1;
 			printf(GMT "%g %g\n",$BT{$f}[$bi],($bi+0.5)*$opt_o);
 		} else {
 			print(GMT "nan nan\n");
@@ -83,46 +87,72 @@ sub plot_wprof($)
 	}
 
 	setR1();																			# FRAME
-	GMT_psxy('-W1');
+	GMT_psxy('-W0.5');
 		print(GMT "0 0\n 0 $plot_wprof_ymax\n");
 	setR2();
-	GMT_psxy('-W1 -M');
+	GMT_psxy('-W0.5');
 		print(GMT ">\n50 0\n 50 $plot_wprof_ymax\n");
-		print(GMT ">\n100 0\n 100 $plot_wprof_ymax\n");
 		print(GMT ">\n150 0\n 150 $plot_wprof_ymax\n");
+		print(GMT ">\n250 0\n 250 $plot_wprof_ymax\n");
 
 	setR1();																			# VERTICAL VELOCITIES
-	GMT_psxy('-Mn -W4,coral,6_2:0'); 		plotDC('MEDIAN_W12',$opt_k);
-	GMT_psxy('-Mn -W4,coral,4_6:0'); 		plotDC('MEDIAN_W34',$opt_k);
-	GMT_psxy('-Mn -W4,SeaGreen,6_2:0'); 	plotUC('MEDIAN_W12',$opt_k);
-	GMT_psxy('-Mn -W4,SeaGreen,4_6:0'); 	plotUC('MEDIAN_W34',$opt_k);
-	GMT_psxy('-Mn -W4,black'); 				plotBT('MEDIAN_W',$opt_k);
+	GMT_psxy('-W1,coral,8_2:0');		plotDC('MEDIAN_W12',$opt_k);
+	GMT_psxy('-W1,coral,1_1:0');		plotDC('MEDIAN_W34',$opt_k);
+	GMT_psxy('-W1,SeaGreen,8_2:0'); 	plotUC('MEDIAN_W12',$opt_k);
+	GMT_psxy('-W1,SeaGreen,1_1:0'); 	plotUC('MEDIAN_W34',$opt_k);
+	GMT_psxy('-W1,black');				plotBT('MEDIAN_W',$opt_k);
 
-	GMT_psxy('-Sc0.1c -Gcoral');			plotDC('MAD_W',0);							# MEAN ABSOLUTE DEVIATIONS
-	GMT_psxy('-Sc0.1c -GSeaGreen');			plotUC('MAD_W',0);	
-	GMT_psxy('-Sc0.1c -Gblack');			plotBT('MAD_W',0);	
+	GMT_psxy('-Sc0.1c -Gcoral');		plotDC('MAD_W',0);								# MEAN ABSOLUTE DEVIATIONS
+	GMT_psxy('-Sc0.1c -GSeaGreen');		plotUC('MAD_W',0);	
+	GMT_psxy('-Sc0.1c -Gblack');		plotBT('MAD_W',0);	
 
 	setR2();																			# SAMPLES
-	GMT_psxy('-Mn -W1/coral');				plotDC('N_SAMP',0);
-	GMT_psxy('-Mn -W1/SeaGreen');			plotUC('N_SAMP',0);	
-	GMT_psxy('-Mn -W1/black');				plotBT('N_SAMP',0);	
+	GMT_psxy('-W0.7,coral');			plotDC('N_SAMP',0);
+	GMT_psxy('-W0.7,SeaGreen');			plotUC('N_SAMP',0);	
+	GMT_psxy('-W0.7,black');			plotBT('N_SAMP',0);	
 	
 	GMT_unitcoords();																	# LABELS
-	GMT_pstext('-Gblue -N');
-		print(GMT "0.01 -0.06 14 0 0 TL $P{out_basename} [$P{run_label}]\n");
-	GMT_pstext();
-		print(GMT "0.6 0.98 12 0 0 BR m.a.d.\n");
+	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
+		print(GMT "0.01 -0.06 $P{out_basename} [$P{run_label}]\n");
+	GMT_pstext('-F+f12,Helvetica+jBR');
+		print(GMT "0.6 0.98 m.a.d.\n");
+	GMT_pstext('-F -N');
+		print(GMT "0.32 1.12 Vertical Velocity [m/s]\n");
+	GMT_pstext('-F+f9,Helvetica,orange+jTR -N -Gwhite');
+		print(GMT "0.99 0.01 V$VERSION\n");
 
+	GMT_pstext('-F+f12,Helvetica,coral+jTL -Gwhite');
+		print(GMT "0.02 0.01 dc\n");
+	GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gwhite');
+		print(GMT "0.02 0.06 uc\n");
+	if ($have_BT) {
+		GMT_pstext('-F+f12,Helvetica,black+jTL -Gwhite');
+			print(GMT "0.02 0.10 BT\n");
+	}
+
+	GMT_pstext('-F+f9,Helvetica,CornFlowerBlue+jTL -N');
+		printf(GMT "0.64 1.020 $LADCP{BEAM_FREQUENCY}kHz $LADCP{INSTRUMENT_TYPE} $P{ADCP_orientation}\n");
+		printf(GMT "0.64 1.055 bin setup\n		0.77 1.055 : %.1fm/%1.fm/%1.fm\n",
+			$LADCP{BLANKING_DISTANCE},$LADCP{TRANSMITTED_PULSE_LENGTH},$LADCP{BIN_LENGTH});
+		print(GMT "0.64 1.090 rms tilt\n 		0.77 1.096 :\n");
+		print(GMT "0.64 1.130 rms w\@-pkg\@-\n	0.77 1.1315 :\n");
+	GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
+		printf(GMT "0.788 1.090 %.1f\\260\n",$P{dc_rms_tilt});
+		printf(GMT "0.788 1.125 %.1fm/s\n",$P{dc_rms_w_pkg});
+	GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
+		printf(GMT "0.89 1.090 %.1f\\260\n",$P{uc_rms_tilt});
+		printf(GMT "0.89 1.125 %.1fm/s\n",$P{uc_rms_w_pkg});
+		
 	my($depth_tics) = ($plot_wprof_ymax < 1000 ) ? 'f10a100' : 'f100a500';				# AXES
 	setR1();
-	GMT_psbasemap("-Bf0.01:'Vertical Velocity [m/s]                               ':/$depth_tics:'Depth [m]':WeS");
+	GMT_psbasemap("-Bf0.01:'':/$depth_tics:'Depth [m]':WeS");
 	foreach my $t (split('\s+',$plot_wprof_xtics)) {
 		GMT_psbasemap(sprintf('-Ba10-%fS',10-$t));
 	}
 	setR2();
 	GMT_psbasemap('-Bf10a1000-950:"                                     # of Samples":N');
-	GMT_psbasemap('-Ba1000-900N');
 	GMT_psbasemap('-Ba1000-850N');
+	GMT_psbasemap('-Ba1000-750N');
 		 
 	GMT_end();																			# FINISH PLOT
 }

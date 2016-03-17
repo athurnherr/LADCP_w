@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ R E S I D U A L S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Tue Jan 26 20:45:58 2016
+#                    dlm: Wed Mar 16 16:32:39 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 21 31 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 83 24 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -11,6 +11,7 @@
 #	Jul 30, 2015: - made it respect outGrid_ selection
 #				  - modified $ens_tics
 #   Jan 26, 2016: - added return on no data to plot
+#	Mar 16, 2016: - adapted to gmt5
 
 require "$ANTS/libGMT.pl";
 
@@ -69,8 +70,8 @@ sub plot_residuals($)
 	}
 
 	GMT_unitcoords();																	# LABELS
-	GMT_pstext(-Gblue);
-		print(GMT "0.02 0.98 12 0 0 BL $P{out_basename} $P{run_label}\n");
+	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
+		print(GMT "0.01 -0.06 $P{out_basename} $P{run_label}\n");
 
 	my($depth_tics) = ($ymax < 1000 ) ? 'f10a100' : 'f100a500';							# AXES
 	my($ens_tics) =   ($ymax < 1000 ) ? 'f50a500' : 'f500a2000';
@@ -78,7 +79,8 @@ sub plot_residuals($)
 	GMT_psbasemap("-B$ens_tics:'Ensemble [#]':/$depth_tics:'Depth [m]':WeSn");
 
 	GMT_setAnnotFontSize(7);															# SCALE BAR
-	GMT_psscale("-E -D8/2/3/0.4 $C -B/:residuals:");
+#	GMT_psscale("-E -D8/2/3/0.4 $C -B/:residuals:");
+	GMT_psscale("-Dn0.83/0.1+w3/0.4+e $C -B/:residuals:");
 		 
 	GMT_end();																			# FINISH PLOT
 }

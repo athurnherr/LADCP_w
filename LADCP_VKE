@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Tue Mar  8 15:55:52 2016
+#                    dlm: Thu Mar 17 06:57:09 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 48 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 429 49 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -49,6 +49,7 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #				  - changed default output filenames for -d and -u
 #				  - removed ./ from figure label
 #				  - update ANTSlib to 6.3
+#	Mar 16, 2016: - adapted to gmt5
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -342,7 +343,7 @@ for (my($r)=0; $r<@ants_; $r++) {													# loop over all windows
 		my($R) = 0;																# RGB map
 		my($G) = int(200*(1-$r/@ants_));
 		my($B) = ($r < @ants_/2) ? 150 : int(100+100*(1-$r/@ants_));
-		GMT_psxy("-W8,$R/$G/$B");
+		GMT_psxy("-W1,$R/$G/$B");
 		for (my($f)=$pg_fmin+1; $f<$pg_fmin+$nfreq; $f++) {						# avg & plot high-quality spectra only
 			next unless numberp($ants_[$r][$f]) && numberp($ants_[$r][$p0f]);	#	- omit zero wavenumber ($pg_fmin)
 			next unless numberp($ants_[$r][$wepsf]);
@@ -351,7 +352,7 @@ for (my($r)=0; $r<@ants_; $r++) {													# loop over all windows
 			$nGoodPwr[$f]++;
 			$sumGoodPwr[$f] += $ants_[$r][$f]/$ants_[$r][$p0f];
 		}
-		GMT_psxy("-W4,$R/$G/$B,.");												# avg & plot all spectra with dots
+		GMT_psxy("-W1,$R/$G/$B,.");												# avg & plot all spectra with dots
 		for (my($f)=$pg_fmin+1; $f<$pg_fmin+$nfreq; $f++) {
 			next unless numberp($ants_[$r][$f]) && numberp($ants_[$r][$p0f]);
 			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
@@ -398,7 +399,7 @@ for (my($r)=0; $r<@ants_; $r++) {													# loop over all windows
 
 if (defined($opt_p)) {															# complete plot
 	if (@nPwr) {
-		GMT_psxy('-W10,255/100/100,.');											# plot mean spectrum; dotted; entire range
+		GMT_psxy('-W2,255/100/100,.');											# plot mean spectrum; dotted; entire range
 		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
 			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
 			printf(GMT "$k %g\n",$sumPwr[$f]/$nPwr[$f]);
@@ -406,12 +407,12 @@ if (defined($opt_p)) {															# complete plot
 	}
 
 	if (@nGoodPwr) {
-		GMT_psxy('-W4/255/100/100');											# plot mean spectrum; entire range
+		GMT_psxy('-W1,255/100/100');											# plot mean spectrum; entire range
 		for (my($f)=$pg_fmin+1; $f<$pg_fmin+$nfreq; $f++) {
 			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
 			printf(GMT "$k %g\n",$sumGoodPwr[$f]/$nGoodPwr[$f]);
 		}
-		GMT_psxy('-W16/255/100/100');											# plot mean fs spectrum (heavy)
+		GMT_psxy('-W4,255/100/100');											# plot mean fs spectrum (heavy)
 		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
 			my($k) = antsParam(sprintf("k.%d",$f-$pg_fmin));
 			printf(GMT "$k %g\n",$sumGoodPwr[$f]/$nGoodPwr[$f]);
@@ -425,23 +426,25 @@ if (defined($opt_p)) {															# complete plot
 	GMT_psbasemap('-B3:"Vertical Wavelength [m]:N"');
 
 	GMT_unitcoords_logscale();													# print profile number 
-	GMT_pstext('-Gblue');
-	if (defined($outfile)) { printf(GMT "0.98 0.02 14 0 0 BR $outfile [$P{run_label}] %s\n",antsParam('input_data')); }
-	else { printf(GMT "0.98 0.02 14 0 0 BR %03d [$P{run_label}] %s\n",antsParam('profile_id'),antsParam('input_data')); }
+	GMT_pstext('-F+f14,Helvetica,blue+jBR -Gwhite');
+	if (defined($outfile)) { printf(GMT "0.98 0.02 $outfile [$P{run_label}] %s\n",antsParam('input_data')); }
+	else { printf(GMT "0.98 0.02 %03d [$P{run_label}] %s\n",antsParam('profile_id'),antsParam('input_data')); }
+	GMT_pstext('-F+f9,Helvetica,orange+jTR -N -Gwhite');
+		print(GMT "0.99 0.99 V$VERSION\n");
 
-	GMT_set('ANNOT_FONT_SIZE_PRIMARY 10','ANNOT_OFFSET_PRIMARY 0.01c',			# eps profile inset
-			'LABEL_FONT_SIZE 10','LABEL_OFFSET 0');
+	GMT_set('FONT_ANNOT_PRIMARY 10','MAP_ANNOT_OFFSET_PRIMARY 0.01c',			# eps profile inset
+			'FONT_LABEL 10','MAP_LABEL_OFFSET 0.2c');
 	$min_depth = 400 if ($min_depth > 1e4);
 	$max_depth = 1500 if ($max_depth < 0);
 	GMT_setR(sprintf("-R5e-13/1e-7/%d/%d",round($min_depth-250,500),round($max_depth+250,500))); 
 	GMT_setJ(sprintf('-JX%fl/-%f',$plotsize/2.2,$plotsize/2.2));
 	GMT_psbasemap('-X0.3 -Y0.3 -Bg1a1f3p:"@~e@~@-VKE@- [W kg@+-1@+]":/g1000a500f100:"Depth [m]":wEsN');
-	GMT_psxy('-M');
+	GMT_psxy();
 	for (my($r)=0; $r<@ants_; $r++) {
 		next unless numberp($ants_[$r][$wepsf]);
 		my($R) = 0; my($G) = int(200*(1-$r/@ants_));
 		my($B) = ($r < @ants_/2) ? 150 : int(100+100*(1-$r/@ants_));
-		print(GMT "> -W12,$R/$G/$B\n");
+		print(GMT "> -W2,$R/$G/$B\n");
 		print(GMT "$ants_[$r][$wepsf] $ants_[$r][$mindf]\n");
 		print(GMT "$ants_[$r][$wepsf] $ants_[$r][$maxdf]\n");
 	}

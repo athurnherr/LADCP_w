@@ -1,14 +1,15 @@
 #======================================================================
 #                    P L O T _ T I M E _ L A G S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Tue Jan 26 20:14:53 2016
+#                    dlm: Wed Mar 16 16:42:42 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 19 38 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 50 25 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 29, 2015: - created from [LWplot_TL]
 #   Jan 26, 2016: - added return on no data to plot
+#	Mar 16, 2016: - adapted to gmt5
 
 require "$ANTS/libGMT.pl";
 
@@ -37,7 +38,7 @@ sub plot_time_lags($)
 			printf(GMT "%f %f\n",$elapsed_buf[$wi]/60,$so_buf[$wi]);
         }
 
-	GMT_psxy('-W4/grey20 -M');
+	GMT_psxy('-W1,grey20');
 	for (my($i)=0; $i<@bmo_buf; $i++) {
 		printf(GMT ">\n%f %f\n%f %f\n",
 			$fg_buf[$i]/60-0.5,$bmo_buf[$i],
@@ -45,8 +46,8 @@ sub plot_time_lags($)
 	}
 
 	GMT_unitcoords();																	# LABELS
-	GMT_pstext(-Gblue);
-		print(GMT "0.02 0.02 12 0 0 BL $P{out_basename} $P{run_label}\n");
+	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
+		print(GMT "0.01 1.06 $P{out_basename} $P{run_label}\n");
 
 	GMT_setR($R);
 	GMT_end('-Bf1a30:"Elapsed Time [min]":/f1a5:"Best Offset [scans]":WeSn');			# FINISH PLOT

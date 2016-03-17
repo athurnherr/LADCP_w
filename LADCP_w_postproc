@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Wed Mar  9 17:20:46 2016
+#                    dlm: Thu Mar 17 06:50:38 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 510 1 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 325 30 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -60,6 +60,7 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #					output
 #	Mar  7, 2016: - BUG: correlation stats were defined/used for single-head data
 #				  - removed good_bins() from library as -v allows more control
+#	Mar 16, 2016: - adapted to gmt5
 
 ($ANTS)  = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0              =~ m{^(.*)/[^/]*$});
@@ -304,8 +305,8 @@ if (defined($opt_p)) {
 
 my($R,$R2);
 if (defined($opt_p)) {												# begin summary plot
-	$xmin = -0.1; $x2min = -200;
-	$xmax = 0.35; $x2max =	200;
+	$xmin = -0.1; $x2min = -700;
+	$xmax = 0.35; $x2max =	500;
 	$ymin =  0;
 	$ymax = antsParam('water_depth');
 	$ymax = antsRequireParam('max_depth') unless numberp($ymax);
@@ -313,15 +314,15 @@ if (defined($opt_p)) {												# begin summary plot
 	$R	= "-R$xmin/$xmax/$ymin/$ymax";
 	$R2 = "-R$x2min/$x2max/$ymin/$ymax";
 	GMT_begin(sprintf($sumPF,$id),"-JX$plotsize/-$plotsize",$R,'-P -X6 -Y4');
-	GMT_psxy('-W1');
+	GMT_psxy('-W0.5');
 	print(GMT "0 $ymin\n0 $ymax");
 	GMT_psxy('-L -G200');
 	print(GMT "0.07 $ymin\n0.07 $ymax\n0.18 $ymax\n0.18 $ymin\n");
 	GMT_setR($R2);
-	GMT_psxy('-M -W1');
+	GMT_psxy('-W0.5');
 	print(GMT ">\n50 $ymin\n50 $ymax\n");
-	print(GMT ">\n100 $ymin\n100 $ymax\n");
-	print(GMT ">\n150 $ymin\n150 $ymax\n");
+	print(GMT ">\n250 $ymin\n250 $ymax\n");
+	print(GMT ">\n450 $ymin\n450 $ymax\n");
 	GMT_setR($R);
 
 	if (defined($opt_b)) {
@@ -337,7 +338,7 @@ if (defined($opt_p)) {												# begin summary plot
 		croak("$opt_b: file-layout error\n")
 			unless defined($BTdf) && defined($BTwf) &&
 				   defined($BTmf) && defined($BTnf);
-		GMT_psxy('-W6');
+		GMT_psxy('-W1.5');
 		while (@BT = &antsFileIn(BT)) {
 			next unless numberp($BT[$BTwf]);
 			printf(GMT "%f %f\n",$BT[$BTwf],$BT[$BTdf]);
@@ -415,11 +416,11 @@ for ($r=0; &antsIn(); $r++) {
 		}
 
 		if (defined($opt_p)) {													# 2nd file in dual-head profile => plot 1st
-			GMT_psxy('-W2,255/127/80,-');
+			GMT_psxy('-W1,coral,-');
 			for (my($bi)=0; $bi<=$#dcw1; $bi++) {
 				printf(GMT "%f %f\n",$DL_dc_median[$bi],($bi+0.5)*$opt_o);
 			}
-			GMT_psxy('-W2,46/139/87,-');
+			GMT_psxy('-W1,SeaGreen,-');
 			for (my($bi)=0; $bi<=$#ucw1; $bi++) {
 				printf(GMT "%f %f\n",$DL_uc_median[$bi],($bi+0.5)*$opt_o);
 			}
@@ -469,11 +470,11 @@ if ($dual_head) {
 				   'dc_residual_stddev',$dc_rsig,'uc_residual_stddev',$uc_rsig);
 
 	if (defined($opt_p)) {														# plot 2nd-instrument profiles
-		GMT_psxy('-W2,255/127/80,.');
+		GMT_psxy('-W1,coral,.');
 		for (my($bi)=0; $bi<=$#dcw1; $bi++) {
 			printf(GMT "%f %f\n",$UL_dc_median[$bi],($bi+0.5)*$opt_o);
 		}
-		GMT_psxy('-W2,46/139/87,.');
+		GMT_psxy('-W1,SeaGreen,.');
 		for (my($bi)=0; $bi<=$#ucw1; $bi++) {
 			printf(GMT "%f %f\n",$UL_uc_median[$bi],($bi+0.5)*$opt_o);
 		}
@@ -533,64 +534,64 @@ for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
 
 if (defined($opt_p)) {																# complete summary plot
 	if ($dual_head) {
-		GMT_psxy('-W2/100/100/255');												# surface layer limit
+		GMT_psxy('-W1,100/100/255');												# surface layer limit
 			print(GMT "-0.1 $opt_s\n0.07 $opt_s\n");
 		if ($dc_R < 0.3 || !numberp($dc_R)) {										# correlation statistics
 			&antsInfo("WARNING: low dc correlation (r = %.1f) between UL and DL data",$dc_R);
-			GMT_pstext('-Gwhite -Wred');
-		} elsif ($dc_R < 0.5) { 	GMT_pstext('-Gblack -Wyellow'); }
-		else {						GMT_pstext('-Gblack -Wgreen'); }
-	        printf(GMT "%f %f 12 0 0 BL %.1f\n",-0.07,0.9*$ymax,$dc_R);
+			GMT_pstext('-F+f12,Helvetica,white+jBL -Gred');
+		} elsif ($dc_R < 0.5) { 	GMT_pstext('-F+f12,Helvetica,black+jBL -Gyellow'); }
+		else {						GMT_pstext('-F+f12,Helvetica,black+jBL -Ggreen'); }
+	        printf(GMT "%f %f %.1f\n",-0.07,0.94*$ymax,$dc_R);
 	}
-	GMT_pstext('-G255/127/80');
-		printf(GMT "%f %f 12 0 0 BL dc\n",-0.095,0.9*$ymax);
-		printf(GMT "%f %f 12 0 0 BL [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
-			0.02,0.9*$ymax,100*$dc_esig,100*$dc_rsig) if ($dual_head);
+	GMT_pstext('-F+f12,Helvetica,coral+jBL');
+		printf(GMT "%f %f dc\n",-0.095,0.94*$ymax);
+		printf(GMT "%f %f [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
+			0.02,0.94*$ymax,100*$dc_esig,100*$dc_rsig) if ($dual_head);
 	if ($dual_head) {
 		if ($uc_R < 0.3 || !numberp($uc_R)) {
 			&antsInfo("WARNING: low uc correlation (r = %.1f) between UL and DL data",$uc_R);
-			GMT_pstext('-Gwhite -Wred');
-		} elsif ($uc_R < 0.5) { 	GMT_pstext('-Gblack -Wyellow'); }
-		else {						GMT_pstext('-Gblack -Wgreen'); }
-	        printf(GMT "%f %f 12 0 0 BL %.1f\n",-0.07,0.95*$ymax,$uc_R);
+			GMT_pstext('-F+f12,Helvetica,white+jBL -Gred');
+		} elsif ($uc_R < 0.5) { 	GMT_pstext('-F+f12,Helvetica,black+jBL -Gyellow'); }
+		else {						GMT_pstext('-F+f12,Helvetica,black+jBL -Ggreen'); }
+	        printf(GMT "%f %f %.1f\n",-0.07,0.98*$ymax,$uc_R);
 	}
-	GMT_pstext('-G46/139/87');
-		printf(GMT "%f %f 12 0 0 BL uc\n",-0.095,0.95*$ymax);
-		printf(GMT "%f %f 12 0 0 BL [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
-			0.02,0.95*$ymax,100*$uc_esig,100*$uc_rsig) if ($dual_head);
+	GMT_pstext('-F+f12,Helvetica,SeaGreen+jBL');
+		printf(GMT "%f %f uc\n",-0.095,0.98*$ymax);
+		printf(GMT "%f %f [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
+			0.02,0.98*$ymax,100*$uc_esig,100*$uc_rsig) if ($dual_head);
 
 	GMT_setR($R);
 
-	GMT_psxy('-W4,255/127/80');														# median profiles
+	GMT_psxy('-W1.5,coral');														# median profiles
 	for (my($bi)=0; $bi<=$#dcw; $bi++) {
 		printf(GMT "%f %f\n",(($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),($bi+0.5)*$opt_o);
 	}
-	GMT_psxy('-W4,46/139/87');
+	GMT_psxy('-W1.5,SeaGreen');
 	for (my($bi)=0; $bi<=$#ucw; $bi++) {
 		printf(GMT "%f %f\n",(($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),($bi+0.5)*$opt_o);
 	}
 
-	GMT_psxy('-Sc0.1 -G255/127/80');												# m.a.d. profiles
+	GMT_psxy('-Sc0.1 -Gcoral');												# m.a.d. profiles
 	for (my($bi)=0; $bi<=$#dcw; $bi++) {
 		printf(GMT "%f %f\n",(($dcns[$bi]>=$opt_k)?$dcwmad[$bi]:nan),($bi+0.5)*$opt_o);
 	}
-	GMT_psxy('-Sc0.1 -G46/139/87');
+	GMT_psxy('-Sc0.1 -GSeaGreen');
 	for (my($bi)=0; $bi<=$#ucw; $bi++) {
 		printf(GMT "%f %f\n",(($ucns[$bi]>=$opt_k)?$ucwmad[$bi]:nan),($bi+0.5)*$opt_o);
 	}
 
 	GMT_setR($R2);
-	GMT_psxy('-Mn -W1,255/127/80');
+	GMT_psxy('-W0.7,coral');
 	for (my($bi)=0; $bi<=$#dcw; $bi++) {											# number of samples
 		printf(GMT "%f %f\n",$dcns[$bi],($bi+0.5)*$opt_o);
 	}
-	GMT_psxy('-Mn -W1,46/139/87');
+	GMT_psxy('-W0.7,SeaGreen');
 	for (my($bi)=0; $bi<=$#dcw; $bi++) {
 		printf(GMT "%f %f\n",$ucns[$bi],($bi+0.5)*$opt_o);
 	}
 
-	GMT_psbasemap('-Bf10a1000-950:"                                     # of Samples":N');
-	GMT_psbasemap('-Ba1000-900N'); GMT_psbasemap('-Ba1000-850N');
+	GMT_psbasemap('-Bf10a1000-950:"                                                  # of Samples":N');
+	GMT_psbasemap('-Ba2000-1550N'); GMT_psbasemap('-Ba1000-750N');
 
 	$depth_tics = ($ymax-$ymin< 1000) ? 'f10a100' : 'f100a500';
 	GMT_setR($R);
@@ -599,11 +600,14 @@ if (defined($opt_p)) {																# complete summary plot
 	GMT_psbasemap('-Ba10-9.95S'); GMT_psbasemap('-Ba10-9.85S');
 
 	GMT_setR('-R0/1/0/1');
-	GMT_pstext('-Gblue -N');
-	if (defined($outfile)) { print(GMT "0.01 -0.06 14 0 0 TL $outfile [$P{run_label}]\n"); }
-	else { printf(GMT "0.01 -0.06 14 0 0 TL %03d\n [$P{run_label}]",$id); }
-	GMT_pstext();
-	print(GMT '0.62 0.98 12 0 0 MR m.a.d.');
+	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
+	if (defined($outfile)) { print(GMT "0.01 -0.06 $outfile [$P{run_label}]\n"); }
+	else { 					printf(GMT "0.01 -0.06 %03d\n [$P{run_label}]",$id); }
+	GMT_pstext('-F+f12,Helvetica+jMR');
+		print(GMT '0.62 0.98 m.a.d.');
+	GMT_pstext('-F+f9,Helvetica,orange+jTR -N -Gwhite');
+		print(GMT "0.99 0.01 V$VERSION\n");
+        
 	GMT_end();
 
 	if ($dual_head) {																# correlation plot
@@ -631,39 +635,39 @@ if (defined($opt_p)) {																# complete summary plot
 							 $mwm,		 $mwm,
 							 $mwm-0.01,	 $mwm);
 													   
-		GMT_psxy('-W4,grey50');
+		GMT_psxy('-W2,grey50');
 			print(GMT "-$mwm -$mwm\n$mwm $mwm\n");
-		GMT_psxy('-Sc0.12c -G255/127/80 -W1,blue,-');
+		GMT_psxy('-Sc0.12c -Gcoral -W0.3,blue');
 			for (my($bi)=0; $bi<@DL_dc_median; $bi++) {
 				next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
 				my($depth) = ($bi+0.5)*$opt_o;
 				last if ($depth > $opt_s);
 				print(GMT "$DL_dc_median[$bi] $UL_dc_median[$bi]\n");
 	        }
-		GMT_psxy('-Sc0.12c -G255/127/80');
+		GMT_psxy('-Sc0.12c -Gcoral');
 			for (my($bi)=0; $bi<@DL_dc_median; $bi++) {
 				next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
 				my($depth) = ($bi+0.5)*$opt_o;
 				next unless ($depth > $opt_s);
 				print(GMT "$DL_dc_median[$bi] $UL_dc_median[$bi]\n");
 	        }
-		GMT_psxy('-Sc0.12c -G46/139/87 -W1,blue,-');
+		GMT_psxy('-Sc0.12c -GSeaGreen -W0.3,blue');
 			for (my($bi)=0; $bi<@DL_uc_median; $bi++) {
 				next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
 				my($depth) = ($bi+0.5)*$opt_o;
 				last if ($depth > $opt_s);
 				print(GMT "$DL_uc_median[$bi] $UL_uc_median[$bi]\n");
 	        }
-		GMT_psxy('-Sc0.12c -G46/139/87');
+		GMT_psxy('-Sc0.12c -GSeaGreen');
 			for (my($bi)=0; $bi<@DL_uc_median; $bi++) {
 				next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
 				my($depth) = ($bi+0.5)*$opt_o;
 				next unless ($depth > $opt_s);
 				print(GMT "$DL_uc_median[$bi] $UL_uc_median[$bi]\n");
 	        }
-		GMT_pstext('-Gblue -N');
-			if (defined($outfile)) { printf(GMT "%f %f 14 0 0 TL $outfile [$P{run_label}]\n",-$mwm,1.1*$mwm); }
-		    else { 					 printf(GMT "%f %f 14 0 0 TL %03d\n [$P{run_label}]",$id,-$mwm,1.1*$wmw); }
+		GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
+			if (defined($outfile)) { printf(GMT "%f %f $outfile [$P{run_label}]\n",-$mwm,1.1*$mwm); }
+		    else { 					 printf(GMT "%f %f %03d\n [$P{run_label}]",$id,-$mwm,1.1*$wmw); }
 		GMT_psbasemap('-Bf0.01a0.05:"DL Vertical Velocity [m/s]":/f0.01a0.05:"UL Vertical Velocity [m/s]":WeSn');
 		GMT_end();
 		

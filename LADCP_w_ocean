@@ -2,14 +2,13 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Sun Mar 13 15:08:59 2016
+#                    dlm: Thu Mar 17 05:55:25 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 473 122 NIL 0 3 72 0 2 4 NIL ofnI
+#                    uE-Info: 229 64 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
 #	! plots:
-#		- make blue labels consistent
 #		- avoid over-plotting axis labels
 #		- allow for different nsamp magnitudes
 #		- add "dc" "uc" labels
@@ -225,6 +224,9 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Mar  9, 2016: - added hab field to .wprof output
 #	Mar 13, 2016: - cleaned up warnings created before LADCP_file is defined
 #				  - added sanity checks and warnings
+#	Mar 17, 2016: - added {dc,uc}_rms_{tilt,w_pkg}
+#				  - replaced a couple of **2 by &SQR()
+#				  - replaced %ADCP_orientation values by DL & UL
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -765,11 +767,27 @@ for (my($bin)=$LADCP_firstBin-1; $bin<$LADCP_lastBin-1; $bin++) {
 	last;
 }
 
+my($dc_sumsq,$dc_n,$uc_sumsq,$uc_n) = (0,0,0,0);
 $fprm = $pte = 0;
 for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
-	$pte += editTilt($ens,$opt_t);
+	my($ne) = editTilt($ens,$opt_t);
+	if ($ne == 0) {
+		if ($ens <= $LADCP_atbottom) {
+			$dc_sumsq += &SQR($LADCP{ENSEMBLE}[$ens]->{TILT});
+			$dc_n++;
+        } else {
+			$uc_sumsq += &SQR($LADCP{ENSEMBLE}[$ens]->{TILT});
+			$uc_n++;
+        }
+    } else {
+		$pte += $ne;
+    }
 	$fprm += editFarBins($ens,$first_bad_bin) if defined($first_bad_bin);
 }
+my($dc_rms_tilt) = ($dc_n > 0) ? sqrt($dc_sumsq/$dc_n) : nan;
+my($uc_rms_tilt) = ($uc_n > 0) ? sqrt($uc_sumsq/$uc_n) : nan;
+&antsAddParams('dc_rms_tilt',$dc_rms_tilt,'uc_rms_tilt',$uc_rms_tilt);
+
 progress("\tattitude threshold (max_tilt = %d deg): %d velocites removed (%d%% of total)\n",
 	$opt_t,$pte,round(100*$pte/$nvv));
 progress("\tvelocities beyond bin $first_bad_bin (<%d%% valid values): %d velocites removed (%d%% of total in bins $LADCP_firstBin-$LADCP_lastBin)\n",
@@ -814,7 +832,7 @@ $CTD{W_t}[0]  = $CTD{W_t} [@{$CTD{ELAPSED}}] = nan;							# calculate w-derivati
 $CTD{W_tt}[0] = $CTD{W_tt}[@{$CTD{ELAPSED}}] = nan;
 for (my($s)=1; $s<@{$CTD{ELAPSED}}-1; $s++) {								# centered differences for both
 	$CTD{W_t} [$s] = ($CTD{W}[$s+1] - $CTD{W}[$s-1]) / (2*$CTD{DT});
-	$CTD{W_tt}[$s] = ($CTD{W}[$s+1] + $CTD{W}[$s-1] - 2*$CTD{W}[$s]) / $CTD{DT}**2;
+	$CTD{W_tt}[$s] = ($CTD{W}[$s+1] + $CTD{W}[$s-1] - 2*$CTD{W}[$s]) / &SQR($CTD{DT});
 }
 
 error("$0: CTD start depth must be numeric\n")
@@ -958,6 +976,7 @@ progress("Merging CTD with LADCP data...\n");
 my($cli) = 0;																	# current-lag index
 my($lag) = $CTD_time_lag[$cli];													# current lag
 
+my($dc_sumsq,$dc_n,$uc_sumsq,$uc_n) = (0,0,0,0);								# for w_pkg calcs
 for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 
 	if ($ens > $CTD_tl_toEns[$cli]) {											# use correct lag piece
@@ -999,6 +1018,11 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 				unless ($CTD{DEPTH}[$scan] >= 0);
 		$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH} = $CTD{DEPTH}[$scan];
 		$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN} = $scan;
+		if ($ens <= $LADCP_atbottom) {
+			$dc_sumsq += &SQR($CTD{W}[$scan]); $dc_n++;
+        } else {
+			$uc_sumsq += &SQR($CTD{W}[$scan]); $uc_n++;
+		}
 		my($reflr_ocean_w) = $LADCP{ENSEMBLE}[$ens]->{REFLR_W} - $CTD{W}[$scan];
 		if (abs($reflr_ocean_w) <= $w_max_lim) {
 			$sumWsq += &SQR($reflr_ocean_w);
@@ -1016,6 +1040,10 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 	    undef($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});						# old DEPTH from calcLADCPts() must be removed
 	}
 }
+
+my($dc_rms_wpkg) = ($dc_n > 0) ? sqrt($dc_sumsq / $dc_n) : nan;			# rms package velocity
+my($uc_rms_wpkg) = ($uc_n > 0) ? sqrt($uc_sumsq / $uc_n) : nan;
+&antsAddParams('dc_rms_w_pkg',$dc_rms_wpkg,'uc_rms_w_pkg',$uc_rms_wpkg);
 	
 if ($nWsq > 0 && $nWsqI > 0) {
 	&antsAddParams('rms_w_reflr_err',sqrt($sumWsq/$nWsq),'rms_w_reflr_err_interior',sqrt($sumWsqI/$nWsqI));
@@ -1111,7 +1139,7 @@ if (defined($water_depth)) {
 }
 	
 if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {				# DOWNLOOKER
-	&antsAddParams('ADCP_orientation','downlooker');
+	&antsAddParams('ADCP_orientation','DL');
 
 	if (defined($water_depth)) {
 		progress("Editing data to remove sidelobe interference from seabed...\n");
@@ -1149,7 +1177,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {				# DOWNLOOKER
 	}
 	
 } else {																	# UPLOOKER
-	&antsAddParams('ADCP_orientation','uplooker');
+	&antsAddParams('ADCP_orientation','UL');
 
 	progress("Editing data to remove sidelobe interference from sea surface...\n");
 	($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,undef);

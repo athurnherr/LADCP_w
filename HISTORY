@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Wed Mar 16 08:25:15 2016
+                    dlm: Thu Mar 17 07:50:06 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 60 0 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 67 19 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -58,5 +58,11 @@ V1.2:
 		- updated howto
 	Mar 16, 2016: V1.2beta4
 		- published on server		
-		
+		- updated [version.pl] to beta5 (gmt5)
+		- adapted to GMT5
+	Mar 17, 2016: V1.2beta5
+		- updated [.hg/hgrc]
+		- various plot improvements
+		- updated howto
+		- published
 		
