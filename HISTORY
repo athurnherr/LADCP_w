@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Thu Mar 17 07:50:06 2016
+                    dlm: Tue Mar 29 15:02:04 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 67 19 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 84 66 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -65,4 +65,21 @@ V1.2:
 		- various plot improvements
 		- updated howto
 		- published
-		
+		- V1.2beta6 [version.pl] [.hg/hgrc]
+		- changed surface-wave stat in [LADCP_w_ocean]
+	Mar 18-29, 2016: V1.2beta6
+		- [LADCP_VKE]:
+			- added -k to supply external eps
+			- re-designed QC checks (slope estimates)
+			- several other minor improvements
+			- [LADCP_wspec]:
+				- added median # of samples to output
+		- [LADCP_w_CTD]:
+			- added support for $ENV{VERB}
+		- [LADCP_w_ocean]
+			- added -r)ms residual filter with 4cm/s default cutoff
+			- fixed a couple of minor bugs (Sv correction had been disabled)
+			- replaced CTD w with CTD acceleration in wprof plots
+	Mar 29, 2016: V1.2beta6
+		- update antsMinLib to 6.6, perl-tools to 1.5 [version.pl]
+		- updated howto

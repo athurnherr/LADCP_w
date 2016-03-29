@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Thu Mar 17 06:02:11 2016
+#                    dlm: Thu Mar 17 12:44:45 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 144 24 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 145 24 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -135,13 +135,15 @@ sub plot_wprof($)
 		printf(GMT "0.64 1.055 bin setup\n		0.77 1.055 : %.1fm/%1.fm/%1.fm\n",
 			$LADCP{BLANKING_DISTANCE},$LADCP{TRANSMITTED_PULSE_LENGTH},$LADCP{BIN_LENGTH});
 		print(GMT "0.64 1.090 rms tilt\n 		0.77 1.096 :\n");
-		print(GMT "0.64 1.130 rms w\@-pkg\@-\n	0.77 1.1315 :\n");
+		print(GMT "0.64 1.130 rms a\@-pkg\@-\n	0.77 1.1315 :\n");
 	GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
-		printf(GMT "0.788 1.090 %.1f\\260\n",$P{dc_rms_tilt});
-		printf(GMT "0.788 1.125 %.1fm/s\n",$P{dc_rms_w_pkg});
+#		printf(GMT "0.788 1.090 %.1f\\260\n",$P{dc_rms_tilt});
+		printf(GMT "0.808 1.090 %.1f\\260\n",$P{dc_rms_tilt});
+		printf(GMT "0.78 1.125 %.1fm\@+2\@+/s\n",$P{dc_rms_accel_pkg});
 	GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
-		printf(GMT "0.89 1.090 %.1f\\260\n",$P{uc_rms_tilt});
-		printf(GMT "0.89 1.125 %.1fm/s\n",$P{uc_rms_w_pkg});
+#		printf(GMT "0.89 1.090 %.1f\\260\n",$P{uc_rms_tilt});
+		printf(GMT "0.91 1.090 %.1f\\260\n",$P{uc_rms_tilt});
+		printf(GMT "0.89 1.125 %.1fm\@+2\@+/s\n",$P{uc_rms_accel_pkg});
 		
 	my($depth_tics) = ($plot_wprof_ymax < 1000 ) ? 'f10a100' : 'f100a500';				# AXES
 	setR1();

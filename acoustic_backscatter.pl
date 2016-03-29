@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Tue Jan 26 19:24:42 2016
+#                    dlm: Sat Mar 26 06:10:57 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 171 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 29 92 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -25,7 +25,8 @@
 #	Apr 21, 2015: - added debug statements
 #	May 14, 2015: - BUG: code did not work for partial-depth casts
 #	Jun 18, 2015: - removed assertion marked by ##???, which bombed on P16N1#41 DL
-#	Jan 26, 2016: - adeed %PARAMs
+#	Jan 26, 2016: - added %PARAMs
+#	Mar 26, 2016: - BUG: nSv was declared local to this scope even though it is used outside
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -68,7 +69,7 @@ sub Sv($$$$$)
 #			nSv[$depth][$bin]	number of samples in bin
 #----------------------------------------------------------------------
 
-my(@sSv,@nSv);
+# my(@sSv,@nSv);		BAD: nSv is referenced in [LADCP_w_ocean]
 
 sub calc_backscatter_profs($$)
 {

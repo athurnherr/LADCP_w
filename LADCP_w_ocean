@@ -2,231 +2,246 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Thu Mar 17 05:55:25 2016
+#                    dlm: Tue Mar 29 07:28:54 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 229 64 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 371 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
-#	! plots:
-#		- avoid over-plotting axis labels
-#		- allow for different nsamp magnitudes
-#		- add "dc" "uc" labels
-#		- add software version
-#		- eps.VKE limits
-#		- add seabed to eps.VKE profile
-#		- add seabed to LADCP_w_postproc .wprof output
-#	- use instrument tilt in sidelobe editing
-#	- worry about water-depth differences (disabled warning) 
-#	- make upcast-flag valid for yoyo casts
-#	- make diagnostic output 3-beam field work for Earth coordinates
-#	? remove water-depth from BT code, which is not really used and a bit of an outlier
-#	  because mean and stddev are used instead of median/mad
+#   ! plots:
+#       - avoid over-plotting axis labels
+#       - allow for different nsamp magnitudes
+#       - add "dc" "uc" labels
+#       - add software version
+#       - add seabed to eps.VKE profile
+#       - add seabed to LADCP_w_postproc .wprof output
+#   ! use instrument tilt in sidelobe editing
+#   ! change w_tt output to w_t output; change -a to use w_t or remove -a? 
+#   - worry about water-depth differences (disabled warning) 
+#   - make upcast-flag valid for yoyo casts
+#   - make diagnostic output 3-beam field work for Earth coordinates
+#   ? remove water-depth from BT code, which is not really used and a bit of an outlier
+#     because mean and stddev are used instead of median/mad
 
 $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 
 # HISTORY:
-#	Dec 17, 2010: - created from [mergeCTD+LADCP]
-#	Dec 18, 2010: - made to work
-#	Dec 19, 2010: - improved considerably
-#	Dec 20, 2010: - onward
-#				  - BUG: depth-binning was off by 1 bin?!
-#				  - added binning correction for instrument tilt
-#	Dec 21, 2010: - added -h (seafloor depth)
-#	Dec 22, 2010: - BUG: had not applied soundspeed-correction to w
-#				  - debugged opt_d
-#	Dec 23, 2010: - continued implementation of soundspeed corrections
-#	Dec 24, 2010: - added winch_w, wave_w
-#				  - removed beampair velocities from code
-#	Dec 25, 2010: - adapted for surface-wave correction in terms of acceleration (CTD_w_t)
-#				  - removed elapsed_mismatch
-#				  - removed winch_w, wave_w
-#	Dec 26, 2010: - made -p output layout independent of -x to avoid Makefile problems
-#	Dec 30, 2010: - cleaned up some
-#				  - folded-in backscatter calculation from shear method
-#				  - folded-in BT calculation from shear method
-#	Dec 31, 2010: - added weighted mean w profile to output
-#	Jan  2, 2010: - BUG: BT_w.mad could bomb with division by 0
-#				  - BUG: division by zero if no valid data
-#	Jan  5, 2010: - adapted to allow for gaps in CTD time series
-#	Feb 16, 2011: - cosmetics
-#	Jun 22, 2011: - cosmetics
-#	Jun 23, 2011: - disabled error on large rms reflr w
-#				  - added -l
-#				  - removed CTD headers from output
-#	Jun 26, 2011: - added -u
-#				  - changed package correction from acceleration to velocity, because of
-#					Stan's Antarctic data set where accelerations are zero but package effects are
-#					there
-#	Jul  2, 2011: - increased tilt default to 15 degrees
-#	Jul  3, 2011: - replaced old package-velocity correction -x code by new beamvel correction
-#				  - removed -p
-#				  - replaced -d by residual (diagnostics) output
-#	Jul  4, 2011: - saved a snapshot in [Jul_04_2011]
-#				  - removed output of binned profile (but not calculation code, which is required for residual)
-#				  - BUG: firstGoodEns or lastGoodEns could end up in a reflr_w gap when valid LADCP data begin
-#						 or end with CTD in water
-#				  - moved rarely used option -s to -k
-#				  - added -s)kip <ens> option
-#				  - had to very very slightly relax an assertion (by 1e-10 seconds...)
-#	Aug  3, 2011: - added -z)ap to truncate range, based on Stan's 2009 data set (017-019 most clearly)
-#				    obs that final 2 velocities are outliers; could be due to color bar, should check with
-#					residuals
-#	Sep 22, 2011: - removed (commented out) CTD acceleration
-#				  - added basename to Parameter File Matching
-#	Sep 23, 2011: - cosmetics (lots)
-#				  - added -d)
-#	Oct  6, 2011: - removed old commented-out code (CTD acceleration & old -x)
-#				  - renamed time-series field names
-#				  - added uncorrected reflr w to time-series output
-#	Oct 10, 2011: - BUG: LADCP_w in .tds output had not been soundspeed corrected
-#				  - removed -x
-#				  - added "false-positives" editing filter
-#	Oct 11, 2011: - adapted to the new parameter file, removing a few options
-#	Oct 12, 2011: - added surface-layer editing
-#				  - made %min/max_depth/elapsed more accurate
-#	Oct 13, 2011: - fiddled
-#	Oct 14, 2011: - renamed .prof fields from .N to .nsamp
-#				  - added %output_basename
-#				  - removed all ">" from open to allow use in pipelines
-#				  - made <run-label> argument optional
-#				  - replaced stdout output by $w_out
-#				  - renamed _out to out_; output_basename to out_basename
-#	Oct 15, 2011: - added editWOutliers()
-#				  - added step to remove single-ping noise
-#	Oct 16, 2011: - BUG: ensemble and bin numbers in output files were off by 1
-#	Oct 17, 2011: - added default run label
-#				  - added out_BR
-#				  - BUG: closed STDOUT caused problems with tee in plotting scripts
-#				  - added %run_label
-#				  - added PostProcess.sh
-#	Oct 18, 2011: - BUG: %{min,max}_ens used ensemble indices, rather than numbers
-#				  - disabled false-positives editing (removes too much good data on 2011_IWISE)
-#	Oct 19, 2011: - BUG: time-series output included ensembles without valid w
-#				  - increased post-process sleep time to 30s
-#				  - added corr, Sv and echo_amplitude as new fields to w output
-#	Oct 20, 2011: - added editFarBins()
-#				  - added downcast flag to time-series output
-#				  - added ensemble number to LADCP-time-series output
-#	Oct 21, 2011: - BUG: Sv code was not enabled for uplooker data
-#	Oct 24, 2011: - added code to copy %lat/%lon from CTD data
-#				  - added %ADCP_freuquency, %ADCP_blanking_distance
-#				  - %LADCP_bin_length => %ADCP_bin_length
-#	Oct 26, 2011: - added $first_guess_timelag
-#	Oct 27, 2011: - added w12, w34, ww (pitch/roll-weighted average) to full output
-#				  - removed ww because it apparently does not improve the solutions
-#				  - moved editTilt() to after time-series calculation to allow
-#				    time matching to work even with strict tilt limit
-#				  - added correctAttitude()
-#	May 22, 2012: - adapted to ANTS V5
-#	Oct 15, 2012: - added $edit_data_hook
-#				  - HG COMMIT
-#				  - separated dc/uc time lagging
-#				  - removed support for TLhist
-#	Oct 16, 2012: - added support for dc/uc only solutions
-#	Oct 17, 2012: - renamed $edit_data_hook to $post_merge_hook
-#				  - HG COMMIT
-#	Feb 13, 2013: - BUG: CTD_neg_press_offset did not work for CTD time series with -ve starting depth
-#	Mar 23, 2013: - cosmetics
-#				  - HG COMMIT
-#	Apr 22, 2013: - removed opt_? variable aliases
-#	May  8, 2013: - replaced default run label (default to profiles) to make more readable directory structure
-#	May 14, 2013: - opt_m => w_max_lim
-#				  - BUG: time-series output had two messed-up fields
-#	May 15, 2013: - added w12 and w34 (2-beam solutions) to profile output
-#	May 16, 2013: - added CTD_w_tt to time-series & all-sample outputs
-#			      - -a => -d (CTD depth offset)
-#				  - implemented pressure-sensor acceleration correction (-a)
-#				  - added re-gridding of full profile after ping-coherent error removal
-#	Jun  5, 2013: - renamed $discard_velocities_from_beam to $bad_beam
-#				  - BUG: $bad_beam did not discard BT_VELOCITY data
-#	Jun  6, 2013: - BUG: error message had -a instead of -d
-#	Sep  5, 2013: - BUG: w12/w34 do not work for earth-coordinate data, of course
-#	Apr 17, 2014: - BUG: edit_tilt was never called when all recorded bins are valid
-#	Apr 21, 2014: - updated comments
-#	May 19, 2014: - began adding support for PPI filtering
-#	May 20, 2014: - changed volume_scattering_coeff to Sv in output
-#				  - added editPPI()
-#	Jul  6, 2014: - BUG: nan water depth had been interpreted as known
-#				  - BUG: sVelProf[] was not allowed to have any gaps
-#	Jul  9, 2014: - BUG: Jul 6 bug fixes had been applied to older
-#				  		 version
-#				  - BUG: code meant to ensure gap-free svel profiles did not work correctly
-#	Jul 12, 2014: - finally made output files executable
-#	Apr  5, 2015: - added check for required software
-#				  - BUG: removed dc/uc mean w fields from .prof again
-#	Apr  7, 2015: - made LADCP_w callable from installation directory
-#				  - BUG: -v default was wrong in usage message
-#				  - replaced 'ens' in output files by 'ensemble'
-#	Apr 16, 2015: - turned output specifies into lists (re-design of
-#					plotting sub-system)
-#				  - removed 30s sleep from PostProcess.sh call
-#				  - disabled active output when ANTS are not available
-#				  - removed /bin/ksh requirement
-#				  - BUG: error messages were not reported in the log file
-#				  - made seabed detection code more flexible
-#				  - made reference-layer w_ocean warning more severe
-#				  - BUG: info() did not write anything into logfile when format string was used
-#				  - BUG: LADCP_lastBin was set 1 too low
-#	Apr 20, 2015: - improved comments
-#				  - improved diagnostic messages (warning on missing CTD temp)
-#				  - added support for empirical backscatter correction
-#	Apr 21, 2015: - improved screen log output
-#	Apr 22, 2015: - BUG: $realLastGoodEns could be undefined, breaking plotting routines
-#	Apr 24, 2015: - removed @ARGS
-#				  - added %profile_id
-#	May 13, 2015: - loosened "insufficient valid velocities" test for short casts
-#	May 15, 2015: - added $min_valid_vels
-#				  - BUG: LADCP_atbottom could be less than firstGoodEns
-#	May 18, 2015: - added %LADCP_pulse_length, %dnXX
-#	May 20, 2015: - added $PROF as newer alternative to $STN
-#				  - replaced "require ProcessingParams" by "do ProcessingParams"
-#	Jun 15, 2015: - clarified warning message
-#	Jul 26, 2015: - added %output_grid_dz %output_grid_minsamp for use by [LADCP_w_regrid]
-# 				  - began work on support for [libGMT.pl]
-#				  - -v usage message had wrong default
-#				  - added $outGrid_firstBin & $outGrid_lastBin
-#	Jul 28, 2015: - added GMT plot support for all @out_ lists
-#	Jul 29, 2015: - continue adaptation of code for new plotting system
-#	Jul 30, 2015: - cosmetics
-#	Sep  3, 2015: - changed out_w to out_wsamp
-#	Sep 26, 2015: - replaced numberp($water_depth) by defined($water_depth) for consistency
-#				  - implemented secondary sidelobe editing
-#				  - allow for -h <filename>
-#				  - allow $ID as alias for $PROF and $STN
-#	Sep 27, 2015: - BUG: -h filename was broken when water_depth is not known
-#	Oct 12, 2015: - upgraded missing water-depth warnings to L2
-#				  - added -V)ersion
+#   Dec 17, 2010: - created from [mergeCTD+LADCP]
+#   Dec 18, 2010: - made to work
+#   Dec 19, 2010: - improved considerably
+#   Dec 20, 2010: - onward
+#                 - BUG: depth-binning was off by 1 bin?!
+#                 - added binning correction for instrument tilt
+#   Dec 21, 2010: - added -h (seafloor depth)
+#   Dec 22, 2010: - BUG: had not applied soundspeed-correction to w
+#                 - debugged opt_d
+#   Dec 23, 2010: - continued implementation of soundspeed corrections
+#   Dec 24, 2010: - added winch_w, wave_w
+#                 - removed beampair velocities from code
+#   Dec 25, 2010: - adapted for surface-wave correction in terms of acceleration (CTD_w_t)
+#                 - removed elapsed_mismatch
+#                 - removed winch_w, wave_w
+#   Dec 26, 2010: - made -p output layout independent of -x to avoid Makefile problems
+#   Dec 30, 2010: - cleaned up some
+#                 - folded-in backscatter calculation from shear method
+#                 - folded-in BT calculation from shear method
+#   Dec 31, 2010: - added weighted mean w profile to output
+#   Jan  2, 2010: - BUG: BT_w.mad could bomb with division by 0
+#                 - BUG: division by zero if no valid data
+#   Jan  5, 2010: - adapted to allow for gaps in CTD time series
+#   Feb 16, 2011: - cosmetics
+#   Jun 22, 2011: - cosmetics
+#   Jun 23, 2011: - disabled error on large rms reflr w
+#                 - added -l
+#                 - removed CTD headers from output
+#   Jun 26, 2011: - added -u
+#                 - changed package correction from acceleration to velocity, because of
+#                   Stan's Antarctic data set where accelerations are zero but package effects are
+#                   there
+#   Jul  2, 2011: - increased tilt default to 15 degrees
+#   Jul  3, 2011: - replaced old package-velocity correction -x code by new beamvel correction
+#                 - removed -p
+#                 - replaced -d by residual (diagnostics) output
+#   Jul  4, 2011: - saved a snapshot in [Jul_04_2011]
+#                 - removed output of binned profile (but not calculation code, which is required for residual)
+#                 - BUG: firstGoodEns or lastGoodEns could end up in a reflr_w gap when valid LADCP data begin
+#                        or end with CTD in water
+#                 - moved rarely used option -s to -k
+#                 - added -s)kip <ens> option
+#                 - had to very very slightly relax an assertion (by 1e-10 seconds...)
+#   Aug  3, 2011: - added -z)ap to truncate range, based on Stan's 2009 data set (017-019 most clearly)
+#                   obs that final 2 velocities are outliers; could be due to color bar, should check with
+#                   residuals
+#   Sep 22, 2011: - removed (commented out) CTD acceleration
+#                 - added basename to Parameter File Matching
+#   Sep 23, 2011: - cosmetics (lots)
+#                 - added -d)
+#   Oct  6, 2011: - removed old commented-out code (CTD acceleration & old -x)
+#                 - renamed time-series field names
+#                 - added uncorrected reflr w to time-series output
+#   Oct 10, 2011: - BUG: LADCP_w in .tds output had not been soundspeed corrected
+#                 - removed -x
+#                 - added "false-positives" editing filter
+#   Oct 11, 2011: - adapted to the new parameter file, removing a few options
+#   Oct 12, 2011: - added surface-layer editing
+#                 - made %min/max_depth/elapsed more accurate
+#   Oct 13, 2011: - fiddled
+#   Oct 14, 2011: - renamed .prof fields from .N to .nsamp
+#                 - added %output_basename
+#                 - removed all ">" from open to allow use in pipelines
+#                 - made <run-label> argument optional
+#                 - replaced stdout output by $w_out
+#                 - renamed _out to out_; output_basename to out_basename
+#   Oct 15, 2011: - added editWOutliers()
+#                 - added step to remove single-ping noise
+#   Oct 16, 2011: - BUG: ensemble and bin numbers in output files were off by 1
+#   Oct 17, 2011: - added default run label
+#                 - added out_BR
+#                 - BUG: closed STDOUT caused problems with tee in plotting scripts
+#                 - added %run_label
+#                 - added PostProcess.sh
+#   Oct 18, 2011: - BUG: %{min,max}_ens used ensemble indices, rather than numbers
+#                 - disabled false-positives editing (removes too much good data on 2011_IWISE)
+#   Oct 19, 2011: - BUG: time-series output included ensembles without valid w
+#                 - increased post-process sleep time to 30s
+#                 - added corr, Sv and echo_amplitude as new fields to w output
+#   Oct 20, 2011: - added editFarBins()
+#                 - added downcast flag to time-series output
+#                 - added ensemble number to LADCP-time-series output
+#   Oct 21, 2011: - BUG: Sv code was not enabled for uplooker data
+#   Oct 24, 2011: - added code to copy %lat/%lon from CTD data
+#                 - added %ADCP_freuquency, %ADCP_blanking_distance
+#                 - %LADCP_bin_length => %ADCP_bin_length
+#   Oct 26, 2011: - added $first_guess_timelag
+#   Oct 27, 2011: - added w12, w34, ww (pitch/roll-weighted average) to full output
+#                 - removed ww because it apparently does not improve the solutions
+#                 - moved editTilt() to after time-series calculation to allow
+#                   time matching to work even with strict tilt limit
+#                 - added correctAttitude()
+#   May 22, 2012: - adapted to ANTS V5
+#   Oct 15, 2012: - added $edit_data_hook
+#                 - HG COMMIT
+#                 - separated dc/uc time lagging
+#                 - removed support for TLhist
+#   Oct 16, 2012: - added support for dc/uc only solutions
+#   Oct 17, 2012: - renamed $edit_data_hook to $post_merge_hook
+#                 - HG COMMIT
+#   Feb 13, 2013: - BUG: CTD_neg_press_offset did not work for CTD time series with -ve starting depth
+#   Mar 23, 2013: - cosmetics
+#                 - HG COMMIT
+#   Apr 22, 2013: - removed opt_? variable aliases
+#   May  8, 2013: - replaced default run label (default to profiles) to make more readable directory structure
+#   May 14, 2013: - opt_m => w_max_lim
+#                 - BUG: time-series output had two messed-up fields
+#   May 15, 2013: - added w12 and w34 (2-beam solutions) to profile output
+#   May 16, 2013: - added CTD_w_tt to time-series & all-sample outputs
+#                 - -a => -d (CTD depth offset)
+#                 - implemented pressure-sensor acceleration correction (-a)
+#                 - added re-gridding of full profile after ping-coherent error removal
+#   Jun  5, 2013: - renamed $discard_velocities_from_beam to $bad_beam
+#                 - BUG: $bad_beam did not discard BT_VELOCITY data
+#   Jun  6, 2013: - BUG: error message had -a instead of -d
+#   Sep  5, 2013: - BUG: w12/w34 do not work for earth-coordinate data, of course
+#   Apr 17, 2014: - BUG: edit_tilt was never called when all recorded bins are valid
+#   Apr 21, 2014: - updated comments
+#   May 19, 2014: - began adding support for PPI filtering
+#   May 20, 2014: - changed volume_scattering_coeff to Sv in output
+#                 - added editPPI()
+#   Jul  6, 2014: - BUG: nan water depth had been interpreted as known
+#                 - BUG: sVelProf[] was not allowed to have any gaps
+#   Jul  9, 2014: - BUG: Jul 6 bug fixes had been applied to older
+#                        version
+#                 - BUG: code meant to ensure gap-free svel profiles did not work correctly
+#   Jul 12, 2014: - finally made output files executable
+#   Apr  5, 2015: - added check for required software
+#                 - BUG: removed dc/uc mean w fields from .prof again
+#   Apr  7, 2015: - made LADCP_w callable from installation directory
+#                 - BUG: -v default was wrong in usage message
+#                 - replaced 'ens' in output files by 'ensemble'
+#   Apr 16, 2015: - turned output specifies into lists (re-design of
+#                   plotting sub-system)
+#                 - removed 30s sleep from PostProcess.sh call
+#                 - disabled active output when ANTS are not available
+#                 - removed /bin/ksh requirement
+#                 - BUG: error messages were not reported in the log file
+#                 - made seabed detection code more flexible
+#                 - made reference-layer w_ocean warning more severe
+#                 - BUG: info() did not write anything into logfile when format string was used
+#                 - BUG: LADCP_lastBin was set 1 too low
+#   Apr 20, 2015: - improved comments
+#                 - improved diagnostic messages (warning on missing CTD temp)
+#                 - added support for empirical backscatter correction
+#   Apr 21, 2015: - improved screen log output
+#   Apr 22, 2015: - BUG: $realLastGoodEns could be undefined, breaking plotting routines
+#   Apr 24, 2015: - removed @ARGS
+#                 - added %profile_id
+#   May 13, 2015: - loosened "insufficient valid velocities" test for short casts
+#   May 15, 2015: - added $min_valid_vels
+#                 - BUG: LADCP_atbottom could be less than firstGoodEns
+#   May 18, 2015: - added %LADCP_pulse_length, %dnXX
+#   May 20, 2015: - added $PROF as newer alternative to $STN
+#                 - replaced "require ProcessingParams" by "do ProcessingParams"
+#   Jun 15, 2015: - clarified warning message
+#   Jul 26, 2015: - added %output_grid_dz %output_grid_minsamp for use by [LADCP_w_regrid]
+#                 - began work on support for [libGMT.pl]
+#                 - -v usage message had wrong default
+#                 - added $outGrid_firstBin & $outGrid_lastBin
+#   Jul 28, 2015: - added GMT plot support for all @out_ lists
+#   Jul 29, 2015: - continue adaptation of code for new plotting system
+#   Jul 30, 2015: - cosmetics
+#   Sep  3, 2015: - changed out_w to out_wsamp
+#   Sep 26, 2015: - replaced numberp($water_depth) by defined($water_depth) for consistency
+#                 - implemented secondary sidelobe editing
+#                 - allow for -h <filename>
+#                 - allow $ID as alias for $PROF and $STN
+#   Sep 27, 2015: - BUG: -h filename was broken when water_depth is not known
+#   Oct 12, 2015: - upgraded missing water-depth warnings to L2
+#                 - added -V)ersion
 #                 - require ANTSlibs V6.2 for release
 #   Oct 13, 2015: - adapted to [version.pl]
-#	Nov 25, 2015: - made warning disappear on setting $ANTS_TOOLS_AVAILABLE
-#	Nov 27, 2015: - changed RDI_BB_READ.pl to RDI_PD0_IO.pl
-#	Jan  4, 2016: - decreased default vertical resolution to 20m
-#	Jan  5, 2016: - adapted to [ADCP_tools_lib.pl]
-#	Jan 22, 2016: - updated for improved mean_residuals plot
-#				  - added per-bin residual quality check
-#	Jan 25, 2016: - added antsAddParams() with version number
-#	Jan 26, 2016: - added %processing_params, many others
-#				  - expunged -d
-#				  - implemented outGrid_firstBin eq '*' (also lastBin)
-#	Jan 27, 2016: - BUG: outGrid_lastBin eq '*' did not work
-#				  - removed large ref-lr w warning
-#	Feb 14, 2016: - fiddled with ping-coherent residuals code, fixing
-#				    0-2 potential (minor?) bugs related to outGrid_{first,last}Bin;
-#					output of new code checked against old code => identical
-#	Feb 16, 2016: - BUG: per-bin-residual QC could cause division by zero
-#	Feb 19, 2016: - added -l (disable time-lag filtering)
-#	Mar  7, 2016: - added error message when -h is neither number nor file
-#				  - BUG: -ve depth error message referred to obsolete -d
-#				  - BUG: dn field name did not use zero filling for year number
-#	Mar  8, 2016: - removed L0 water-depth-difference warning
-#				  - added test for 1500m/s sound speed
-#	Mar  9, 2016: - added hab field to .wprof output
-#	Mar 13, 2016: - cleaned up warnings created before LADCP_file is defined
-#				  - added sanity checks and warnings
-#	Mar 17, 2016: - added {dc,uc}_rms_{tilt,w_pkg}
-#				  - replaced a couple of **2 by &SQR()
-#				  - replaced %ADCP_orientation values by DL & UL
+#   Nov 25, 2015: - made warning disappear on setting $ANTS_TOOLS_AVAILABLE
+#   Nov 27, 2015: - changed RDI_BB_READ.pl to RDI_PD0_IO.pl
+#   Jan  4, 2016: - decreased default vertical resolution to 20m
+#   Jan  5, 2016: - adapted to [ADCP_tools_lib.pl]
+#   Jan 22, 2016: - updated for improved mean_residuals plot
+#                 - added per-bin residual quality check
+#   Jan 25, 2016: - added antsAddParams() with version number
+#   Jan 26, 2016: - added %processing_params, many others
+#                 - expunged -d
+#                 - implemented outGrid_firstBin eq '*' (also lastBin)
+#   Jan 27, 2016: - BUG: outGrid_lastBin eq '*' did not work
+#                 - removed large ref-lr w warning
+#   Feb 14, 2016: - fiddled with ping-coherent residuals code, fixing
+#                   0-2 potential (minor?) bugs related to outGrid_{first,last}Bin;
+#                   output of new code checked against old code => identical
+#   Feb 16, 2016: - BUG: per-bin-residual QC could cause division by zero
+#   Feb 19, 2016: - added -l (disable time-lag filtering)
+#   Mar  7, 2016: - added error message when -h is neither number nor file
+#                 - BUG: -ve depth error message referred to obsolete -d
+#                 - BUG: dn field name did not use zero filling for year number
+#   Mar  8, 2016: - removed L0 water-depth-difference warning
+#                 - added test for 1500m/s sound speed
+#   Mar  9, 2016: - added hab field to .wprof output
+#   Mar 13, 2016: - cleaned up warnings created before LADCP_file is defined
+#                 - added sanity checks and warnings
+#   Mar 17, 2016: - added {dc,uc}_rms_{tilt,w_pkg}
+#                 - replaced a couple of **2 by &SQR()
+#                 - replaced %ADCP_orientation values by DL & UL
+#                 - {dc,uc}_rms_w_pkg => {dc,uc}_rms_accel_pkg for V1.2beta6
+#   Mar 18, 2016: - added -l to %processing_options
+#   Mar 24, 2016: - generalized plotting system (renamed variables)
+#                 - made plotting system search current dir before LADCP_w dir
+#                 - BUG: ProcessingParams syntax errors were not flagged
+#                 - BUG: progress message in rarely used filter
+#   Mar 25, 2016: - added -r)esidual rms filter
+#                 - added -q -r to processing_options
+#   Mar 26, 2016: - BUG: water_depth < CTD_maxdepth was allowed
+#                 - round(CTD_depth)
+#   Mar 29, 2016: - split [default_paths.pl] from [defaults.pl] to allow defaults
+#                   to be read before usage
+#				  - renamed _subdir to _dir variables
+#				  - renamed post-process hook script to LADCP_w.PostProcess
+#				  - added -r default (0.04m/s)
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -314,56 +329,64 @@ my($TINY) = 1e-16;
 # Usage
 #------
 
+require "$WCALC/defaults.pl";												# load default/option parameters
+
 $antsParseHeader = 0;
-&antsUsage('3:4a:b:c:e:g:h:i:k:lm:n:o:p:qs:t:uv:Vw:x:',0,
-	'[print software -V)ersion] [-v)erbosity <level[1]>]',
-	'[-q)uick (no single-ping denoising)]',
-    '[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]',
-	'[valid LADCP -b)ins <bin[2],bin[*]>',
-	'[-c)orrelation <min[70]>] [-t)ilt <max[10deg]> [-e)rr-vel <max[0.1m/s]>]',
-	'[-h water <depth|filename>]',
-	'[max LADCP time-series -g)ap <length[60s]>]',
-	'[-i)nitial CTD time offset <guestimate> [-u)se as final]]',
-	'[calculate -n) <lags,lags[10,100]>] [lag -w)indow <sz,sz[240s,20s]>] [lag-p)iece <CTD_elapsed_min|+[,...]>]',
-	'[require top-3) lags to account for <frac[0.6]> of all]',
-	'[disable time-l)ag filtering]',
-	'[pressure-sensor -a)cceleration correction <residual/CTD_w_tt>]',
-	'[-o)utput bin <resolution[20m]>] [-k) require <min[20]> samples]',
-	'[e-x)ecute <perl-expr>]',
-	'<profile-id> [run-label]');
+&antsUsage('3:4a:b:c:e:g:h:i:k:lm:n:o:p:qr:s:t:uv:Vw:x:',0,
+	"[print software -V)ersion] [-v)erbosity <level[$opt_v]>]",
+	"[-q)uick (no single-ping denoising)]",
+    "[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]",
+	"[valid LADCP -b)ins <bin,bin[$opt_b]>",
+	"[-c)orrelation <min[$opt_c counts]>] [-t)ilt <max[$opt_t deg]> [-e)rr-vel <max[$opt_e m/s]>]",
+	"[-r)esidual <rms.max[$opt_r m/s]>]",
+	"[-h water <depth|filename>]",
+	"[max LADCP time-series -g)ap <length[$opt_g s]>]",
+	"[-i)nitial CTD time offset <guestimate> [-u)se as final]]",
+	"[calculate -n) <lags,lags[$opt_n]>] [lag -w)indow <sz,sz[$opt_w s]>] [lag-p)iece <CTD_elapsed_min|+[,...]>]",
+	"[require top-3) lags to account for <frac[$opt_3]> of all]",
+	"[disable time-l)ag filtering]",
+	"[pressure-sensor -a)cceleration correction <residual/CTD_w_tt>]",
+	"[-o)utput bin <resolution[$opt_o m]>] [-k) require <min[$opt_k]> samples]",
+	"[e-x)ecute <perl-expr>]",
+	"<profile-id> [run-label]");
 
-	if ($opt_V) {
-		printf(STDERR "+-------------------------+\n");
-		printf(STDERR "| LADCP_w Software V%s   |\n",$VERSION);
-		printf(STDERR "|(c) 2015- A.M. Thurnherr |\n");
-		printf(STDERR "+-------------------------+\n");
-		exit(0);
-	}
+if ($opt_V) {
+	printf(STDERR "+-------------------------+\n");
+	printf(STDERR "| LADCP_w Software V%s	|\n",$VERSION);
+	printf(STDERR "|(c) 2015- A.M. Thurnherr |\n");
+	printf(STDERR "+-------------------------+\n");
+	exit(0);
+}
 
-	&antsUsageError() if ($opt_u && !defined($opt_i));
-	&antsUsageError() unless (@ARGV==1 || @ARGV==2);
+&antsUsageError() if ($opt_u && !defined($opt_i));
+&antsUsageError() unless (@ARGV==1 || @ARGV==2);
 
-	&antsCardOpt(\$opt_s,0);												# skip # initial ensembles
-	$opt_p = '+' unless defined($opt_p);									# separate uc/dc time lagging
+&antsCardOpt(\$opt_s,0);												# skip # initial ensembles
+$opt_p = '+' unless defined($opt_p);									# separate uc/dc time lagging
 
-	&antsFloatOpt(\$opt_a,1);												# pressure acceleration correction
+&antsFloatOpt(\$opt_a,1);												# pressure acceleration correction
 
-	$ID = $PROF = $STN = &antsCardArg();									# station id ($STN for compatibility)
-	if (@ARGV) {															# run label
-		$RUN = $ARGV[0];
-		shift;
-	} else {
-		$RUN = 'profiles';
-	}
+$ID = $PROF = $STN = &antsCardArg();									# station id ($STN for compatibility)
+if (@ARGV) {															# run label
+	$RUN = $ARGV[0];
+	shift;
+} else {
+	$RUN = 'profiles';
+}
 
 #-----------------------------
 # Handle Processing Parameters
 #-----------------------------
-require "$WCALC/defaults.pl";											# load default/option parameters
-do "$processing_param_file";											# load processing parameters
+
+require "$WCALC/default_paths.pl";										# load default input/output paths
+croak("$processing_param_file: $@")
+	unless ($err = do "$processing_param_file");						# load processing parameters
 
 $processing_options = "-k $opt_k -o $opt_o -c $opt_c -t $opt_t -e $opt_e -g $opt_g -3 $opt_3";
-$processing_options .= "-i $opt_i" if defined($opt_i);
+$processing_options .= " -i $opt_i" if defined($opt_i);
+$processing_options .= " -r $opt_r" if defined($opt_r);
+$processing_options .= ' -l' if defined($opt_l);
+$processing_options .= ' -q' if defined($opt_q);
 
 if (defined($opt_x)) {													# eval cmd-line expression to override anything
 	$processing_options .= " -x $opt_x";
@@ -393,7 +416,7 @@ $processing_options .= " -n $opt_n";
 		unless numberp($length_of_timelag_windows[0]) && numberp($length_of_timelag_windows[1]);
 $processing_options .= " -w $opt_w";
 
-croak("$0: \$out_basename undefined\n")									# all plotting routines use this
+croak("$0: \$out_basename undefined\n")									# plotting routines use this to label the plots
 	unless defined($out_basename);
 &antsAddParams('processing_options',$processing_options);
 &antsAddParams('out_basename',$out_basename);
@@ -544,7 +567,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 				}
 			}
 		}
-		print(STDERR " $nee ensembles edited\n");
+		progress(" $nee ensembles edited\n");
 		close(BVM);
 	}
 
@@ -726,10 +749,14 @@ if (@out_LADCPtis) {
 	
 	foreach my $of (@out_LADCP) {
 	    progress("<$of> ");
-		my($plot,$out) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
-		if (defined($out)) {
-			require "$WCALC/${plot}.pl";
-			&{$plot}($out);
+		my($sub,$arg) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# sub(arg), e.g. plot_wprof(DL/003_wprof.ps)
+		if (defined($arg)) {													# 	NB: exactly one arg
+			if (-f "./${sub}.pl") {											#	#	NB: don't quote arg
+				require "./${sub}.pl";
+			} else {
+				require "$WCALC/${sub}.pl";
+			}
+			&{$sub}($arg);
 			next;
 		}
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
@@ -834,7 +861,7 @@ for (my($s)=1; $s<@{$CTD{ELAPSED}}-1; $s++) {								# centered differences for 
 	$CTD{W_t} [$s] = ($CTD{W}[$s+1] - $CTD{W}[$s-1]) / (2*$CTD{DT});
 	$CTD{W_tt}[$s] = ($CTD{W}[$s+1] + $CTD{W}[$s-1] - 2*$CTD{W}[$s]) / &SQR($CTD{DT});
 }
-
+$CTD_maxdepth = round($CTD_maxdepth);
 error("$0: CTD start depth must be numeric\n")
 	unless numberp($CTD{DEPTH}[0]);
 
@@ -976,7 +1003,7 @@ progress("Merging CTD with LADCP data...\n");
 my($cli) = 0;																	# current-lag index
 my($lag) = $CTD_time_lag[$cli];													# current lag
 
-my($dc_sumsq,$dc_n,$uc_sumsq,$uc_n) = (0,0,0,0);								# for w_pkg calcs
+my($dc_sumsq,$dc_n,$uc_sumsq,$uc_n) = (0,0,0,0);								# for a_pkg calcs
 for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 
 	if ($ens > $CTD_tl_toEns[$cli]) {											# use correct lag piece
@@ -1017,11 +1044,13 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 			$CTD{DEPTH}[$scan],$CTD{ELAPSED}[$scan]))
 				unless ($CTD{DEPTH}[$scan] >= 0);
 		$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH} = $CTD{DEPTH}[$scan];
-		$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN} = $scan;
-		if ($ens <= $LADCP_atbottom) {
-			$dc_sumsq += &SQR($CTD{W}[$scan]); $dc_n++;
-        } else {
-			$uc_sumsq += &SQR($CTD{W}[$scan]); $uc_n++;
+		$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN} = $scan;						# calc rms package acceleration
+		if (numberp($CTD{W_t}[$scan])) {
+			if ($ens <= $LADCP_atbottom) {
+				$dc_sumsq += &SQR($CTD{W_t}[$scan]); $dc_n++;
+    	    } else {
+				$uc_sumsq += &SQR($CTD{W_t}[$scan]); $uc_n++;
+			}
 		}
 		my($reflr_ocean_w) = $LADCP{ENSEMBLE}[$ens]->{REFLR_W} - $CTD{W}[$scan];
 		if (abs($reflr_ocean_w) <= $w_max_lim) {
@@ -1041,9 +1070,9 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 	}
 }
 
-my($dc_rms_wpkg) = ($dc_n > 0) ? sqrt($dc_sumsq / $dc_n) : nan;			# rms package velocity
-my($uc_rms_wpkg) = ($uc_n > 0) ? sqrt($uc_sumsq / $uc_n) : nan;
-&antsAddParams('dc_rms_w_pkg',$dc_rms_wpkg,'uc_rms_w_pkg',$uc_rms_wpkg);
+my($dc_rms_apkg) = ($dc_n > 0) ? sqrt($dc_sumsq / $dc_n) : nan;			# rms package acceleration
+my($uc_rms_apkg) = ($uc_n > 0) ? sqrt($uc_sumsq / $uc_n) : nan;
+&antsAddParams('dc_rms_accel_pkg',$dc_rms_apkg,'uc_rms_accel_pkg',$uc_rms_apkg);
 	
 if ($nWsq > 0 && $nWsqI > 0) {
 	&antsAddParams('rms_w_reflr_err',sqrt($sumWsq/$nWsq),'rms_w_reflr_err_interior',sqrt($sumWsqI/$nWsqI));
@@ -1080,10 +1109,10 @@ if (@nSv) {
 #	2) PPI 
 #----------------------------------------------------------------------------
 
-error("$0: conflicting water-depth information provided by user\n")
-	if defined($opt_h) && defined($water_depth);
-
-if (defined($opt_h)) {
+error("$0: conflicting water-depth information provided by user\n")					# this can only happen if
+	if defined($opt_h) && defined($water_depth);									# the user is setting $water_depth
+																					# explicitly?!
+if (defined($opt_h)) {																# deal with user-provided water-depth info
 	if (numberp($opt_h)) {
 		$water_depth = $opt_h;
 	} elsif (-f $opt_h) {
@@ -1096,10 +1125,11 @@ if (defined($opt_h)) {
     }
 }
 	
-die("assertion failed (water_depth = $water_depth)")
-	unless (!defined($water_depth) || numberp($water_depth));
+#die("assertion failed (water_depth = $water_depth)")
+#	unless (!defined($water_depth) || numberp($water_depth));
 
-if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && !defined($water_depth)) {
+if (!defined($water_depth) &&														# find seabed in data
+		$LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 	progress("Finding seabed...\n");
 	($water_depth,$sig_water_depth) =
 		find_backscatter_seabed($LADCP{ENSEMBLE}[$LADCP_atbottom]->{CTD_DEPTH});
@@ -1110,35 +1140,44 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && !defined($water_d
 #		warning(0,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
 #			if ($dd > 10);
 	}
-	if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {
-		warning(1,"using water_depth from ADCP BT data\n");
+	if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {		# warn if use of BT was not
+		warning(1,"using water_depth from ADCP BT data\n");							# explicitly requested
 		$SS_use_BT = 1;
 	}
-	if ($SS_use_BT) {
+	if ($SS_use_BT) {																# water depth from BT data
 		&antsAddParams('water_depth_from','BT_data');
 		$water_depth = $water_depth_BT;
 		$sig_water_depth = $sig_water_depth_BT;
-    } else {
+    } else {																		# water depth from WT data
 		&antsAddParams('water_depth_from','echo_amplitudes');
 	}
 }
 	
-if (defined($water_depth)) {
+if (defined($water_depth)) {														# 1 or 2 water depths available
 	if (defined($water_depth_BT)) {
 		progress("\t%.1f(%.1f) m water depth (%.1f(%.1f)m from ADCP BT data)\n",
 			$water_depth,$sig_water_depth,$water_depth_BT,$sig_water_depth_BT);
 	} else {
-		progress("\t%.1f(%.1f) m water depth\n",$water_depth,$sig_water_depth);
+		progress("\t%.1f(%.1f) m water depth (no seabed found in BT data)\n",
+			$water_depth,$sig_water_depth);
 	}
-	warning(1,sprintf("large uncertainty in water-depth estimation (%.1fm)\n",$sig_water_depth))
-		if ($sig_water_depth > $LADCP{BIN_LENGTH});
+	warning(1,sprintf("large uncertainty in water-depth estimation (%.1fm)\n",
+		$sig_water_depth))
+			if ($sig_water_depth > $LADCP{BIN_LENGTH});
+	if ($water_depth < $CTD_maxdepth) {
+		warning(2,"water depth ($water_depth m) < max CTD depth ($CTD_maxdepth m) ignored\n");
+		undef($water_depth);
+	}
+}
+
+if (defined($water_depth)) {														# set %PARAMs
 	&antsAddParams('water_depth',$water_depth,'water_depth.sig',$sig_water_depth);
 } else {
 	warning(2,"unknown water depth --- cannot edit sidelobes or PPI near the seabed\n");
 	&antsAddParams('water_depth','unknown','water_depth.sig','nan');
 }
 	
-if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {				# DOWNLOOKER
+if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
 	&antsAddParams('ADCP_orientation','DL');
 
 	if (defined($water_depth)) {
@@ -1311,9 +1350,9 @@ for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		my($bi) = $bindepth[$bin]/$opt_o;
 		push(@{$DNCAST{ENSEMBLE}[$bi]},$ens);
 		push(@{$DNCAST{ELAPSED}[$bi]},$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
-		push(@{$DNCAST{CTD_W}[$bi]},$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
-		push(@{$DNCAST{CTD_W_tt}[$bi]},$CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
-		push(@{$DNCAST{BIN}[$bi]},$bin);
+#		push(@{$DNCAST{CTD_W}[$bi]},$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
+#		push(@{$DNCAST{CTD_W_tt}[$bi]},$CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
+#		push(@{$DNCAST{BIN}[$bi]},$bin);
 		push(@{$DNCAST{DEPTH}[$bi]},$bindepth[$bin]);
 		push(@{$DNCAST{W}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
 		push(@{$DNCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
@@ -1364,9 +1403,9 @@ for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
 		my($bi) = $bindepth[$bin]/$opt_o;
 		push(@{$UPCAST{ENSEMBLE}[$bi]},$ens);
 		push(@{$UPCAST{ELAPSED}[$bi]},$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
-		push(@{$UPCAST{CTD_W}[$bi]},$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
-		push(@{$UPCAST{CTD_W_tt}[$bi]},$CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
-		push(@{$UPCAST{BIN}[$bi]},$bin);
+#		push(@{$UPCAST{CTD_W}[$bi]},$CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
+#		push(@{$UPCAST{CTD_W_tt}[$bi]},$CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
+#		push(@{$UPCAST{BIN}[$bi]},$bin);
 		push(@{$UPCAST{DEPTH}[$bi]},$bindepth[$bin]);
 		push(@{$UPCAST{W}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
 		push(@{$UPCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
@@ -1383,12 +1422,6 @@ for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 	$UPCAST{MAD_W}[$bi]		  	= mad2($UPCAST{MEDIAN_W}[$bi],@{$UPCAST{W}[$bi]});
 	$UPCAST{N_SAMP}[$bi]		= @{$UPCAST{W}[$bi]};
 }
-
-&antsAddParams('min_depth',$min_depth,'max_depth',$max_depth,					# plot range limits
-			   'min_ens',$LADCP{ENSEMBLE}[$firstGoodEns]->{NUMBER},
-			   'max_ens',$LADCP{ENSEMBLE}[$realLastGoodEns]->{NUMBER},
-			   'min_elapsed',$LADCP{ENSEMBLE}[$firstGoodEns]->{CTD_ELAPSED},
-			   'max_elapsed',$LADCP{ENSEMBLE}[$realLastGoodEns]->{CTD_ELAPSED});
 
 #------------------------------------------------------------------------------------------------------
 # remove ping-coherent residuals
@@ -1470,9 +1503,107 @@ unless ($opt_q) {
 
 } # unless ($opt_q);
 
+#----------------------------------------------------------------------
+# remove ensembles with large rms residuals
+#----------------------------------------------------------------------
+
+if (defined($opt_r)) {
+	progress("Removing ensembles with large residuals...\n");	
+	
+	$nerm = 0;
+	for ($ens=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+
+		my($sum) = my($n) = 0;														# calculate rms residual
+		my(@bindepth) = calc_binDepths($ens);
+		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
+		  	next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+		  	my($bi) = $bindepth[$bin]/$opt_o;
+			my($res) = ($ens < $LADCP_atbottom) ? 
+						$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $DNCAST{MEDIAN_W}[$bi] :
+						$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $UPCAST{MEDIAN_W}[$bi];
+			$sum += &SQR($res); $n++;						
+		}
+
+		if ($n == 0 || sqrt($sum/$n) > $opt_r) {									# ensemble is bad
+			undef($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+			$nerm++;
+		}
+	}
+	progress("\t$nerm ensembles removed (%d%% of total)\n",round(100*$nerm/($lastGoodEns-$firstGoodEns+1)));
+
+    progress("\tre-binning profile data...\n");
+    undef(%DNCAST); undef(%UPCAST);
+	$min_depth = 9e99; my($max_depth) = 0;
+	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
+		unless (numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH})) {
+			$firstGoodEns++ if ($ens == $firstGoodEns); 							# start has been edited away
+			next;
+		}
+		$realLastGoodEns = $ens;
+		my(@bindepth) = calc_binDepths($ens);
+		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+			next if ($bin<$outGrid_firstBin-1 || $bin>$outGrid_lastBin-1);
+			$min_depth = $bindepth[$bin] if ($bindepth[$bin] < $min_depth);
+			$max_depth = $bindepth[$bin] if ($bindepth[$bin] > $max_depth);
+			my($bi) = $bindepth[$bin]/$opt_o;
+			push(@{$DNCAST{ENSEMBLE}[$bi]},$ens);
+			push(@{$DNCAST{ELAPSED}[$bi]},$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
+			push(@{$DNCAST{DEPTH}[$bi]},$bindepth[$bin]);
+			push(@{$DNCAST{W}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
+			push(@{$DNCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
+			push(@{$DNCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
+		}
+	}
+	for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {							# bin data into profile
+		$DNCAST{MEAN_DEPTH}[$bi]	= avg(@{$DNCAST{DEPTH}[$bi]});	
+		$DNCAST{MEAN_ELAPSED}[$bi]	= avg(@{$DNCAST{ELAPSED}[$bi]});
+		$DNCAST{MEDIAN_W}[$bi]		= median(@{$DNCAST{W}[$bi]});
+		$DNCAST{MEDIAN_W12}[$bi]	= median(@{$DNCAST{W12}[$bi]});
+		$DNCAST{MEDIAN_W34}[$bi]	= median(@{$DNCAST{W34}[$bi]});
+		$DNCAST{MAD_W}[$bi] 		= mad2($DNCAST{MEDIAN_W}[$bi],@{$DNCAST{W}[$bi]});
+		$DNCAST{N_SAMP}[$bi]		= @{$DNCAST{W}[$bi]};
+	}
+	for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {	    
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+		$realLastGoodEns = $ens;
+		my(@bindepth) = calc_binDepths($ens);
+		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+			next if ($bin<$outGrid_firstBin-1 || $bin>$outGrid_lastBin-1);
+			$min_depth = $bindepth[$bin] if ($bindepth[$bin] < $min_depth);
+			$max_depth = $bindepth[$bin] if ($bindepth[$bin] > $max_depth);
+			my($bi) = $bindepth[$bin]/$opt_o;
+			push(@{$UPCAST{ENSEMBLE}[$bi]},$ens);
+			push(@{$UPCAST{ELAPSED}[$bi]},$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
+			push(@{$UPCAST{DEPTH}[$bi]},$bindepth[$bin]);
+			push(@{$UPCAST{W}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
+			push(@{$UPCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
+			push(@{$UPCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
+		}
+	}
+	for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
+		$UPCAST{MEAN_DEPTH}[$bi]	= avg(@{$UPCAST{DEPTH}[$bi]});
+		$UPCAST{MEAN_ELAPSED}[$bi]	= avg(@{$UPCAST{ELAPSED}[$bi]});
+		$UPCAST{MEDIAN_W}[$bi]		= median(@{$UPCAST{W}[$bi]});
+		$UPCAST{MEDIAN_W12}[$bi]	= median(@{$UPCAST{W12}[$bi]});
+		$UPCAST{MEDIAN_W34}[$bi]	= median(@{$UPCAST{W34}[$bi]});
+		$UPCAST{MAD_W}[$bi] 		= mad2($UPCAST{MEDIAN_W}[$bi],@{$UPCAST{W}[$bi]});
+		$UPCAST{N_SAMP}[$bi]		= @{$UPCAST{W}[$bi]};
+	}
+} # if defined($opt_r)
+
 #--------------------------------------------
 # Calculate and Output Bin-Averaged Resiudals
 #--------------------------------------------
+
+&antsAddParams('min_depth',$min_depth,'max_depth',$max_depth,						# plot range limits
+			   'min_ens',$LADCP{ENSEMBLE}[$firstGoodEns]->{NUMBER},
+			   'max_ens',$LADCP{ENSEMBLE}[$realLastGoodEns]->{NUMBER},
+			   'min_elapsed',$LADCP{ENSEMBLE}[$firstGoodEns]->{CTD_ELAPSED},
+			   'max_elapsed',$LADCP{ENSEMBLE}[$realLastGoodEns]->{CTD_ELAPSED});
 
 if (@out_BR) {
 	progress("Binning residuals...");
@@ -1550,10 +1681,10 @@ if (@out_BR) {
 
 	foreach my $of (@out_BR) {
 	    progress("<$of> ");
-		my($plot,$out) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
-		if (defined($out)) {
-			require "$WCALC/${plot}.pl";
-			&{$plot}($out);
+		my($sub,$arg) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
+		if (defined($arg)) {
+			require "$WCALC/${sub}.pl";
+			&{$sub}($arg);
 			next;
 		}
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
@@ -1607,10 +1738,10 @@ if (@out_wsamp) {
 	foreach my $of (@out_wsamp) {
 	    progress("<$of> ");
 
-		my($plot,$out) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
-		if (defined($out)) {
-			require "$WCALC/${plot}.pl";
-			&{$plot}($out);
+		my($sub,$arg) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);								# plot_sub(out_file)
+		if (defined($arg)) {
+			require "$WCALC/${sub}.pl";
+			&{$sub}($arg);
 			next;
 		}
 			
@@ -1704,10 +1835,10 @@ if (@out_profile) {
 	foreach my $of (@out_profile) {
 	    progress("<$of> ");
 
-		my($plot,$out) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
-		if (defined($out)) {
-			require "$WCALC/${plot}.pl";
-			&{$plot}($out);
+		my($sub,$arg) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
+		if (defined($arg)) {
+			require "$WCALC/${sub}.pl";
+			&{$sub}($arg);
 			next;
 		}
 			
@@ -1748,10 +1879,10 @@ if (@out_timeseries) {
 					  
 	foreach my $of (@out_timeseries) {
 	    progress("<$of> ");
-		my($plot,$out) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
-		if (defined($out)) {
-			require "$WCALC/${plot}.pl";
-			&{$plot}($out);
+		my($sub,$arg) = ($of =~ /^([^\(]+)\(([^\)]+)\)$/);						# plot_sub(out_file)
+		if (defined($arg)) {
+			require "$WCALC/${sub}.pl";
+			&{$sub}($arg);
 			next;
 		}
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
@@ -1785,7 +1916,7 @@ if (@out_timeseries) {
 	progress("\n");
 }
 
-system("{ ./PostProcess.sh $out_basename $RUN $data_subdir $plot_subdir $log_subdir; }&")
-	if (-x 'PostProcess.sh');
+system("{ ./LADCP_w.PostProcess $out_basename $RUN $data_dir $plot_dir $log_dir; }&")
+	if (-x 'LADCP_w.PostProcess');
 
 exit(0);

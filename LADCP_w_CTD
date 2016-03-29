@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Wed Mar 16 17:06:21 2016
+#                    dlm: Sat Mar 19 18:19:43 2016
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 598 40 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 60 27 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -56,6 +56,8 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #				  - BUG: Layout error when input had no lat/lon
 #				  - added lon to simple ASCII format
 #	Mar 16, 2016: - adapted to gmt5
+#	Mar 19, 2016: - added support for $VERB environment var
+#				  - added $libSBE_quiet flag
 
 ($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
@@ -82,7 +84,7 @@ $antsParseHeader = 0;											# usage
 
 &antsFloatOpt(\$opt_l,2);										# defaults
 &antsCardOpt(\$opt_s,6);
-&antsCardOpt(\$opt_v,0);
+&antsCardOpt(\$opt_v,$ENV{VERB});								# support VERB env variable
 
 $CNVfile = $ARGV[0];											# open CNV file
 open(F,&antsFileArg());
@@ -99,6 +101,7 @@ croak("$CNVfile: no data\n")
 	unless defined($rec);
 
 if ($rec =~ /^\*/) {												# SBE CNV file
+	$libSBE_quiet = 1;												# suppress diagnostic messages
 	($nfields,$nscans,$sampint,$badval,$ftype,$lat,$lon) =			# decode SBE header 
 		SBE_parseHeader(F,0,0); 									# SBE field names, no time check
 	
@@ -220,6 +223,7 @@ unless ($opt_r) {
 	#----------------------------------------
 	my($trimmed) = 0;												# trim leading nan pressures
 	shift(@ants_),$trimmed++
+#	,printf(STDERR "-> p=$ants_[0][$pressF] c=$ants_[0][$condF]\n")
 		until !@ants_ ||
 				numberp($ants_[0][$pressF]) &&
 			  	numberp($ants_[0][$condF]) &&

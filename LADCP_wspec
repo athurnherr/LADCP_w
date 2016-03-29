@@ -2,28 +2,32 @@
 #======================================================================
 #                    L A D C P _ W S P E C 
 #                    doc: Thu Jun 11 12:02:49 2015
-#                    dlm: Tue Mar  1 21:27:41 2016
+#                    dlm: Mon Mar 28 13:28:39 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 26 29 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 198 0 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE window spectra from LADCP profiles';
 
 # HISTORY:
-#	Jun 11, 2015: - adapted from [binpgrams]
-#	Jun 12, 2015: - renamed %PARAM prefixes
-#	Jun 15, 2015: - BUG: de-meaning did not respect _gap variables
-#				  - added %output_depth_resolution
-#				  - reversed semantics of -d/-u
-#	Jun 16, 2015: - reversed semantics of -t
-#				  - re-added pwrdens.0 to make output consistent with [binpgrams]
-#	Oct 12, 2015: - require ANTSlibs V6.2 for release
-#	Oct 13, 2015: - adapted to [version.pl]
+#   Jun 11, 2015: - adapted from [binpgrams]
+#   Jun 12, 2015: - renamed %PARAM prefixes
+#   Jun 15, 2015: - BUG: de-meaning did not respect _gap variables
+#                 - added %output_depth_resolution
+#                 - reversed semantics of -d/-u
+#   Jun 16, 2015: - reversed semantics of -t
+#                 - re-added pwrdens.0 to make output consistent with [binpgrams]
+#   Oct 12, 2015: - require ANTSlibs V6.2 for release
+#   Oct 13, 2015: - adapted to [version.pl]
 #   Jan 25, 2016: - added software version %PARAM
-#	Mar  1, 2016: - made trailing message much less frequent
-#				  - BUG: program croaked gracelessly or entered infinite loop
-#						 when presented with insufficient (no valid) input
-#						 data
+#   Mar  1, 2016: - made trailing message much less frequent
+#                 - BUG: program croaked gracelessly or entered infinite loop
+#                        when presented with insufficient (no valid) input
+#                        data
+#   Mar 27, 2016: - added -z)ap
+#   Mar 28, 2016L - removed -z
+#                 - renamed nsamp to nspec
+#                 - added w.nsamp.avg
 
 ($ANTSBIN) = (`which list` =~ m{^(.*)/[^/]*$});
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -46,66 +50,64 @@ require "$ANTSBIN/.nminterp.linear";
 #----------------------------------------------------------------------
 
 &antsUsage('bc:dg:o:s:tuw:',0,
-			'[poly-o)rder <n[0]> to de-mean data; -1 to disable>] [suppress cosine-t)aper]',
-			'[-d)own/-u)pcast-only] [exclude -b)ottom window]',
-			'[shortwave -c)utoff <kz or lambda>]',
-			'[-s)urface <layer depth to exclude[150m]>',
-			'[-g)ap <max depth layer to fill with interpolation[40m]>]',
-			'[-w)indow <power-of-two input-records[32]>]',
-			'[LADCP-profile(s)]');
+            '[poly-o)rder <n[0]> to de-mean data; -1 to disable>] [suppress cosine-t)aper]',
+            '[-d)own/-u)pcast-only] [exclude -b)ottom window]',
+            '[shortwave -c)utoff <kz or lambda>]',
+            '[-s)urface <layer depth to exclude[150m]>',
+            '[-g)ap <max depth layer to fill with interpolation[40m]>]',
+            '[-w)indow <power-of-two input-records[32]>]',
+            '[LADCP-profile(s)]');
 
-&antsIntOpt(\$opt_o,0);										# polynomial order to remove
-if ($opt_o >= 0) {												# init model
-	&modelUsage();
-	matrix(\@covar,1,$modelNFit,1,$modelNFit);
-	vector(\@afunc,1,$modelNFit);
-	&antsAddParams('wspec::demean_poly_order',$opt_o);
+&antsIntOpt(\$opt_o,0);                                     # polynomial order to remove
+if ($opt_o >= 0) {                                              # init model
+    &modelUsage();
+    matrix(\@covar,1,$modelNFit,1,$modelNFit);
+    vector(\@afunc,1,$modelNFit);
+    &antsAddParams('wspec::demean_poly_order',$opt_o);
 }
 
 croak("$0: cannot ignore both down- and upcast\n")
-	unless ($opt_d+$opt_u < 2);
+    unless ($opt_d+$opt_u < 2);
 if ($opt_d) {
-	&antsAddParams('wspec::input_data','dc');
+    &antsAddParams('wspec::input_data','dc');
 } elsif ($opt_u) {
-	&antsAddParams('wspec::input_data','uc');
+    &antsAddParams('wspec::input_data','uc');
 } else {
-	&antsAddParams('wspec::input_data','dc/uc');
+    &antsAddParams('wspec::input_data','dc/uc');
 }
 &antsAddParams('wspec::cos_taper_applied',$opt_t ? 'no' : 'yes');
 &antsAddParams('wspec::btm_window_included',$opt_b ? 'no' : 'yes');
 
-if (defined($opt_c)) {											# shortwave cutoff
-	$kzlim = ($opt_c < 1) ? $opt_c : 2*$PI/$opt_c;
-	&antsAddParams('wspec::shortwave_cutoff',$kzlim);
+if (defined($opt_c)) {                                          # shortwave cutoff
+    $kzlim = ($opt_c < 1) ? $opt_c : 2*$PI/$opt_c;
+    &antsAddParams('wspec::shortwave_cutoff',$kzlim);
 } else {
-	$kzlim = 9e99;
+    $kzlim = 9e99;
 }
 
-&antsCardOpt($opt_w);											# window size
+&antsCardOpt($opt_w);                                           # window size
 
-&antsCardOpt(\$opt_g,40);										# gap length [m]
+&antsCardOpt(\$opt_g,40);                                       # gap length [m]
 &antsAddParams('wspec::min_gap_thickness',$opt_g);
 
-&antsCardOpt(\$opt_s,150);      								# surface layer
+&antsCardOpt(\$opt_s,150);                                      # surface layer
 &antsAddParams('wspec::surface_layer',$opt_s);
 
-&ISUsage;														# interpolation model
+&ISUsage;                                                       # interpolation model
 
 #----------------------------------------------------------------------
 # Read Data & Define Layout
 #----------------------------------------------------------------------
 
 croak("LADCP_VKE: spectral-input mode must be selected manually (-f)\n")
-	if defined(fnrNoErr('pwrdens.0')) && !defined(fnrNoErr('dc_w'));
+    if defined(fnrNoErr('pwrdens.0')) && !defined(fnrNoErr('dc_w'));
 
-$zfnr = fnr('depth');											# required fields
-unless (defined(fnrNoErr('dc_w'))) {							# 
-}
-$dcwfnr = fnr('dc_w');
-$ucwfnr = fnr('uc_w');
-$habfnr = fnrNoErr('hab');										# optional fields
+$zfnr = fnr('depth');                                           # required fields
+$dcwfnr = fnr('dc_w'); $dcsfnr = fnr('dc_w.nsamp');
+$ucwfnr = fnr('uc_w'); $ucsfnr = fnr('uc_w.nsamp');
+$habfnr = fnrNoErr('hab');                                      # optional fields
 
-&antsInstallBufFull(0);											# read entire file
+&antsInstallBufFull(0);                                         # read entire file
 &antsIn();
 
 while (@ants_ && $ants_[0][$zfnr] < $opt_s) {					# remove surface layer
@@ -141,7 +143,7 @@ $resolution_bandwidth = 1 / $zrange;
 $resolution_bandwidth *= 2*$PI;
 &antsAddParams('wspec::resolution_bandwidth',$resolution_bandwidth);
 
-push(@antsNewLayout,'widx','depth','depth.min','depth.max','hab','nsamp');
+push(@antsNewLayout,'widx','depth','depth.min','depth.max','hab','nspec','w.nsamp.avg');
 for (my($i)=0; $i<$opt_w/2+1; $i++) {
 	my($kz) = 2*$PI*$i/$zrange;
 	last if ($kz > $kzlim);
@@ -193,6 +195,16 @@ sub avgF($$)														# average field over window
 	return avg(@vals);
 }
 
+sub medianF($$)														# average field over window
+{
+	my($f,$r) = @_;
+	my(@vals);
+
+	push(@vals,$ants_[$r++][$f])
+		while (@vals < $opt_w);
+	return median(@vals);
+}
+
 unless ($opt_t) {													# compile taper function only if needed
 	sub cosTaperWeight($)
 	{
@@ -238,10 +250,11 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 			push(@out,$ants_[$fromR][$zfnr]);			
 			push(@out,$ants_[$fromR+$opt_w-1][$zfnr]);	
 	    }
-	    push(@out,defined($habfnr) ?					
+	    push(@out,defined($habfnr) ?								# hab
 						avgF($habfnr,$fromR) : nan);
-		push(@out,nan);								
-		for ($i=0; $i<=$opt_w/2; $i++) {			
+		push(@out,nan);												# nspec
+		push(@out,nan);												# w.nsamp.avg
+		for ($i=0; $i<=$opt_w/2; $i++) {							# power
 			push(@out,nan);
 		}
 		&antsOut(@out);												# output nan record and go to next window
@@ -335,8 +348,12 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
     }
     push(@out,defined($habfnr) ?								# hab
 					avgF($habfnr,$fromR) : nan);
-	my($nsamp) = !$dc_gap + !$uc_gap;							# nsamp
-	push(@out,$nsamp);
+	my($nspec) = !$dc_gap + !$uc_gap;							# nspec
+	push(@out,$nspec);
+	my($nsamp_sum) = my($nsn) = 0;								# w.nsamp.avg
+	$nsamp_sum+=medianF($dcsfnr,$fromR),$nsn++ unless ($dc_gap);	# median to avoid biasing by short bottle stops
+	$nsamp_sum+=medianF($ucsfnr,$fromR),$nsn++ unless ($uc_gap);
+	push(@out,$nsamp_sum/$nsn);
 					
 	my($totP) = 0;												# power
 	my($i);
@@ -344,7 +361,7 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 		my($sumP) = 0;
 		$sumP += $dc_pwr[$i] * $taper_correction unless ($dc_gap);
 		$sumP += $uc_pwr[$i] * $taper_correction unless ($uc_gap);
-		push(@out,$sumP/$nsamp/$resolution_bandwidth)
+		push(@out,$sumP/$nspec/$resolution_bandwidth)
 			unless (antsParam("k.$i") > $kzlim);
 		$totP += $sumP;
 	}

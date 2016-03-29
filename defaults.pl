@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Sun Mar 13 10:50:09 2016
+#                    dlm: Tue Mar 29 07:23:24 2016
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 130 13 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 74 39 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -68,6 +68,25 @@
 #				  - changed outGrid_firstBin default to '*', also lastBin
 #	Jan 27, 2016: - added documentation
 #	Mar 16, 2016: - added auto creation of output directory
+#	Mar 18, 2016: - added comments about -l
+#	Mar 19, 2016: - improved docu
+#	Mar 29, 2016: - moved out dir creation to [LADCP_w_ocean]
+#				  - added opt_r support
+
+#======================================================================
+# Output Log Files
+#	- there are 4 verbosity levels, selected by -v
+#		0 :	errors
+#		1*:	UNIX-like (warnings and info messages that are not produced for every cast; *DEFAULT)
+#		2 :	progress messages and useful information
+#		>2:	debug messges
+#	- the most useful ones of these are 1 & 2
+#	- verbosity level can be set with the VERB shell variable
+#======================================================================
+
+&antsCardOpt(\$opt_v,$ENV{VERB});
+$opt_v = 1 unless numberp($opt_v);
+
 
 #======================================================================
 # Data Input 
@@ -103,61 +122,24 @@ $min_valid_vels = 50;
 $opt_b = '2,*' unless defined($opt_b);
 
 #======================================================================
-# Logging and Output
-#======================================================================
-
-#	- there are 4 verbosity levels, selected by -v
-#		0 :	errors
-#		1*:	UNIX-like (warnings and info messages that are not produced for every cast; *DEFAULT)
-#		2 :	progress messages and useful information
-#		>2:	debug messges
-#	- the most useful ones of these are 1 & 2
-
-&antsCardOpt(\$opt_v,$ENV{VERB});
-$opt_v = 1 unless numberp($opt_v);
-
-
-# The "base name" of all output files (usually 0-padded 3-digits)
-
-$out_basename = sprintf('%03d',$PROF);
-
-
-# Output subdirectories
-
-unless (-d $RUN) {
-	warning(0,"Creating output directory ./$RUN\n");
-	mkdir($RUN);
-	error("./$RUN: no such directory\n") unless (-d $RUN);
-}
-$data_subdir = $plot_subdir = $log_subdir = $RUN;
-
-
-# The -k option defines the minimum number of w samples required in each 
-# vertical-velocity bin. The following sets the default value.
-
-&antsCardOpt(\$opt_k,20);
-
-
-# The -o option sets the output grid resolution in meters. The following
-# sets the default value.
-
-&antsFloatOpt(\$opt_o,20);
-
-
-# The following variables limit the bins used to grid w_oean
-#	- in contrast to -b, the other bins are still used e.g. for BT 
-#	- values recorded in %outgrid_firstbin, %outgrid_lastbin
-#	- values beyond range are:
-#		- greyed out in *_mean_residuals.ps
-#		- not used in *_w.ps, *_residuals.ps
-
-$outGrid_firstBin = '*';			# use $LADCP_firstBin (-b)
-$outGrid_lastBin  = '*';			# use $LADCP_lastBin (-b)
-
-
-#======================================================================
 # Data Editing
 #======================================================================
+
+# The following sets the max allowable rms residual w per ensemble; 
+# data from ensembles with larger rms residuals are discarded.
+
+&antsFloatOpt(\$opt_r,0.04);
+
+
+# By default, ensembles with uncertain time-lagging are discarded.
+# This allows profiles with dropped CTD scans to be processed without
+# manual intervention. For profiles collected in very calm conditions
+# (e.g. near the ice off Antarctica) time lagging is highly uncertain
+# most of the time --- setting $opt_l = 1 disables the lime-lagging
+# filter for those cases.
+
+# $opt_l = 1;
+
 
 # The following sets the default correlation limit; measurements with
 # correlations below this limit are discarded.
@@ -415,80 +397,36 @@ $BT_max_bin_range_diff = 3;
 
 $BT_max_w_error = 0.03;
 
+
 #======================================================================
-# ProcessingParams file selection
+# Gridded Velocity Profile Output
 #======================================================================
 
-if (-r "ProcessingParams.$RUN") {
-	$processing_param_file = "ProcessingParams.$RUN";
-} elsif (-r "ProcessingParams.default") {
-	$processing_param_file = "ProcessingParams.default";
-} elsif (-r "ProcessingParams") {
-	$processing_param_file = "ProcessingParams";
-} else {
-	error("$0: cannot find either <ProcessingParams.$RUN> or <ProcessingParams[.default]>\n");
-}
 
-#----------------------------------------------------------------------
-# Processing log (diagnostic messages) output
-#----------------------------------------------------------------------
+# The -k option defines the minimum number of w samples required in each 
+# vertical-velocity bin. The following sets the default value.
 
-$out_log = "$log_subdir/$out_basename.log";
+&antsCardOpt(\$opt_k,20);
 
 
-#----------------------------------------------------------------------
-# Vertical-velocity profile output and plots:
-# Data:
-#	*.wprof				vertical velocity profiles
-# Standard Plots:
-# 	*_wprof.ps			vertical velocity profiles (main output plot)
-#----------------------------------------------------------------------
+# The -o option sets the output grid resolution in meters. The following
+# sets the default value.
 
-@out_profile = ("plot_wprof($plot_subdir/${out_basename}_wprof.ps)",
-			    "$data_subdir/$out_basename.wprof");
+&antsFloatOpt(\$opt_o,20);
 
 
-#----------------------------------------------------------------------
-# Vertical-velocity sample data output and plots:
-# Data:
-#	*.wsamp				w sample data
-# Standard Plots:
-#	*_wsamp.ps			vertical velocity time-depth plot
-#	*_residuals.ps		residual vertical velocity time-depth plot
-#	*_backscatter.ps	volume scattering coefficient time-depth plot
-# Optional Plots:
-#	*_correlation.ps	correlation time-depth plot
-#----------------------------------------------------------------------
+# The following variables limit the bins used to grid w_oean
+#	- in contrast to -b, the other bins are still used e.g. for BT 
+#	- values recorded in %outgrid_firstbin, %outgrid_lastbin
+#	- values beyond range are:
+#		- greyed out in *_mean_residuals.ps
+#		- not used in *_w.ps, *_residuals.ps
 
-push(@out_wsamp,"$data_subdir/$out_basename.wsamp");
-
-push(@out_wsamp,"plot_residuals($plot_subdir/${out_basename}_residuals.ps)");
-push(@out_wsamp,"plot_backscatter($plot_subdir/${out_basename}_backscatter.ps)");
-push(@out_wsamp,"plot_wsamp($plot_subdir/${out_basename}_wsamp.ps)");
-
-#push(@out_wsamp,"plot_correlation($plot_subdir/${out_basename}_correlation.ps)");
+$outGrid_firstBin = '*';			# use $LADCP_firstBin (-b)
+$outGrid_lastBin  = '*';			# use $LADCP_lastBin (-b)
 
 
-#----------------------------------------------------------------------
-# Time-series output
-# Data:
-#	*.tis			combined CTD/LADCP time-series data, including 
-#					package- and LADCP reference layer w
-#----------------------------------------------------------------------
 
-@out_timeseries = ("$data_subdir/$out_basename.tis");
-
-#----------------------------------------------------------------------
-# Per-bin vertical-velocity residuals (plot only)
-#----------------------------------------------------------------------
-
-@out_BR	= ("plot_mean_residuals($plot_subdir/${out_basename}_mean_residuals.ps)");
-
-
-#----------------------------------------------------------------------
-# Time-lagging correlation statistics (plot only)
-#----------------------------------------------------------------------
-
-@out_TL = ("plot_time_lags($plot_subdir/${out_basename}_time_lags.ps)");
 
 1;	# return true
+
