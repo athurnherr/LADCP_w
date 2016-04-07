@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W S P E C 
 #                    doc: Thu Jun 11 12:02:49 2015
-#                    dlm: Mon Mar 28 13:28:39 2016
+#                    dlm: Thu Mar 31 11:08:44 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 198 0 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 154 41 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE window spectra from LADCP profiles';
@@ -25,9 +25,12 @@ $antsSummary = 'calculate VKE window spectra from LADCP profiles';
 #                        when presented with insufficient (no valid) input
 #                        data
 #   Mar 27, 2016: - added -z)ap
-#   Mar 28, 2016L - removed -z
+#   Mar 28, 2016: - removed -z
 #                 - renamed nsamp to nspec
 #                 - added w.nsamp.avg
+#   Mar 31, 2016: - changed version %PARAM
+#				  - BUG: nspec was nan insted of 0
+#				  - replaced wspec:: %PARAM-prefix with LADCP_wspec::
 
 ($ANTSBIN) = (`which list` =~ m{^(.*)/[^/]*$});
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -43,7 +46,7 @@ require "$ANTSLIB/lfit.pl";
 require "$ANTSLIB/nrutil.pl";
 require "$ANTSBIN/.lsfit.poly";
 require "$ANTSBIN/.nminterp.linear";
-&antsAddParams('LADCP_wspec',"Version $VERSION");
+&antsAddParams('LADCP_wspec::version',$VERSION);
 
 #----------------------------------------------------------------------
 # Usage
@@ -63,24 +66,24 @@ if ($opt_o >= 0) {                                              # init model
     &modelUsage();
     matrix(\@covar,1,$modelNFit,1,$modelNFit);
     vector(\@afunc,1,$modelNFit);
-    &antsAddParams('wspec::demean_poly_order',$opt_o);
+    &antsAddParams('LADCP_wspec::demean_poly_order',$opt_o);
 }
 
 croak("$0: cannot ignore both down- and upcast\n")
     unless ($opt_d+$opt_u < 2);
 if ($opt_d) {
-    &antsAddParams('wspec::input_data','dc');
+    &antsAddParams('LADCP_wspec::input_data','dc');
 } elsif ($opt_u) {
-    &antsAddParams('wspec::input_data','uc');
+    &antsAddParams('LADCP_wspec::input_data','uc');
 } else {
-    &antsAddParams('wspec::input_data','dc/uc');
+    &antsAddParams('LADCP_wspec::input_data','dc/uc');
 }
-&antsAddParams('wspec::cos_taper_applied',$opt_t ? 'no' : 'yes');
-&antsAddParams('wspec::btm_window_included',$opt_b ? 'no' : 'yes');
+&antsAddParams('LADCP_wspec::cos_taper_applied',$opt_t ? 'no' : 'yes');
+&antsAddParams('LADCP_wspec::btm_window_included',$opt_b ? 'no' : 'yes');
 
 if (defined($opt_c)) {                                          # shortwave cutoff
     $kzlim = ($opt_c < 1) ? $opt_c : 2*$PI/$opt_c;
-    &antsAddParams('wspec::shortwave_cutoff',$kzlim);
+    &antsAddParams('LADCP_wspec::shortwave_cutoff',$kzlim);
 } else {
     $kzlim = 9e99;
 }
@@ -88,10 +91,10 @@ if (defined($opt_c)) {                                          # shortwave cuto
 &antsCardOpt($opt_w);                                           # window size
 
 &antsCardOpt(\$opt_g,40);                                       # gap length [m]
-&antsAddParams('wspec::min_gap_thickness',$opt_g);
+&antsAddParams('LADCP_wspec::min_gap_thickness',$opt_g);
 
 &antsCardOpt(\$opt_s,150);                                      # surface layer
-&antsAddParams('wspec::surface_layer',$opt_s);
+&antsAddParams('LADCP_wspec::surface_layer',$opt_s);
 
 &ISUsage;                                                       # interpolation model
 
@@ -125,7 +128,7 @@ croak("$0: insufficient data (no valid records found)\n")
 	unless (@ants_);
 
 $dz = &antsXCheck($zfnr,0,$#ants_,1.01);						# calc dT; 1% jitter
-&antsAddParams("wspec::input_depth_resolution",$dz);
+&antsAddParams("LADCP_wspec::input_depth_resolution",$dz);
 
 $opt_g = int(($opt_g - 1) / $dz);								# [m] -> [records]
 
@@ -133,7 +136,7 @@ unless (defined($opt_w)) {										# window size
 	for ($opt_w=32; $opt_w*$dz>600; $opt_w/=2) {}
 	&antsInfo("%d-m windows ($opt_w records)",$opt_w*$dz);
 }
-&antsAddParams('wspec::window_size',$opt_w,'wspec::output_depth_resolution',$dz*$opt_w);
+&antsAddParams('LADCP_wspec::window_size',$opt_w,'LADCP_wspec::output_depth_resolution',$dz*$opt_w);
 
 croak(sprintf("$0: insufficient data (%d records found, %d required)\n",scalar(@ants_),$opt_w))
 	unless (@ants_ >= $opt_w);
@@ -141,14 +144,14 @@ croak(sprintf("$0: insufficient data (%d records found, %d required)\n",scalar(@
 $zrange = $opt_w * $dz;											# NB: not equal to max-min!!!
 $resolution_bandwidth = 1 / $zrange;
 $resolution_bandwidth *= 2*$PI;
-&antsAddParams('wspec::resolution_bandwidth',$resolution_bandwidth);
+&antsAddParams('LADCP_wspec::resolution_bandwidth',$resolution_bandwidth);
 
 push(@antsNewLayout,'widx','depth','depth.min','depth.max','hab','nspec','w.nsamp.avg');
 for (my($i)=0; $i<$opt_w/2+1; $i++) {
 	my($kz) = 2*$PI*$i/$zrange;
 	last if ($kz > $kzlim);
-	&antsAddParams(sprintf('wspec::k.%d',$i),$kz);
-	&antsAddParams(sprintf('wspec::lambda.%d',$i),$i ? $zrange/$i : inf);
+	&antsAddParams(sprintf('LADCP_wspec::k.%d',$i),$kz);
+	&antsAddParams(sprintf('LADCP_wspec::lambda.%d',$i),$i ? $zrange/$i : inf);
 	push(@antsNewLayout,sprintf('pwrdens.%d',$i));
 }
 push(@antsNewLayout,'pwr.tot');
@@ -252,7 +255,7 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 	    }
 	    push(@out,defined($habfnr) ?								# hab
 						avgF($habfnr,$fromR) : nan);
-		push(@out,nan);												# nspec
+		push(@out,0);												# nspec
 		push(@out,nan);												# w.nsamp.avg
 		for ($i=0; $i<=$opt_w/2; $i++) {							# power
 			push(@out,nan);

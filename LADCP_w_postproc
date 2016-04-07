@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Thu Mar 17 06:50:38 2016
+#                    dlm: Thu Mar 31 05:53:12 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 325 30 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 77 51 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -61,6 +61,7 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #	Mar  7, 2016: - BUG: correlation stats were defined/used for single-head data
 #				  - removed good_bins() from library as -v allows more control
 #	Mar 16, 2016: - adapted to gmt5
+#   Mar 31, 2016: - changed version %PARAM
 
 ($ANTS)  = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0              =~ m{^(.*)/[^/]*$});
@@ -73,7 +74,7 @@ require "$WCALC/version.pl";
 require "$ANTS/ants.pl";
 require "$ANTS/libstats.pl";
 require "$ANTS/libGMT.pl";
-&antsAddParams('LADCP_w_postproc',"Version $VERSION");
+&antsAddParams('LADCP_w_postproc::version',$VERSION);
 
 &antsUsage('b:d:i:k:l:o:p:v:w:',1,
 	'[profile -i)d <id>]',

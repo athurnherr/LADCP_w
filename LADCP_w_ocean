@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Tue Mar 29 07:28:54 2016
+#                    dlm: Wed Apr  6 10:28:40 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 371 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 246 73 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -242,6 +242,8 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - renamed _subdir to _dir variables
 #				  - renamed post-process hook script to LADCP_w.PostProcess
 #				  - added -r default (0.04m/s)
+#   Mar 31, 2016: - changed version %PARAM
+#	Apr  6, 2016: - BUG: GMT test looked for psxy, rather than gmt binary
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -302,7 +304,7 @@ $WCALC = '.' if ($WCALC eq '');
 $ANTS_TOOLS_AVAILABLE = (`which list 2>/dev/null` ne '');
 
 die("$0: Generic Mapping Tools (GMT) required but not found (bad \$PATH?)\n")
-	unless (`which psxy` ne '');
+	unless (`which gmt` ne '');
 die("$0: ANTSlib required but not found (bad \$PATH?)\n")
 	unless ($ANTS ne '');
 die("$0: ADCP Tools required but not found (bad \$PATH?)\n")
@@ -319,7 +321,7 @@ require "$WCALC/bottom_tracking.pl";
 require "$ANTS/ants.pl";
 require "$ANTS/libstats.pl";
 require "$ADCP_TOOLS/ADCP_tools_lib.pl";
-&antsAddParams('LADCP_w_ocean',"Version $VERSION");
+&antsAddParams('LADCP_w_ocean::version',$VERSION);
 
 use IO::Handle;
 

@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Tue Mar 29 15:02:04 2016
+                    dlm: Wed Apr  6 22:14:13 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 84 66 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 112 23 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -43,10 +43,12 @@ V1.2:
 		- added updated howto pdf
 		- updated [version.pl] with new ANTSlib prerequisite version
 		- published as V1.2beta
+
 	Mar 9, 2016: V1.2beta2
 		- added hab field to .wprof output [LADCP_w_ocean]
 	Mar 10, 2016:
 		- published
+
 	Mar 13, 2016: V1.2beta3
 		- updated [version.pl] [.hg/hgrc]
 		- added simple ASCII CTD format [LADCP_w_CTD]
@@ -56,10 +58,12 @@ V1.2:
 		- updated [version.pl] [.hg/hgrc] to V1.2beta4
 		- added ADCP-file checks in [LADCP_w_ocean]
 		- updated howto
+
 	Mar 16, 2016: V1.2beta4
 		- published on server		
 		- updated [version.pl] to beta5 (gmt5)
 		- adapted to GMT5
+
 	Mar 17, 2016: V1.2beta5
 		- updated [.hg/hgrc]
 		- various plot improvements
@@ -67,6 +71,7 @@ V1.2:
 		- published
 		- V1.2beta6 [version.pl] [.hg/hgrc]
 		- changed surface-wave stat in [LADCP_w_ocean]
+
 	Mar 18-29, 2016: V1.2beta6
 		- [LADCP_VKE]:
 			- added -k to supply external eps
@@ -83,3 +88,26 @@ V1.2:
 	Mar 29, 2016: V1.2beta6
 		- update antsMinLib to 6.6, perl-tools to 1.5 [version.pl]
 		- updated howto
+
+	Mar 30, 2016: V1.2beta7
+		- updated [version.pl] [.hg/hgrc]
+ 		- [LADCP_w_CTD]: added station as optional 3rd header field in
+		   				 ASCII format
+	Mar 31, 2016:
+		- improved version %PARAMs in all utilities
+		- [LADCP_VKE]
+			- added averaging of spectra (inc. setting PARAMs)
+			- improved %PARAMs (also in [LADCP_wspec])
+			- fixed slight bug in [LADCP_wspec]
+			- removed code to generate different output names on -d/-u
+			- added -q
+
+	Apr 3, 2016:
+		- reduced low-p0 cutoff from 1e-7 to 5e-8 in [LADCP_VKE]
+		- similarly reduced equatorial band from 5 to 3 degrees
+
+	Apr  6, 2016:
+		- fixed GMT-5 related bug in [LADCP_w_ocean]
+		- increased calibration constant by 20% in [LADCP_VKE]
+		- howto updated
+
