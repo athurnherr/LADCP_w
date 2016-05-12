@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Wed Apr  6 22:14:13 2016
+                    dlm: Thu May 12 10:47:25 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 112 23 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 124 23 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 V1.0:
@@ -109,5 +109,16 @@ V1.2:
 	Apr  6, 2016:
 		- fixed GMT-5 related bug in [LADCP_w_ocean]
 		- increased calibration constant by 20% in [LADCP_VKE]
-		- howto updated
+		- updated howto
+		- published V1.2beta7
 
+	Apr 14, 2016: V1.2beta8
+		- [LADCP_w_postproc] improved warning messages
+
+	Apr 16, 2016:
+		- [LADCP_VKE] allow for nans in LADCP_wspec output
+		- updated [version.pl]
+
+	May 12, 2016:
+		- updated version to 1.2
+		- updated HowTo

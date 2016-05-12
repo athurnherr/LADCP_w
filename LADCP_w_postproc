@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Thu Mar 31 05:53:12 2016
+#                    dlm: Thu Apr 14 15:42:51 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 77 51 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 65 40 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -62,6 +62,7 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #				  - removed good_bins() from library as -v allows more control
 #	Mar 16, 2016: - adapted to gmt5
 #   Mar 31, 2016: - changed version %PARAM
+#	Apr 14, 2016: - added profile id to warning messages
 
 ($ANTS)  = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0              =~ m{^(.*)/[^/]*$});
@@ -358,9 +359,9 @@ for ($r=0; &antsIn(); $r++) {
 
 		$dcwF = &fnr($Udwf); $ucwF = &fnr($Uuwf);
 
-		&antsInfo("WARNING: inconsistent %%outgrid_dz in input files")			# consistency checks
+		&antsInfo("WARNING: #$id: inconsistent %%outgrid_dz in profile #$id")	# consistency checks
 			if (defined($P{outgrid_dz}) && $P{outgrid_dz}!=$opt_o &&!$opt_o_override);
-		&antsInfo("WARNING: inconsistent %%outgrid_minsamp in input files")
+		&antsInfo("WARNING: inconsistent %%outgrid_minsamp in profile #$id")
 			if defined($P{outgrid_minsamp}) && !$opt_k_override &&
 					(( $dual_head && $P{outgrid_minsamp}*2!=$opt_k) ||
 					 (!$dual_head && $P{outgrid_minsamp}!=$opt_k));
@@ -390,21 +391,21 @@ for ($r=0; &antsIn(); $r++) {
 		my($warned);
 		unless (round($bin_length) == round($P{ADCP_bin_length})) {
 			unless ($warned) {
-				&antsInfo("WARNING: inconsistent ADCP sampling parameters --- using conservative values");
+				&antsInfo("WARNING: inconsistent ADCP sampling parameters in profile #$id --- using conservative values");
 				$warned = 1;
 			}
 			$bin_length = min($bin_length,$P{ADCP_bin_length});
 		}
 		unless (round($pulse_length) == round($P{ADCP_pulse_length})) {
 			unless ($warned) {
-				&antsInfo("WARNING: inconsistent ADCP sampling parameters --- using conservative values");
+				&antsInfo("WARNING: inconsistent ADCP sampling parameters in profile #$id --- using conservative values");
 				$warned = 1;
 			}
 			$pulse_length = min($pulse_length,$P{ADCP_pulse_length});
 		}
 		unless (round($blanking_dist) == round($P{ADCP_blanking_distance})) {
 			unless ($warned) {
-				&antsInfo("WARNING: inconsistent ADCP sampling parameters --- using conservative values");
+				&antsInfo("WARNING: inconsistent ADCP sampling parameters in profile #$id --- using conservative values");
 				$warned = 1;
 			}
 			$blanking_dist = min($blanking_dist,$P{ADCP_blanking_distance});
@@ -538,7 +539,7 @@ if (defined($opt_p)) {																# complete summary plot
 		GMT_psxy('-W1,100/100/255');												# surface layer limit
 			print(GMT "-0.1 $opt_s\n0.07 $opt_s\n");
 		if ($dc_R < 0.3 || !numberp($dc_R)) {										# correlation statistics
-			&antsInfo("WARNING: low dc correlation (r = %.1f) between UL and DL data",$dc_R);
+			&antsInfo("WARNING: low dc correlation (r = %.1f) between UL and DL data in profile #$id",$dc_R);
 			GMT_pstext('-F+f12,Helvetica,white+jBL -Gred');
 		} elsif ($dc_R < 0.5) { 	GMT_pstext('-F+f12,Helvetica,black+jBL -Gyellow'); }
 		else {						GMT_pstext('-F+f12,Helvetica,black+jBL -Ggreen'); }
@@ -550,7 +551,7 @@ if (defined($opt_p)) {																# complete summary plot
 			0.02,0.94*$ymax,100*$dc_esig,100*$dc_rsig) if ($dual_head);
 	if ($dual_head) {
 		if ($uc_R < 0.3 || !numberp($uc_R)) {
-			&antsInfo("WARNING: low uc correlation (r = %.1f) between UL and DL data",$uc_R);
+			&antsInfo("WARNING: low uc correlation (r = %.1f) between UL and DL data in profile #$id",$uc_R);
 			GMT_pstext('-F+f12,Helvetica,white+jBL -Gred');
 		} elsif ($uc_R < 0.5) { 	GMT_pstext('-F+f12,Helvetica,black+jBL -Gyellow'); }
 		else {						GMT_pstext('-F+f12,Helvetica,black+jBL -Ggreen'); }

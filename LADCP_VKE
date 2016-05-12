@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Wed Apr  6 18:48:09 2016
+#                    dlm: Wed Apr 27 19:03:02 2016
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 117 59 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 99 45 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -94,6 +94,9 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #				  - define own LADCP_wspec defaults here
 #				  - changed default of -q from 5 to 3
 #	Apr  6, 2016: - cosmetics
+#	Apr 16, 2016: - assertion failed on I98S#153 => modify code to allow nans in LADCP_wspec
+#					output
+#	Apr 27, 2016: - cosmetics (usage message)
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -133,7 +136,7 @@ $opt_c_default = 100;					# short-wavelength cutoff
 			"[-s)urface <layer depth to exclude[${opt_s}m]>",
             "[-g)ap <max depth layer to fill with interpolation[${opt_g}m]>]",
             '[-w)indow <power-of-two input-records[32]>]',
-			'[shortwave -c)utoff <kz or lambda[${opt_c_default}m]>]',						# LADCP_VKE options
+			"[shortwave -c)utoff <kz or lambda[${opt_c_default}m]>]",						# LADCP_VKE options
 			"[e-q)uatorial cutoff <latitude[${opt_q}deg]>] [-l)ow-p0 <cutoff[${opt_l}m^2/s^2/(rad/m)]>]",
 			"[-z) ignore velocities derived from fewer than <N[$opt_z]> samples]",
 			'[o-m)it spectral correction] [spectral-tilt-correction -r)ange <max[0m]>]',
@@ -210,8 +213,10 @@ if (defined(fnrNoErr('dc_w'))) {													# pre-process with LADCP_wspec when
 	    while (@specrec = &antsFileIn(FROMCLD)) {
 	    	my($i) = ($specrec[$widxf]>0) ? $specrec[$widxf] : 0;
 	    	@{$specbuf[$bufi][$i]} = @specrec;
+#			print(STDERR "specrec[$i] = @specrec\n");
     	}
     	close(FROMCLD);
+#		printf(STDERR "windows up to %d buffered\n",$#{$specbuf[$bufi]});
 
 		$antsBufSkip = @ants_;
     	&antsIn();																	# read next .wprof file
@@ -359,12 +364,14 @@ sub average_spectra($)
 						next;
 				}
 			}
-			die("assertion failed") unless numberp($specbuf[$bi][$wi][$f]);
-			$sum += $specbuf[$bi][$wi][$f]; $ns++;
+#			print(STDERR "specbuf[$bi][$wi][$f] = $specbuf[$bi][$wi][$f]\n");
+			if (numberp($specbuf[$bi][$wi][$f])) {
+				$sum += $specbuf[$bi][$wi][$f]; $ns++;
+            }
 			$ants_[$r][$doff] += $specbuf[$bi][$wi][$doff]						# update nspec once per input record
 				if ($f == $fs_fmax);											#	... but for all files
 		}
-		$ants_[$r][$f] = ($ns > 0) ? $sum / $ns : nan;							# update averaged spectral density
+		$ants_[$r][$f] = ($ns > 0) ? $sum/$ns : nan;							# update averaged spectral density
 	}
 }	
 
