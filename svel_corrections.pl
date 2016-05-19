@@ -1,9 +1,9 @@
 #======================================================================
 #                    S V E L _ C O R R E C T I O N S . P L 
 #                    doc: Thu Dec 30 01:35:18 2010
-#                    dlm: Thu Apr 17 09:02:29 2014
+#                    dlm: Thu May 19 00:51:30 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 49 24 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 19 65 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,9 @@
 #					2010 Gom Spill data set the uplooker code did not stop
 #				 	at the surface, requiring additon of another test
 #	Mar  4, 2014: - added support for missing TILT (PITCH/ROLL)
+#	May 12, 2016: - removed unused lines of code
+#	May 18, 2016: - removed assumption of 1500m/s soundspeed setting
+#				  - made sscorr_w return nan on undef'd input vel
 
 # NOTES:
 #	In an effort to track down the scale bias, NBP0901 stn 160 was reprocessed with various
@@ -22,9 +25,10 @@
 #		2) simplified (dBin/dADCP): very similar to full correction, esp. when dBin is used
 #		3) hacked correction (1450m/s vs 1500m/s assumed soundspeed) => bias largely disappears
 
-sub sscorr_w($$$$)												# sound-speed correction for w
+sub sscorr_w($$$$$)												# sound-speed correction for w
 {																# see RDI Coord. Trans. manual sec. 4.1, ...
-	my($wObs,$wCTD,$dADCP,$dBin) = @_;							# but there is an error: the ^2 applies to the []
+	my($wObs,$wCTD,$ssADCP,$dADCP,$dBin) = @_;					# but there is an error: the ^2 applies to the []
+	return nan unless numberp($wObs);
 	my($tanSqBeamAngle) = tan(rad($LADCP{BEAM_ANGLE}))**2;
 
 	$dADCP = int($dADCP);										# @sVelProf is binned to 1m
@@ -34,9 +38,7 @@ sub sscorr_w($$$$)												# sound-speed correction for w
 	while (!numberp($sVelProf[$dBin ])) { $dBin--;  }
 
 	my($Kn) = sqrt(1 + (1 - $sVelProf[$dBin]/$sVelProf[$dADCP])**2 * $tanSqBeamAngle);
-###	return $wObs - $wCTD;								# no correction
-###	return ($wObs*$sVelProf[$dBin]/1500 - $wCTD);		# simplified correction; dADCP instead of dBin similar
-	return ($wObs*$sVelProf[$dBin]/1500 - $wCTD) / $Kn;	# full correction
+	return ($wObs*$sVelProf[$dBin]/$ssADCP - $wCTD) / $Kn;		# full correction
 }
 
 sub calc_binDepths($)											# see RDI Coord Trans manual sec. 4.2
@@ -73,8 +75,8 @@ sub calc_binDepths($)											# see RDI Coord Trans manual sec. 4.2
 	
 	my($Kn) = sqrt(1 + (1 - $avgss/$ADCPss)**2 * $tanSqBeamAngle);
 	$bindz[0] = $LADCP{ENSEMBLE}[$ens]->{XDUCER_FACING_UP} ?
-					- $LADCP{DISTANCE_TO_BIN1_CENTER}*$Kn*$avgss/1500*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT})) :
-					+ $LADCP{DISTANCE_TO_BIN1_CENTER}*$Kn*$avgss/1500*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}));
+					- $LADCP{DISTANCE_TO_BIN1_CENTER}*$Kn*$avgss/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT})) :
+					+ $LADCP{DISTANCE_TO_BIN1_CENTER}*$Kn*$avgss/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}));
 
 	for (my($bin)=1; $bin<=$LADCP_lastBin-1; $bin++) {
 		$sumss = $nss = 0;
@@ -98,8 +100,8 @@ sub calc_binDepths($)											# see RDI Coord Trans manual sec. 4.2
 		
 		$Kn = sqrt(1 + (1 - $avgss/$ADCPss)**2 * $tanSqBeamAngle);
 		$bindz[$bin] = $LADCP{ENSEMBLE}[$ens]->{XDUCER_FACING_UP} ?
-						$bindz[$bin-1] - $LADCP{BIN_LENGTH}*$Kn*$avgss/1500*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT})) :
-	                    $bindz[$bin-1] + $LADCP{BIN_LENGTH}*$Kn*$avgss/1500*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}));
+						$bindz[$bin-1] - $LADCP{BIN_LENGTH}*$Kn*$avgss/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT})) :
+	                    $bindz[$bin-1] + $LADCP{BIN_LENGTH}*$Kn*$avgss/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}));
     }
 
     my(@bindepth);

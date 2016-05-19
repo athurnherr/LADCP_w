@@ -1,9 +1,9 @@
 #======================================================================
 #                    F I N D _ S E A B E D . P L 
 #                    doc: Sun May 23 20:26:11 2010
-#                    dlm: Tue Jan 26 15:22:26 2016
+#                    dlm: Wed May 18 22:38:53 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 16 33 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 22 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #	Oct 19, 2011: - added $SS_max_allowed_range
 #				  - renamed $SS_min_allowed_hab to *_range
 #	Jan 26, 2016: - added %PARAMs
+#	May 18, 2016: - removed assumption of 1500m/s soundspeed setting
 
 # NOTES:
 #	1) BT range is corrected for sound speed at the transducer. This is not
@@ -22,8 +23,7 @@
 #	   to be small. The seabed depth is only used for sidelobe editing,
 #	   which is done with a generous safety margin (from the UH shear
 #	   method implementation).
-#	2) Acquisition sound speed of 1500m/s assumed.
-#	3) To be reasonably accurate, DEPTH must be from the CTD at this stage.
+#	2) To be reasonably accurate, DEPTH must be from the CTD at this stage.
 
 #======================================================================
 # (seabed median depth, mad) = find_seabed(dta ptr, btm ensno, coord flag)
@@ -63,7 +63,7 @@ sub find_seabed($$$)
  			 $d->{ENSEMBLE}[$i]->{BT_RANGE}[2]/4 +
 			 $d->{ENSEMBLE}[$i]->{BT_RANGE}[3]/4;
 		$d->{ENSEMBLE}[$i]->{DEPTH_BT} *= cos(rad($d->{BEAM_ANGLE}));
-		$d->{ENSEMBLE}[$i]->{DEPTH_BT} *= $CTD{SVEL}[$d->{ENSEMBLE}[$i]->{CTD_SCAN}]/1500;
+		$d->{ENSEMBLE}[$i]->{DEPTH_BT} *= $CTD{SVEL}[$d->{ENSEMBLE}[$i]->{CTD_SCAN}]/$d->{ENSEMBLE}[$i]->{SPEED_OF_SOUND};
 		next unless ($d->{ENSEMBLE}[$i]->{DEPTH_BT} >= $SS_min_allowed_range &&
 					 $d->{ENSEMBLE}[$i]->{DEPTH_BT} <= $SS_max_allowed_range);
 		$d->{ENSEMBLE}[$i]->{DEPTH_BT} *= -1

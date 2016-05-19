@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Sun Jan 24 16:22:23 2016
+#                    dlm: Wed May 18 22:34:15 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 433 31 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 269 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -33,6 +33,7 @@
 #				  - croak -> error
 #	Sep 26, 2015: - added $vessel_draft to editSideLobes
 #	Jan 23, 2016: - added &editBadTimeLagging()
+#	May 18, 2016: - removed assumption of 1500m/s soundspeed setting
 
 # NOTES:
 #	- editCorr_Earthcoords() is overly conservative and removed most
@@ -265,7 +266,7 @@ sub editSideLobes($$$)
 		my($range) = defined($wd) ? $wd - $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH} 
 								  : $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH} - $vessel_draft;
 		$range = 0 if ($range < 0);								  
-		my($sscorr) = $CTD{SVEL}[$LADCP{ENSEMBLE}[$e]->{CTD_SCAN}] / 1500;
+		my($sscorr) = $CTD{SVEL}[$LADCP{ENSEMBLE}[$e]->{CTD_SCAN}] / $LADCP{ENSEMBLE}[$e]->{SPEED_OF_SOUND};
 		my($goodBins) =   ($range - $sscorr*$LADCP{DISTANCE_TO_BIN1_CENTER}) * cos(rad($LADCP{BEAM_ANGLE}))
 						/ ($sscorr*$LADCP{BIN_LENGTH})
 						- 1.5;

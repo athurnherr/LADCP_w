@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Thu Mar 17 12:44:45 2016
+#                    dlm: Thu May 19 01:00:27 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 145 24 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 76 36 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,16 +12,19 @@
 #	Oct 12, 2015: - BUG: gaps were not plotted as such
 #	Mar 16, 2016: - adapted to gmt5
 #	Mar 17, 2016: - improved
+#	May 18, 2016: - replaced rms tilt by mean tilt with traffic background
+#				  - added plot_wprof_ymin tweakable
 
 # Tweakables:
 #
 # $plot_wprof_xmin = -0.27;
+# $plot_wprof_ymin = 3600;
 # $plot_wprof_ymax = 5000;
 # $plot_wprof_xtics = "-0.25 -0.15 -0.05 0.05";
 
 require "$ANTS/libGMT.pl";
 
-sub setR1() { GMT_setR("-R$plot_wprof_xmin/0.35/0/$plot_wprof_ymax"); }
+sub setR1() { GMT_setR("-R$plot_wprof_xmin/0.35/$plot_wprof_ymin/$plot_wprof_ymax"); }
 #sub setR2() { GMT_setR("-R-200/200/0/$plot_wprof_ymax"); }
 sub setR2() { GMT_setR("-R-450/350/0/$plot_wprof_ymax"); }
 
@@ -69,6 +72,8 @@ sub plot_wprof($)
 
 	$plot_wprof_xmin = -0.1
 		unless defined($plot_wprof_xmin);		
+	$plot_wprof_ymin = 0
+		unless defined($plot_wprof_ymin);		
 	$plot_wprof_ymax = ($P{water_depth} > 0) ?
 					   round($P{water_depth} + 25) :
 					   round($P{max_depth} 	 + 25)
@@ -134,15 +139,38 @@ sub plot_wprof($)
 		printf(GMT "0.64 1.020 $LADCP{BEAM_FREQUENCY}kHz $LADCP{INSTRUMENT_TYPE} $P{ADCP_orientation}\n");
 		printf(GMT "0.64 1.055 bin setup\n		0.77 1.055 : %.1fm/%1.fm/%1.fm\n",
 			$LADCP{BLANKING_DISTANCE},$LADCP{TRANSMITTED_PULSE_LENGTH},$LADCP{BIN_LENGTH});
-		print(GMT "0.64 1.090 rms tilt\n 		0.77 1.096 :\n");
+		print(GMT "0.64 1.090 mean tilt\n 		0.77 1.096 :\n");
 		print(GMT "0.64 1.130 rms a\@-pkg\@-\n	0.77 1.1315 :\n");
-	GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
-#		printf(GMT "0.788 1.090 %.1f\\260\n",$P{dc_rms_tilt});
-		printf(GMT "0.808 1.090 %.1f\\260\n",$P{dc_rms_tilt});
+
+	if ($P{dc_mean_tilt} < 4) {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
+	} elsif ($P{dc_mean_tilt} < 8) {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gyellow -N');
+	} else {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gred -N');
+	}
+			printf(GMT "0.808 1.090 %.1f\\260\n",$P{dc_mean_tilt});
+	if ($P{uc_mean_tilt} < 4) {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
+	} elsif ($P{uc_mean_tilt} < 8) {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gyellow -N');
+	} else {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gred -N');
+	}
+			printf(GMT "0.91 1.090 %.1f\\260\n",$P{uc_mean_tilt});
+
+	if ($P{dc_rms_accel_pkg} < 0.7) {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
+	} else {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gyellow -N');
+	}
 		printf(GMT "0.78 1.125 %.1fm\@+2\@+/s\n",$P{dc_rms_accel_pkg});
-	GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
-#		printf(GMT "0.89 1.090 %.1f\\260\n",$P{uc_rms_tilt});
-		printf(GMT "0.91 1.090 %.1f\\260\n",$P{uc_rms_tilt});
+		
+	if ($P{uc_rms_accel_pkg} < 0.7) {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
+	} else {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gyellow -N');
+	}
 		printf(GMT "0.89 1.125 %.1fm\@+2\@+/s\n",$P{uc_rms_accel_pkg});
 		
 	my($depth_tics) = ($plot_wprof_ymax < 1000 ) ? 'f10a100' : 'f100a500';				# AXES

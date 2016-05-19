@@ -1,15 +1,17 @@
 #======================================================================
 #                    P L O T _ C O R R E L A T I O N . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed Mar 16 16:26:09 2016
+#                    dlm: Wed May 18 19:44:36 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 67 37 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 40 41 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 28, 2015: - created from [LWplot_corr]
 #   Jan 26, 2016: - added return on no data to plot
 #   Mar 16, 2016: - adapted to gmt5
+#   May 18, 2016: - added version
+#                 - expunged $realLastGoodEns
 
 require "$ANTS/libGMT.pl";
 
@@ -35,7 +37,7 @@ sub plot_correlation($)
 
 	my($C) = "-C$WCALC/corr.cpt";
 	GMT_psxy("$C -Sr");
-		for ($ens=$firstGoodEns; $ens<=$realLastGoodEns; $ens++) {
+		for ($ens=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 		  my(@bindepth) = calc_binDepths($ens);
 		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
@@ -54,6 +56,8 @@ sub plot_correlation($)
 	}
 
 	GMT_unitcoords();																	# LABELS
+	GMT_pstext('-F+f9,Helvetica,orange+jTR -N -Gwhite');
+        print(GMT "0.99 0.01 V$VERSION\n");
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
 		print(GMT "0.01 -0.06 $P{out_basename} $P{run_label}\n");
 

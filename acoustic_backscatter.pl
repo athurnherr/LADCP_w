@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Sat Mar 26 06:10:57 2016
+#                    dlm: Wed May 18 20:36:57 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 29 92 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 30 36 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -27,6 +27,7 @@
 #	Jun 18, 2015: - removed assertion marked by ##???, which bombed on P16N1#41 DL
 #	Jan 26, 2016: - added %PARAMs
 #	Mar 26, 2016: - BUG: nSv was declared local to this scope even though it is used outside
+#	May 18, 2016: - improved logging
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -245,9 +246,9 @@ sub find_backscatter_seabed($)
 	}
 
 	if (@wdepth) {
-		info("%d bins with seabed signatures found (\@Sv_rng: @Sv_rng)\n",scalar(@wdepth));
+		info("\t%d bins with seabed signatures found (\@Sv_rng: @Sv_rng)\n",scalar(@wdepth));
     } else {
-		info("no bins with seabed signatures found\n");
+		info("\tno bins with seabed signatures found\n");
     }
 	return (undef,undef) if (scalar(@wdepth) < $SS_min_samp);			# require min number of samples
 	

@@ -1,15 +1,23 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Thu May 12 10:47:25 2016
+                    dlm: Thu May 19 00:51:48 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 124 23 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 158 56 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
+
+----------------------------------------------------------------------
+First Released Version (howto does not cover VKE parameterization)
+----------------------------------------------------------------------
 
 V1.0:
 	Oct 12, 2015:
 		- finalized HowTo V1.0 (antsLibVer V6.2, ADCP_tools V1.3)
 		- uploaded to Mercurial server
+
+----------------------------------------------------------------------		
+First Version with Full HowTo (including VKE parameterization)
+----------------------------------------------------------------------
 
 V1.1:
 	Oct 12, 2015: V1.1beta1
@@ -28,6 +36,10 @@ V1.1:
 	Jan  4, 2016:
 		- decreased default vertical resolution to 20m [defaults.pl] [LADCP_w_ocean]
 		- removed beta from version [version.pl] [.hg/hgrc]
+
+----------------------------------------------------------------------
+First Widely Released Version (many significant improvements)
+----------------------------------------------------------------------
 
 V1.2:
 	Jan  5, 2016: V1.2beta
@@ -122,3 +134,25 @@ V1.2:
 	May 12, 2016:
 		- updated version to 1.2
 		- updated HowTo
+		- published
+
+----------------------------------------------------------------------		
+Adding Corrections For Beam-Pointing Errors
+----------------------------------------------------------------------
+
+V1.3:
+	May 12, 2016:
+		- updated [version.pl]
+		- [LADCP_w_ocean] added fields to wsamp output
+
+	May 17-18, 2015:
+		- [LADCP_w_ocean] added fields to wsamp output
+		- modified _wprof fig (mean instead of rms tilts)
+		- minor mods elsewhere (e.g. version info in all plots)
+		- added new plots [defaults.pl] requiring mods to [LADCP_w_ocean]:
+			- [plot_acceleration_residuals.pl]
+			- [plot_attitude_biases_w.pl]
+			- [plot_attitude_residuals.pl]
+			- [plot_residual_profs.pl]
+		- removed assumption of 1500m/s ADCP soundspeed setting (various files)
+		- added correct w12, w34 for earth velocity data

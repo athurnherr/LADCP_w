@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ M E A N _ R E S I D U A L S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed Mar 16 15:55:14 2016
+#                    dlm: Wed May 18 12:55:09 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 96 29 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 19 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,6 +15,7 @@
 #				  - added quality assessment label
 #	Jan 25, 2016: - added return on no data
 #	Mar 16, 2016: - adapted to gmt5
+#   May 18, 2016: - added version
 
 require "$ANTS/libGMT.pl";
 
@@ -81,7 +82,9 @@ sub plot_mean_residuals($)
         }
 
 	GMT_unitcoords();																	# LABELS
-
+	GMT_pstext('-F+f9,Helvetica,orange+jTR -N -Gwhite');
+        print(GMT "0.99 0.01 V$VERSION\n");
+        
 	GMT_pstext('-F+f14,Helvetica,blue+jBL -N');											# profile id
 		print(GMT "0.0 -0.03 $P{out_basename} $P{run_label}\n");
 

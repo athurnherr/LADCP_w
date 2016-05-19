@@ -1,15 +1,16 @@
 #======================================================================
 #                    P L O T _ T I M E _ L A G S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed Mar 16 16:42:42 2016
+#                    dlm: Wed May 18 12:58:17 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 50 25 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 51 28 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jul 29, 2015: - created from [LWplot_TL]
 #   Jan 26, 2016: - added return on no data to plot
 #	Mar 16, 2016: - adapted to gmt5
+#   May 18, 2016: - added version
 
 require "$ANTS/libGMT.pl";
 
@@ -46,6 +47,8 @@ sub plot_time_lags($)
 	}
 
 	GMT_unitcoords();																	# LABELS
+	GMT_pstext('-F+f9,Helvetica,orange+jTR -N -Gwhite');
+        print(GMT "0.99 0.99 V$VERSION\n");
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
 		print(GMT "0.01 1.06 $P{out_basename} $P{run_label}\n");
 
