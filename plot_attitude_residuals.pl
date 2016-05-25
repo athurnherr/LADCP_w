@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ A T T I T U D E _ R E S I D U A L S . P L 
 #                    doc: Sun May 15 16:08:59 2016
-#                    dlm: Wed May 18 19:44:19 2016
+#                    dlm: Tue May 24 16:39:01 2016
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 45 37 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 54 24 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -13,6 +13,13 @@
 #				  - added pitch/roll means
 #	May 18, 2016: - added version
 #                 - expunged $realLastGoodEns
+#	May 19, 2016: - added notes about beam planes
+#   May 24, 2016: - calc_binDepths() -> binDepths()
+
+# IMPORTANT NOTE:
+#   - the variables prefixed with p/r refer to beam-pairs 1,2 and 3,4 respectively,
+#     i.e. the p variables correspond to the roll plane and the r variables
+#          correspond to the pitch plane
 
 require "$ANTS/libGMT.pl";
 
@@ -20,7 +27,7 @@ sub plot_attitude_residuals($)
 {
 	my($pfn) = @_;																	# plot file name
 
-	my($xmin) = -round($opt_t);														# full pitch range 
+	my($xmin) = -round($opt_t);														# full tilt range 
 	my($xmax) =  round($opt_t);
 	my($ymin) =  -0.03;
 	my($ymax) =   0.03;
@@ -44,7 +51,7 @@ sub plot_attitude_residuals($)
 	my(@pitchSumDC,@rollSumDC,@pitchSumUC,@rollSumUC);
 	for (my($e)=$firstGoodEns; $e<=$lastGoodEns; $e++) {
 		next unless numberp($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH});
-		my(@bindepth) = calc_binDepths($e);
+		my(@bindepth) = binDepths($e);
 
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next if ($bindepth[$bin] <= $excluded_surf_layer);
@@ -52,13 +59,13 @@ sub plot_attitude_residuals($)
 			next unless numberp($LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W12}[$bin]) &&
 						numberp($LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W34}[$bin]);
 
-			my($pi) = int($LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH}+$opt_t);			# pitch/roll indices
+			my($pi) = int($LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH}+$opt_t);							# pitch/roll indices
 			my($ri) = int($LADCP{ENSEMBLE}[$e]->{ROLL}+$opt_t);
 			my($bi) = $bindepth[$bin]/$opt_o;
 
-			if ($e < $LADCP_atbottom) {											# downcast
-				$pitchSumDC += $LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH};	$pHistDC++; 
-				$rollSumDC  += $LADCP{ENSEMBLE}[$e]->{ROLL};			$rHistDC++;
+			if ($e < $LADCP_atbottom) {															# downcast
+				$pitchSumDC  += $LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH};	$pHistDC++; 
+				$rollSumDC += $LADCP{ENSEMBLE}[$e]->{ROLL};				$rHistDC++;
 				$pSumDC += $LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W12}[$bin] - $DNCAST{MEDIAN_W}[$bi]; 
 				$rSumDC += $LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W34}[$bin] - $DNCAST{MEDIAN_W}[$bi]; 
 			 	push(@{$pValsDC[$pi]},$LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W12}[$bin] - $DNCAST{MEDIAN_W}[$bi]);
@@ -67,7 +74,7 @@ sub plot_attitude_residuals($)
 				$rSumDC[$ri] += $LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W34}[$bin] - $DNCAST{MEDIAN_W}[$bi]; $rHistDC[$ri]++;
 				$mode = $pHistDC[$pi] if ($pHistDC[$pi] > $mode);
 				$mode = $rHistDC[$ri] if ($rHistDC[$ri] > $mode);
-			} else { 																# upcast
+			} else { 																			# upcast
 				$pitchSumUC += $LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH};	$pHistUC++; 
 				$rollSumUC  += $LADCP{ENSEMBLE}[$e]->{ROLL};			$rHistUC++;
 				$pSumUC += $LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W12}[$bin] - $UPCAST{MEDIAN_W}[$bi]; 
@@ -93,17 +100,17 @@ sub plot_attitude_residuals($)
 	GMT_psxy('-W4,CornflowerBlue');
 		print(GMT "$xmin 0\n$xmax 0\n");
 
-	# DC PITCH
-	GMT_psxy('-Ey0.2/2,coral');
+	# DC BEAMS 1,2
+	GMT_psxy('-Ey0.2/2,coral');																	# error bars
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($pHistDC[$i] >= $min_fat);
 			my($minLim,$maxLim) = &bootstrap($btstrp_ndraw,0.95,\&avg,@{$pValsDC[$i]});			# 95% bootstrap conf limits
 			printf(GMT "%f %f %f\n",$i-round($opt_t)-0.3,($maxLim+$minLim)/2,($maxLim-$minLim)/2);
 		}
-	GMT_psxy('-Ey0.2/1,coral');																	# dc pitch
+	GMT_psxy('-Ey0.2/1,coral');
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($pHistDC[$i]>=$min_thin && $pHistDC[$i]<$min_fat);
-			my($minLim,$maxLim) = &bootstrap($btstrp_ndraw,0.95,\&avg,@{$pValsDC[$i]});			# 95% bootstrap conf limits
+			my($minLim,$maxLim) = &bootstrap($btstrp_ndraw,0.95,\&avg,@{$pValsDC[$i]});
 			printf(GMT "%f %f %f\n",$i-round($opt_t)-0.3,($maxLim+$minLim)/2,($maxLim-$minLim)/2);
 		}
 	GMT_psxy('-Sc0.15 -Gcoral');
@@ -115,7 +122,7 @@ sub plot_attitude_residuals($)
 	if ($pHistDC) {
 		GMT_psxy('-W1,coral,8_2:0');															# averages (lines)
 			printf(GMT ">\n%f %f\n%f %f\n",$xmin,$pSumDC/$pHistDC,$xmax,$pSumDC/$pHistDC);		# 	bias
-			printf(GMT ">\n%f %f\n%f %f\n",$pitchSumDC/$pHistDC,$ymin,$pitchSumDC/$pHistDC,$ymax);# pitch
+			printf(GMT ">\n%f %f\n%f %f\n",$pitchSumDC/$pHistDC,$ymin,$pitchSumDC/$pHistDC,$ymax);# roll
 	}
 	GMT_psxy('-W2,coral,8_2:0');
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
@@ -128,7 +135,7 @@ sub plot_attitude_residuals($)
 					$i-round($opt_t)-0.3+0.5,$ymin+$hist_height*$pHistDC[$i]/$mode);
 		}
 
-	# DC ROLL
+	# DC BEAMS 3,4
 	GMT_psxy('-Ey0.2/2,coral');															
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($rHistDC[$i] >= $min_fat);
@@ -163,7 +170,7 @@ sub plot_attitude_residuals($)
 					$i-round($opt_t)-0.1+0.5,$ymin+$hist_height*$rHistDC[$i]/$mode);
 		}
 
-	# UC PITCH
+	# UC BEAMS 1,2
 	GMT_psxy('-Ey0.2/2,SeaGreen');													
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($pHistUC[$i] >= $min_fat);
@@ -198,7 +205,7 @@ sub plot_attitude_residuals($)
 					$i-round($opt_t)+0.1+0.5,$ymin+$hist_height*$pHistUC[$i]/$mode);
 		}
 
-	# UC ROLL
+	# UC BEAMS 3,4
 	GMT_psxy('-Ey0.2/2,SeaGreen');													
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($rHistUC[$i] >= $min_fat);

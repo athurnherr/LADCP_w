@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ T I M E _ L A G S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed May 18 12:58:17 2016
+#                    dlm: Tue May 24 22:11:30 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 51 28 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 59 81 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -11,6 +11,8 @@
 #   Jan 26, 2016: - added return on no data to plot
 #	Mar 16, 2016: - adapted to gmt5
 #   May 18, 2016: - added version
+#	May 24, 2016: - fixed for partial-depth casts
+
 
 require "$ANTS/libGMT.pl";
 
@@ -53,7 +55,8 @@ sub plot_time_lags($)
 		print(GMT "0.01 1.06 $P{out_basename} $P{run_label}\n");
 
 	GMT_setR($R);
-	GMT_end('-Bf1a30:"Elapsed Time [min]":/f1a5:"Best Offset [scans]":WeSn');			# FINISH PLOT
+	my($elapsed_tics) = ($xmax-$xmin < 45) ? 'f1a5' : 'f1a30';
+	GMT_end("-B$elapsed_tics:'Elapsed Time [min]':/f1a5:'Best Offset [CTD records]':WeSn");	# FINISH PLOT
 }
 
 1; # return true on require

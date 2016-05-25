@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Wed May 18 20:36:57 2016
+#                    dlm: Tue May 24 16:34:24 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 30 36 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 212 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -28,6 +28,7 @@
 #	Jan 26, 2016: - added %PARAMs
 #	Mar 26, 2016: - BUG: nSv was declared local to this scope even though it is used outside
 #	May 18, 2016: - improved logging
+#   May 24, 2016: - calc_binDepths() -> binDepths()
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -92,7 +93,7 @@ sub calc_backscatter_profs($$)
 	my($cosBeamAngle) = cos(rad($LADCP{BEAM_ANGLE}));
 	for (my($ens)=$LADCP_start; $ens<=$LADCP_end; $ens++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-		my(@bd) = calc_binDepths($ens);
+		my(@bd) = binDepths($ens);
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			my($depth) = int($bd[$bin]);
 			next if ($depth<0 || !defined($LADCP{ENSEMBLE}[$ens]->{TILT}));
@@ -199,7 +200,7 @@ RETRY:
 
     for (my($ens)=$LADCP_start; $ens<=$LADCP_end; $ens++) {		# correct Sv data
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-		my(@bd) = calc_binDepths($ens);
+		my(@bd) = binDepths($ens);
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{SV}[$bin]);
 			my($depth) = int($bd[$bin]);
@@ -208,7 +209,6 @@ RETRY:
 				$LADCP{ENSEMBLE}[$ens]->{SV}[$bin] -= # $dSvProf[int($depth/100)][$bin];
 					linterp($depth,100*int($depth/100),100*int($depth/100)+100,
 							$dSvProf[int($depth/100)][$bin],$dSvProf[int($depth/100)+1][$bin]);
-##???			die unless ($LADCP{ENSEMBLE}[$ens]->{SV}[$bin] < 0);							
 			} else {
 				$LADCP{ENSEMBLE}[$ens]->{SV}[$bin] = nan;
 			}

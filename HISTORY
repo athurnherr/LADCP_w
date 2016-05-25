@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Thu May 19 00:51:48 2016
+                    dlm: Wed May 25 12:14:13 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 158 56 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 172 19 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 ----------------------------------------------------------------------
@@ -100,6 +100,8 @@ V1.2:
 	Mar 29, 2016: V1.2beta6
 		- update antsMinLib to 6.6, perl-tools to 1.5 [version.pl]
 		- updated howto
+		- exported [default_paths.pl] from [defaults.pl]
+
 
 	Mar 30, 2016: V1.2beta7
 		- updated [version.pl] [.hg/hgrc]
@@ -156,3 +158,15 @@ V1.3:
 			- [plot_residual_profs.pl]
 		- removed assumption of 1500m/s ADCP soundspeed setting (various files)
 		- added correct w12, w34 for earth velocity data
+
+	May 19, 2016:
+		- updated to ADCP_tools V1.6 (coord trans interface change)
+
+	May 24: 2016:
+		- implemented bin-depth caching
+		- improved LADCP_w_postproc plot
+		- improved various plots (esp. for partial-depth casts)
+
+	May 25, 2016:
+		- updated version to V1.3beta1 [version.pl] [.hg/hgrc]
+		- published

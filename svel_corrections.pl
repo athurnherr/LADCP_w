@@ -1,9 +1,9 @@
 #======================================================================
 #                    S V E L _ C O R R E C T I O N S . P L 
 #                    doc: Thu Dec 30 01:35:18 2010
-#                    dlm: Thu May 19 00:51:30 2016
+#                    dlm: Tue May 24 16:44:07 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 19 65 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 116 64 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -17,6 +17,8 @@
 #	May 12, 2016: - removed unused lines of code
 #	May 18, 2016: - removed assumption of 1500m/s soundspeed setting
 #				  - made sscorr_w return nan on undef'd input vel
+#   May 24, 2016: - calc_binDepths() -> binDepths()
+#				  - added caching to binDepths
 
 # NOTES:
 #	In an effort to track down the scale bias, NBP0901 stn 160 was reprocessed with various
@@ -41,10 +43,14 @@ sub sscorr_w($$$$$)												# sound-speed correction for w
 	return ($wObs*$sVelProf[$dBin]/$ssADCP - $wCTD) / $Kn;		# full correction
 }
 
-sub calc_binDepths($)											# see RDI Coord Trans manual sec. 4.2
+sub binDepths($)												# see RDI Coord Trans manual sec. 4.2
 {
 	my($ens) = @_;
-	my(@bindz);
+
+	return @{$LADCP{ENSEMBLE}[$ens]->{BIN_DEPTHS}}				# cached result
+		if (@{$LADCP{ENSEMBLE}[$ens]->{BIN_DEPTHS}});
+
+	my(@bindz);													# if not cached => calculate
 
 	# if the following assertion fails, the entire code needs to be searched for
 	# each call of calc_binDepths() needs to be protected by a test
@@ -104,11 +110,10 @@ sub calc_binDepths($)											# see RDI Coord Trans manual sec. 4.2
 	                    $bindz[$bin-1] + $LADCP{BIN_LENGTH}*$Kn*$avgss/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}*cos(rad($LADCP{ENSEMBLE}[$ens]->{TILT}));
     }
 
-    my(@bindepth);
-    for (my($i)=0; $i<@bindz; $i++) {
-    	$bindepth[$i] = $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH} + $bindz[$i];
+    for (my($i)=0; $i<@bindz; $i++) {							# cache result
+    	$LADCP{ENSEMBLE}[$ens]->{BIN_DEPTHS}[$i] = $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH} + $bindz[$i];
     }
-	return @bindepth;
+	return @{$LADCP{ENSEMBLE}[$ens]->{BIN_DEPTHS}};				# return result
 }
 
 1;

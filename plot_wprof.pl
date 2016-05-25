@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Thu May 19 01:00:27 2016
+#                    dlm: Tue May 24 22:31:14 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 76 36 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 19 51 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,9 @@
 #	Mar 17, 2016: - improved
 #	May 18, 2016: - replaced rms tilt by mean tilt with traffic background
 #				  - added plot_wprof_ymin tweakable
+#	May 24, 2016: - BUG: ymin did not work for nsamp
+#				  - fixed for partial-depth profiles
+#				  - suppress plotting of nsamp == 0
 
 # Tweakables:
 #
@@ -25,8 +28,7 @@
 require "$ANTS/libGMT.pl";
 
 sub setR1() { GMT_setR("-R$plot_wprof_xmin/0.35/$plot_wprof_ymin/$plot_wprof_ymax"); }
-#sub setR2() { GMT_setR("-R-200/200/0/$plot_wprof_ymax"); }
-sub setR2() { GMT_setR("-R-450/350/0/$plot_wprof_ymax"); }
+sub setR2() { GMT_setR("-R-450/350/$plot_wprof_ymin/$plot_wprof_ymax"); }
 
 sub plotDC($$)
 {
@@ -72,19 +74,19 @@ sub plot_wprof($)
 
 	$plot_wprof_xmin = -0.1
 		unless defined($plot_wprof_xmin);		
-	$plot_wprof_ymin = 0
+	$plot_wprof_ymin = round(antsParam('min_depth')-25,50)
 		unless defined($plot_wprof_ymin);		
 	$plot_wprof_ymax = ($P{water_depth} > 0) ?
-					   round($P{water_depth} + 25) :
-					   round($P{max_depth} 	 + 25)
+					   round($P{water_depth}+25,50) :
+					   round($P{max_depth}+25,50)
 		unless defined($plot_wprof_ymax);					  	
 	$plot_wprof_xtics = "-0.05 0.05 0.15"
 		unless defined($plot_wprof_xtics);
 
-	GMT_begin($pfn,'-JX10/-10',"-R$plot_wprof_xmin/0.35/0/$plot_wprof_ymax",'-P');		# START PLOT
+	GMT_begin($pfn,'-JX10/-10',"-R$plot_wprof_xmin/0.35/$plot_wprof_ymin/$plot_wprof_ymax",'-P');		# START PLOT
 
 	GMT_psxy('-G200'); 																	# MAD background
-		print(GMT "0.07 0\n 0.07 $plot_wprof_ymax\n0.18 $plot_wprof_ymax\n0.18 0\n");
+		print(GMT "0.07 $plot_wprof_ymin\n 0.07 $plot_wprof_ymax\n0.18 $plot_wprof_ymax\n0.18 $plot_wprof_ymin\n");
 
 	if ($P{water_depth} > 0) {															# SEABED
 		GMT_psxy('-G204/153/102');
@@ -112,9 +114,9 @@ sub plot_wprof($)
 	GMT_psxy('-Sc0.1c -Gblack');		plotBT('MAD_W',0);	
 
 	setR2();																			# SAMPLES
-	GMT_psxy('-W0.7,coral');			plotDC('N_SAMP',0);
-	GMT_psxy('-W0.7,SeaGreen');			plotUC('N_SAMP',0);	
-	GMT_psxy('-W0.7,black');			plotBT('N_SAMP',0);	
+	GMT_psxy('-W0.7,coral');			plotDC('N_SAMP',1);
+	GMT_psxy('-W0.7,SeaGreen');			plotUC('N_SAMP',1);	
+	GMT_psxy('-W0.7,black');			plotBT('N_SAMP',1);	
 	
 	GMT_unitcoords();																	# LABELS
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
@@ -173,7 +175,7 @@ sub plot_wprof($)
 	}
 		printf(GMT "0.89 1.125 %.1fm\@+2\@+/s\n",$P{uc_rms_accel_pkg});
 		
-	my($depth_tics) = ($plot_wprof_ymax < 1000 ) ? 'f10a100' : 'f100a500';				# AXES
+	my($depth_tics) = ($plot_wprof_ymax-$plot_prof_ymin < 1000 ) ? 'f10a100' : 'f100a500';				# AXES
 	setR1();
 	GMT_psbasemap("-Bf0.01:'':/$depth_tics:'Depth [m]':WeS");
 	foreach my $t (split('\s+',$plot_wprof_xtics)) {

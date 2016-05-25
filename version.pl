@@ -1,9 +1,9 @@
 #======================================================================
 #                    V E R S I O N . P L 
 #                    doc: Tue Oct 13 10:40:57 2015
-#                    dlm: Thu May 12 13:50:14 2016
+#                    dlm: Wed May 25 12:12:54 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 23 21 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 24 20 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -16,12 +16,13 @@
 #	Mar 30, 2016: - V1.2beta7
 #	Apr 16, 2016: - V1.2beta8
 #	May 12, 2016: - V1.2
+#	May 19, 2016: - updated ADCP tools to V1.6
 
 #$VERSION = '1.1';				# Jan  4, 2016
 #$VERSION = '1.2';				# May 12, 2016
 
-$VERSION = '1.3beta';
+$VERSION = '1.3beta1';
 
 $antsMinLibVersion 		= 6.6;
-$ADCP_tools_minVersion 	= 1.5;
+$ADCP_tools_minVersion 	= 1.6;	# May 19, 2016 (RDI_Coords with bin interpolation)
 

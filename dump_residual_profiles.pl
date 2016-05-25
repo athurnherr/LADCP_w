@@ -1,14 +1,15 @@
 #======================================================================
 #                    D U M P _ R E S I D U A L _ P R O F I L E S . P L 
 #                    doc: Thu Mar 24 07:55:07 2016
-#                    dlm: Tue Mar 29 13:43:56 2016
+#                    dlm: Tue May 24 16:35:30 2016
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 11 30 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 46 24 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Mar 24, 2016: - created from [plot_residuals.pl]
 #	Mar 29, 2016: - cleaned up
+#   May 24, 2016: - calc_binDepths() -> binDepths()
 
 sub dump_residual_profiles($)
 {
@@ -42,7 +43,7 @@ sub dump_residual_profiles($)
 					   'CTD_accel',	$CTD{W_t}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					   'ADCP_tilt',	$LADCP{ENSEMBLE}[$ens]->{TILT});
 
-	  	my(@bindepth) = calc_binDepths($ens);
+	  	my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
 		  	next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);

@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ C O R R E L A T I O N . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Wed May 18 19:44:36 2016
+#                    dlm: Tue May 24 23:10:09 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 40 41 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 67 38 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,6 +12,8 @@
 #   Mar 16, 2016: - adapted to gmt5
 #   May 18, 2016: - added version
 #                 - expunged $realLastGoodEns
+#   May 24, 2016: - calc_binDepths() -> binDepths()
+#				  - fixed for partial-depth casts
 
 require "$ANTS/libGMT.pl";
 
@@ -23,10 +25,10 @@ sub plot_correlation($)
 
 	my($xmin) = $P{min_ens}-0.5;
 	my($xmax) = $P{max_ens}+0.5;
-	my($ymin) = 0;
+	my($ymin) = round(antsParam('min_depth')-25,50);
 	my($ymax) = ($P{water_depth} > 0) ?
-				round($P{water_depth} + 25) :
-				round($P{max_depth} + $P{ADCP_bin_length});
+				round($P{water_depth}+25,50) :
+				round($P{max_depth}+$P{ADCP_bin_length}+25,50);
 
 	my($ens_width) = 10 / ($P{max_ens} - $P{min_ens} + 1);
 	my($bin_length) = 10 * $P{ADCP_bin_length} / 
@@ -39,7 +41,7 @@ sub plot_correlation($)
 	GMT_psxy("$C -Sr");
 		for ($ens=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-		  my(@bindepth) = calc_binDepths($ens);
+		  my(@bindepth) = binDepths($ens);
 		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			  my($bi) = $bindepth[$bin]/$opt_o;
@@ -61,8 +63,8 @@ sub plot_correlation($)
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
 		print(GMT "0.01 -0.06 $P{out_basename} $P{run_label}\n");
 
-	my($depth_tics) = ($ymax < 1000 ) ? 'f10a100' : 'f100a500';							# AXES
-	my($ens_tics) =   ($ymax < 1000 ) ? 'f50a500' : 'f500a2000';
+	my($depth_tics) = ($ymax-$ymin < 1000) ? 'f10a100' : 'f100a500';					# AXES
+	my($ens_tics) =   ($xmax-$xmin < 4000) ? 'f50a500' : 'f500a2000';
 	GMT_setR($R);
 	GMT_psbasemap("-B$ens_tics:'Ensemble [#]':/$depth_tics:'Depth [m]':WeSn");
 		 

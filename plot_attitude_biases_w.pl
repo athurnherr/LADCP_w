@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ A T T I T U D E _ B I A S E S _ W . P L 
 #                    doc: Sun May 15 16:08:59 2016
-#                    dlm: Wed May 18 19:43:55 2016
+#                    dlm: Tue May 24 16:38:31 2016
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 41 37 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 15 31 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,6 +12,13 @@
 #	May 17, 2016: - renamed from [plot_attitude_biases.pl]
 #   May 18, 2016: - added version
 #				  - expunged $realLastGoodEns
+#	May 19, 2016: - added notes about wrong beam plane
+#   May 24, 2016: - calc_binDepths() -> binDepths()
+
+# IMPORTANT NOTE:
+#   - the variables prefixed with p/r refer to beam-pairs 1,2 and 3,4 respectively,
+#     i.e. the p variables correspond to the roll plane and the r variables
+#          correspond to the pitch plane
 
 require "$ANTS/libGMT.pl";
 
@@ -40,7 +47,7 @@ sub plot_attitude_biases_w($)
 	my(@pValsDC,@rValsDC,@pValsUC,@rValsUC,$mode);
 	for (my($e)=$firstGoodEns; $e<=$lastGoodEns; $e++) {
 		next unless numberp($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH});
-		my(@bindepth) = calc_binDepths($e);
+		my(@bindepth) = binDepths($e);
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next if ($bindepth[$bin] <= $excluded_surf_layer);
 			next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
@@ -81,14 +88,14 @@ sub plot_attitude_biases_w($)
 	GMT_psxy('-W4,CornflowerBlue');
 		print(GMT "$xmin 0\n$xmax 0\n");
 
-	# DC PITCH
+	# DC BEAMS 1,2
 	GMT_psxy('-Ey0.2/2,coral');
-		for (my($i)=0; $i<2*round($opt_t); $i++) {
+		for (my($i)=0; $i<2*round($opt_t); $i++) {										# error bars
 			next unless ($pHistDC[$i] >= $min_fat);
 			my($minLim,$maxLim) = &bootstrap($btstrp_ndraw,0.95,\&avg,@{$pValsDC[$i]});	# 95% bootstrap conf limits
 			printf(GMT "%f %f %f\n",$i-round($opt_t)-0.3,($maxLim+$minLim)/2,($maxLim-$minLim)/2);
 		}
-	GMT_psxy('-Ey0.2/1,coral');															# dc pitch
+	GMT_psxy('-Ey0.2/1,coral');
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($pHistDC[$i]>=$min_thin && $pHistDC[$i]<$min_fat);
 			my($minLim,$maxLim) = &bootstrap($btstrp_ndraw,0.95,\&avg,@{$pValsDC[$i]});	# 95% bootstrap conf limits
@@ -115,7 +122,8 @@ sub plot_attitude_biases_w($)
 					$i-round($opt_t)-0.3+0.5,$ymin+0.03*$pHistDC[$i]/$mode);
 		}
 
-	GMT_psxy('-Ey0.2/2,coral');															# dc roll
+	# DC BEAMS 3,4
+	GMT_psxy('-Ey0.2/2,coral');															
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($rHistDC[$i] >= $min_fat);
 			my($minLim,$maxLim) = &bootstrap($btstrp_ndraw,0.95,\&avg,@{$rValsDC[$i]});
@@ -148,7 +156,8 @@ sub plot_attitude_biases_w($)
 					$i-round($opt_t)-0.1+0.5,$ymin+0.03*$rHistDC[$i]/$mode);
 		}
 
-	GMT_psxy('-Ey0.2/2,SeaGreen');													# uc pitch
+	# UC BEAMS 1,2
+	GMT_psxy('-Ey0.2/2,SeaGreen');													
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($pHistUC[$i] >= $min_fat);
 			my($minLim,$maxLim) = &bootstrap($btstrp_ndraw,0.95,\&avg,@{$pValsUC[$i]});
@@ -181,7 +190,8 @@ sub plot_attitude_biases_w($)
 					$i-round($opt_t)+0.1+0.5,$ymin+0.03*$pHistUC[$i]/$mode);
 		}
 
-	GMT_psxy('-Ey0.2/2,SeaGreen');													# uc roll
+	# UC BEAMS 3,4
+	GMT_psxy('-Ey0.2/2,SeaGreen');													
 		for (my($i)=0; $i<2*round($opt_t); $i++) {
 			next unless ($rHistUC[$i] >= $min_fat);
 			my($minLim,$maxLim) = &bootstrap($btstrp_ndraw,0.95,\&avg,@{$rValsUC[$i]});

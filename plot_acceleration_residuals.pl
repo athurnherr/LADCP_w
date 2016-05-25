@@ -1,14 +1,21 @@
 #======================================================================
 #                    P L O T _ A C C E L E R A T I O N _ R E S I D U A L S . P L 
 #                    doc: Tue May 17 21:40:08 2016
-#                    dlm: Wed May 18 19:43:18 2016
+#                    dlm: Tue May 24 16:37:53 2016
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 46 37 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 55 24 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	May 17, 2016: - created from [plot_attitude_biases.pl]
 #	May 18, 2016: - made work
+#	May 19, 2016: - improved
+#   May 24, 2016: - calc_binDepths() -> binDepths()
+
+# IMPORTANT NOTE:
+#	- the variables prefixed with p/r refer to beam-pairs 1,2 and 3,4 respectively,
+#	  i.e. the p variables correspond to the roll plane and the r variables
+#	  	   correspond to the pitch plane
 
 require "$ANTS/libGMT.pl";
 
@@ -36,7 +43,7 @@ sub plot_acceleration_residuals($)
 	#-------------------------------------------------------
 	# Bin-Average & Create Histogram from Beampair Residuals 
 	#	- use 0.1 m/s^3
-	#	- also calculate mean/rms pitch
+	#	- also calculate mean/rms w_tt
 	#-------------------------------------------------------
 
 	my(@pHistDC,@rHistDC,@pSumDC,@rSumDC,$pHistDC,$rHistDC,$pSumDC,$rSumDC);
@@ -45,7 +52,7 @@ sub plot_acceleration_residuals($)
 	my(@w_ttSumDC,@w_ttSumUC);
 	for (my($e)=$firstGoodEns; $e<=$lastGoodEns; $e++) {
 		next unless numberp($LADCP{ENSEMBLE}[$e]->{CTD_DEPTH});
-		my(@bindepth) = calc_binDepths($e);
+		my(@bindepth) = binDepths($e);
 
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next if ($bindepth[$bin] <= $excluded_surf_layer);
@@ -114,7 +121,7 @@ sub plot_acceleration_residuals($)
 					$i*$bin_size+$xmin+$xo3+($bin_size/2),$ymin+$hist_height*$pHistUC[$i]/$mode);
 		}
 
-	# DC PITCH
+	# DC BEAMS 1,2
 	GMT_psxy('-Ey0.2/2,coral');
 		for (my($i)=0; $i<@pHistDC; $i++) {
 			next unless ($pHistDC[$i] >= $min_fat);
@@ -137,7 +144,7 @@ sub plot_acceleration_residuals($)
 			printf(GMT ">\n%f %f\n%f %f\n",$xmin,$pSumDC/$pHistDC,$xmax,$pSumDC/$pHistDC);		# 	bias
 	}
 
-	# DC ROLL
+	# DC BEAMS 3,4
 	GMT_psxy('-Ey0.2/2,coral');															
 		for (my($i)=0; $i<@rHistDC; $i++) {
 			next unless ($rHistDC[$i] >= $min_fat);
@@ -160,7 +167,7 @@ sub plot_acceleration_residuals($)
 			printf(GMT ">\n%f %f\n%f %f\n",$xmin,$rSumDC/$rHistDC,$xmax,$rSumDC/$rHistDC);
 	}
 
-	# UC PITCH
+	# UC BEAMS 1,2
 	GMT_psxy('-Ey0.2/2,SeaGreen');													
 		for (my($i)=0; $i<@pHistUC; $i++) {
 			next unless ($pHistUC[$i] >= $min_fat);
@@ -183,7 +190,7 @@ sub plot_acceleration_residuals($)
 			printf(GMT ">\n%f %f\n%f %f\n",$xmin,$pSumUC/$pHistUC,$xmax,$pSumUC/$pHistUC);
 	}
 
-	# UC ROLL
+	# UC BEAMS 3,4
 	GMT_psxy('-Ey0.2/2,SeaGreen');													
 		for (my($i)=0; $i<@rHistUC; $i++) {
 			next unless ($rHistUC[$i] >= $min_fat);

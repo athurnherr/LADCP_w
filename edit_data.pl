@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Wed May 18 22:34:15 2016
+#                    dlm: Tue May 24 16:36:37 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 269 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 374 18 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -34,6 +34,7 @@
 #	Sep 26, 2015: - added $vessel_draft to editSideLobes
 #	Jan 23, 2016: - added &editBadTimeLagging()
 #	May 18, 2016: - removed assumption of 1500m/s soundspeed setting
+#   May 24, 2016: - calc_binDepths() -> binDepths()
 
 # NOTES:
 #	- editCorr_Earthcoords() is overly conservative and removed most
@@ -370,7 +371,7 @@ sub editPPI($$$)
 		my($beam_tilt) = max(abs($LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH}),
 							 abs($LADCP{ENSEMBLE}[$e]->{ROLL}));
 		my($dz_min)    = $dz_max * cos(rad($LADCP{BEAM_ANGLE} + $beam_tilt + $bha));
-		my(@bd) = calc_binDepths($e);
+		my(@bd) = binDepths($e);
 
 		$dz_max *= $PPI_extend_upper_limit
 			if numberp($PPI_extend_upper_limit);

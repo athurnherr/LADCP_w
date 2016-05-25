@@ -1,9 +1,9 @@
 #======================================================================
 #                    B O T T O M _ T R A C K I N G . P L 
 #                    doc: Wed Oct 20 21:05:37 2010
-#                    dlm: Tue Jan 26 15:25:14 2016
+#                    dlm: Tue May 24 16:34:43 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 16 33 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 116 5 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #	Apr 22, 2013: - replace output_bin_size by opt_o
 #	Mar  4, 2014: - removed old unused code
 #	Jan 26, 2016: - added %PARAMs
+#   May 24, 2016: - calc_binDepths() -> binDepths()
 
 # This code is essentially identical to the one used in LADCPproc. Differences:
 #	1) velocity editing is simpler: no wake editing, no PPI editing, no shear
@@ -60,7 +61,7 @@ sub binBTprof($$$)
 	$nBTfound++;
 	my($seafloor_bin) = round(avg(@ea_max_bin));
 
-	my(@bd) = calc_binDepths($ens);
+	my(@bd) = binDepths($ens);
 	$nBTdepthFlag++,return									# BT range inconsistent with water depth
 		unless (abs($wd-$bd[$seafloor_bin]) < max($sig_wd,$LADCP{BIN_LENGTH}));
 

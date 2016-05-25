@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Thu May 19 00:57:30 2016
+#                    dlm: Tue May 24 16:33:29 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 1879 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 1868 26 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -249,6 +249,8 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - expunged super-confusing $realLastGoodEns
 #				  - removed assumption of default 1500m/s sspd setting during acquisition
 #				  - added w12, w34 for earth-coordinates
+#   May 19, 2016: - updated to ADCP_tools V1.6
+#	May 24, 2016: - calc_binDepths() -> binDepths()
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -262,8 +264,8 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 # 2-BEAM SOLUTIONS
 #	- both for beam- and earth-coordinate data, two separate two-beam
 #	  solutions (w12 & w34) are calculated:
-#		- w12 corresponds to pitch axis
-#		- w34 corresponds to roll axis
+#		- w12 corresponds to ROLL axis (plotted with dashed lines)
+#		- w34 corresponds to PITCH axis (plotted with dotted lines)
 #	- the 2-beam solutions are largely independent of each other
 #		=> key for detecting data problems, such as package wakes
 
@@ -637,9 +639,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 			 $LADCP{ENSEMBLE}[$ens]->{V}[$bin],
 			 $LADCP{ENSEMBLE}[$ens]->{W}[$bin],
 			 $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin]) =
-				velInstrumentToEarth(\%LADCP,$ens,
-					velBeamToInstrument(\%LADCP,
-										@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]}));
+				velBeamToEarth(\%LADCP,$ens,@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]});
 			if (defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin])) {
 				$per_bin_nsamp[$bin]++;
 				$nvw++;
@@ -1335,7 +1335,7 @@ for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		next;
 	}
 	$realLastGoodEns = $ens;
-	my(@bindepth) = calc_binDepths($ens);
+	my(@bindepth) = binDepths($ens);
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		next if ($bin<$outGrid_firstBin-1 || $bin>$outGrid_lastBin-1);
@@ -1398,7 +1398,7 @@ progress("\tupcast...\n");														# upcast
 for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
 	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 	$realLastGoodEns = $ens;
-	my(@bindepth) = calc_binDepths($ens);
+	my(@bindepth) = binDepths($ens);
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		next if ($bin<$outGrid_firstBin-1 || $bin>$outGrid_lastBin-1);
@@ -1477,7 +1477,7 @@ unless ($opt_q) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 
 		my(@residuals) = ();												# calc median of residuals
-		my(@bindepth) = calc_binDepths($ens);
+		my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		    next if ($bin<$outGrid_firstBin-1 || $bin>$outGrid_lastBin-1);
@@ -1546,7 +1546,7 @@ if (defined($opt_r)) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 
 		my($sum) = my($n) = 0;														# calculate rms residual
-		my(@bindepth) = calc_binDepths($ens);
+		my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
 		  	next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
@@ -1573,7 +1573,7 @@ if (defined($opt_r)) {
 			next;
 		}
 		$realLastGoodEns = $ens;
-		my(@bindepth) = calc_binDepths($ens);
+		my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			next if ($bin<$outGrid_firstBin-1 || $bin>$outGrid_lastBin-1);
@@ -1600,7 +1600,7 @@ if (defined($opt_r)) {
 	for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {	    
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 		$realLastGoodEns = $ens;
-		my(@bindepth) = calc_binDepths($ens);
+		my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			next if ($bin<$outGrid_firstBin-1 || $bin>$outGrid_lastBin-1);
@@ -1642,7 +1642,7 @@ progress("Binning vertical-velocity residuals into depth profiles...");
 
 for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {
 	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-	my(@bindepth) = calc_binDepths($ens);
+	my(@bindepth) = binDepths($ens);
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
@@ -1659,7 +1659,7 @@ for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {
 
 for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
 	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-	my(@bindepth) = calc_binDepths($ens);
+	my(@bindepth) = binDepths($ens);
 	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 		next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
@@ -1686,7 +1686,7 @@ if (@out_BR) {
 	local(@dc_bres,@uc_bres);
 	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# DOWNCAST
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-		my(@bindepth) = calc_binDepths($ens);
+		my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			push(@{$dc_bres[$bin]},
@@ -1696,7 +1696,7 @@ if (@out_BR) {
 	}
 	for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {						# UPCAST 
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-		my(@bindepth) = calc_binDepths($ens);
+		my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			push(@{$uc_bres[$bin]},
@@ -1827,7 +1827,7 @@ if (@out_wsamp) {
 	    
 		for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-		  my(@bindepth) = calc_binDepths($ens);
+		  my(@bindepth) = binDepths($ens);
 		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			  my($bi) = $bindepth[$bin]/$opt_o;
@@ -1865,7 +1865,7 @@ if (@out_wsamp) {
 	  
 		for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {					  # upcast 
 		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-		  my(@bindepth) = calc_binDepths($ens);
+		  my(@bindepth) = binDepths($ens);
 		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			  my($bi) = $bindepth[$bin]/$opt_o;

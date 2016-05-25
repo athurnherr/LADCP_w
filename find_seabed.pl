@@ -1,9 +1,9 @@
 #======================================================================
 #                    F I N D _ S E A B E D . P L 
 #                    doc: Sun May 23 20:26:11 2010
-#                    dlm: Wed May 18 22:38:53 2016
+#                    dlm: Thu May 19 10:40:55 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 22 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 18 46 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,6 +15,7 @@
 #				  - renamed $SS_min_allowed_hab to *_range
 #	Jan 26, 2016: - added %PARAMs
 #	May 18, 2016: - removed assumption of 1500m/s soundspeed setting
+#	May 19, 2016: - updated to ADCP_tools V1.6
 
 # NOTES:
 #	1) BT range is corrected for sound speed at the transducer. This is not
@@ -51,11 +52,8 @@ sub find_seabed($$$)
 					 defined($d->{ENSEMBLE}[$i]->{BT_RANGE}[2]) &&
 					 defined($d->{ENSEMBLE}[$i]->{BT_RANGE}[3]));
 
-		my(@BT) = $beamCoords
-				? velInstrumentToEarth($d,$i,
-					velBeamToInstrument($d,
-						@{$d->{ENSEMBLE}[$i]->{BT_VELOCITY}}))
-				: velApplyHdgBias($d,$i,@{$d->{ENSEMBLE}[$i]->{BT_VELOCITY}});
+		my(@BT) = $beamCoords ? velBeamToEarth($d,$i,@{$d->{ENSEMBLE}[$i]->{BT_VELOCITY}})
+							  : velApplyHdgBias($d,$i,@{$d->{ENSEMBLE}[$i]->{BT_VELOCITY}});
 		next unless (abs($BT[3]) < 0.05);
 		$d->{ENSEMBLE}[$i]->{DEPTH_BT} =
 			 $d->{ENSEMBLE}[$i]->{BT_RANGE}[0]/4 +
