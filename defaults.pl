@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Tue Mar 29 07:23:24 2016
+#                    dlm: Mon Jun  6 22:07:19 2016
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 74 39 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 179 18 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -72,6 +72,10 @@
 #	Mar 19, 2016: - improved docu
 #	Mar 29, 2016: - moved out dir creation to [LADCP_w_ocean]
 #				  - added opt_r support
+#	May 26, 2016: - added RDI_Coords::binMapping
+#	May 28, 2016: - added delta-residual filter (-r)
+#	Jun  1, 2016: - added $plotting_level
+#	Jun  2, 2016: - added $tilt_correction_*
 
 #======================================================================
 # Output Log Files
@@ -87,15 +91,33 @@
 &antsCardOpt(\$opt_v,$ENV{VERB});
 $opt_v = 1 unless numberp($opt_v);
 
+#======================================================================
+# Output Plots
+#	- there are 3 plotting levels
+#		0 : suppress all plots
+#		1* : produce default plots; *DEFAULT
+#		2 : produce default and diagnostic plots
+#		>2: produce all plots, including useless ones
+#======================================================================
+
+$plotting_level = 1;
+
 
 #======================================================================
-# Data Input 
+# Input Data 
 #======================================================================
 
 # Set $opt_4 to 1 (or use the -4 option) to suppress 3-beam LADCP 
-# solutions
+# solutions. This only has an effect for beam-coordinate data.
 
 #$opt_4 = 1;
+
+
+# Set $RDI_Coords::binMapping to 'none' or use -d to disable
+# linear bin interpolation (which is better than bin mapping).
+# This only has an effect for beam-coordinate data.
+
+$RDI_Coords::binMapping = $opt_d ? 'none' : 'linterp';
 
 
 # The following variables allow bias-correcting the attiude 
@@ -125,10 +147,15 @@ $opt_b = '2,*' unless defined($opt_b);
 # Data Editing
 #======================================================================
 
-# The following sets the max allowable rms residual w per ensemble; 
-# data from ensembles with larger rms residuals are discarded.
+# The following sets the max allowable rms residual w per ensemble, as 
+# well as the max allowable difference between the two beam-pair
+# residuals. Measurements that fail either of these tests are are 
+# discarded. The limiting values were chosed by inspection of 
+# log files and diagnostic plots of a few example profiles. In case of
+# the delta-residual limit, histograms of this parameter show a very
+# steep cutoff at 0.05 cm/s for both IWISE and 2016_I08S data. 
 
-&antsFloatOpt(\$opt_r,0.04);
+&antsFloatOpt(\$opt_r,'0.06,0.06');
 
 
 # By default, ensembles with uncertain time-lagging are discarded.
@@ -147,25 +174,18 @@ $opt_b = '2,*' unless defined($opt_b);
 &antsFloatOpt(\$opt_c,70);
 
 
-# The following sets the default limit for instrument attitude 
-# (pitch/roll).
-# 
-# The default value was established with IWISE profiles 004, 005, 045
-# and 049, which all show considerabe tilt-related discrepancies between
-# the corresponding 2-beam solutions. The first and second pair of
-# profiles were collected with 8 and 6m bins, respectively, without
-# bin re-mapping. The original default of 15 degrees led to large
-# beam-pair differences. Based on diagnostic plots it appears that
-# only tilt angles smaller than 9 degrees or so are satisfactory. 
-# In case of the IWISE data set, such a tight constraint causes
-# too many data gaps. The compromise of 12 degrees seems to work
-# quite well, based on the p0 vs epsilon correlation across 5
-# data sets.
+# Instrument Tilt
 #
-# NB: if this default is changed, the usage message in [LADCP_w]
-#	  needs to be updated as well.
+# It is not fully clear what tilt angles are acceptable for 
+# obtaining good vertical velocities. Up to 2016 (V1.3) the
+# default limit was 12 degrees based on an analysis of 
+# the 2010 IWISE data with inaccurate 2-beam transformations.
+# As re-processing with a limit of 20 degrees improves the
+# agreement between DL and UL data (R = 0.77/0.67 => 0.79/0.74)
+# the limit was changed to 22 degrees, the same used
+# in Martin Visbeck's inversion code.
 
-&antsFloatOpt(\$opt_t,12);
+&antsFloatOpt(\$opt_t,22);
 
 
 # The following sets the default error velocity limit; measurements 
@@ -224,8 +244,10 @@ $surface_layer_depth = 25;
 
 # Previous Ping Interference editing as described in [edit_data.pl]
 #	- enabled by default for WH150 data
-#	- the variable defines a string with a perl expression, which is
-#	  evaluated once the data are loaded
+#	- PPI_seabed_editing_required defines a string with a perl expression 
+#	  that is evaluated once the data are loaded; if true, seabed PPI
+#	  editing is enabled 
+#	- to enable PPI editing without condition, set $PPI_editing = 1;
 #	- 2014 CLIVAR P16 #47 has a slight discontinuity at 4000m; this
 #	  discontinuity is there without PPI filtering but gets slightly
 #	  worse with PPI filtering. Setting $PPI_extend_upper_limit to 
@@ -236,8 +258,9 @@ $surface_layer_depth = 25;
 #	  set by the shortest acoustic path between the ADCP and the 
 #	  seabed.
 
-$PPI_editing_required = '($LADCP{BEAM_FREQUENCY} < 300)';
+$PPI_seabed_editing_required = '($LADCP{BEAM_FREQUENCY} < 300)';
 
+#$PPI_editing = 1;						# uncomment to enable PPI always
 #$PPI_extend_upper_limit = 1.03;		# see comments above
 
 
@@ -311,7 +334,9 @@ $TL_max_allowed_three_lag_spread = 3;
 # bin is chosen to construct a reference profile for Sv. The bin number
 # is automatically increased if the selected bin does not contain valid
 # data, i.e. the default value of 1 ensures that the closest valid bin
-# is used to construct the reference profile.
+# is used to construct the reference profile. The empirical correction
+# causes artifacts every 100m. To disable the empirical
+# correction, undefine the following variable.
 
 $Sv_ref_bin = 1; 
 

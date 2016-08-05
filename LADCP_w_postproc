@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Tue May 24 22:48:51 2016
+#                    dlm: Thu May 26 18:21:11 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 602 50 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 101 35 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -64,6 +64,7 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #   Mar 31, 2016: - changed version %PARAM
 #	Apr 14, 2016: - added profile id to warning messages
 #	May 24, 2016: - improved plot
+#	May 26, 2016: - added automatic directory creation on -d
 
 ($ANTS)  = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0              =~ m{^(.*)/[^/]*$});
@@ -88,20 +89,25 @@ require "$ANTS/libGMT.pl";
 	'[-p)lot <[%03d_wprof.eps]> [-b)t <wprof>]]',
 	'<DL.wsamp file> [UL.wsamp file] (or only <UL.wsamp file>)');
 
-$dual_head = (@ARGV==1);								# single or dual head
+$dual_head = (@ARGV==1);												# single or dual head
 
-$id = defined($opt_i) ? $opt_i : &antsParam('profile_id');		# ensure profile id
+$id = defined($opt_i) ? $opt_i : &antsParam('profile_id');				# ensure profile id exists
 croak("$0: no profile_id in first file => -i required\n")
 	unless defined($id);
 	
-if (defined($opt_d)) {									# different output directory
-	croak("$opt_d: no such directory\n")
-		unless (-d "$opt_d");
+if (defined($opt_d)) {													# select output directory
+	unless (-d $opt_d) {
+	    unless ($opt_d =~ m{/}) {
+			print(STDERR "Warning: Creating output sub-directory ./$opt_d\n");
+		    mkdir($opt_d);
+		}
+		croak("$opt_d: no such directory\n") unless (-d $opt_d);
+	}
 }
 
-&antsCardOpt(\$opt_s,300);								# surface layer depth limit
+&antsCardOpt(\$opt_s,300);												# surface layer depth limit
 
-if (defined($opt_v)) {									# bin ranges with valid data to use
+if (defined($opt_v)) {													# bin ranges with valid data to use
 	($fvBin,$lvBin,$UL_fvBin,$UL_lvBin) = split(/,/,$opt_v);
 	croak("$0: cannot decode -v $opt_v\n")
 		unless (defined($lvBin) && (!$dual_head || defined($UL_lvBin)));
@@ -114,8 +120,8 @@ if (defined($opt_v)) {									# bin ranges with valid data to use
 				   'DL_last_valid_bin',&antsRequireParam('outgrid_lastbin'));
 }
 
-if (defined($opt_w)) {									# vertical-velocity fields to use
-	($Ddwf,$Duwf,$Udwf,$Uuwf) = split(/,/,$opt_w);		# DL dc, DL uc, ...
+if (defined($opt_w)) {													# vertical-velocity fields to use
+	($Ddwf,$Duwf,$Udwf,$Uuwf) = split(/,/,$opt_w);						# DL dc, DL uc, ...
 	croak("$0: cannot decode -w $opt_w\n")
 		unless (defined($Duwf) && (!$dual_head || defined($Uuwf)));
 	&antsAddParams('DL_dc_w_field',$Ddwf,'DL_uc_w_field',$Duwf,
@@ -124,14 +130,14 @@ if (defined($opt_w)) {									# vertical-velocity fields to use
 	($Ddwf,$Duwf,$Udwf,$Uuwf) = ('w','w','w','w');
 }
 
-if (defined($opt_o)) {									# output grid resolution
+if (defined($opt_o)) {													# output grid resolution
 	$opt_o_override = 1;
 	&antsCardOpt($opt_o);
 } else {
 	$opt_o = &antsRequireParam('outgrid_dz');
 }
 
-if (defined($opt_k)) {									# minimum number of required samples
+if (defined($opt_k)) {													# minimum number of required samples
 	$opt_k_override = 1;
 	&antsCardOpt($opt_k);
 } else {
@@ -588,7 +594,7 @@ if (defined($opt_p)) {																# complete summary plot
 			GMT_pstext('-F+f12,Helvetica,coral+jTL -Gred');
 		} elsif ($dc_R < 0.5) { 	GMT_pstext('-F+f12,Helvetica,coral+jTL -Gyellow'); }
 		else {						GMT_pstext('-F+f12,Helvetica,coral+jTL -Gwhite'); }
-	        printf(GMT "%f %f r = %.1f\n",0.64,0.01,$dc_R);
+	        printf(GMT "%f %f r = %.1f\n",0.61,0.01,$dc_R);
 	}
 	GMT_pstext('-F+f12,Helvetica,coral+jTR -Gwhite');
 		printf(GMT "%f %f [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",
@@ -599,7 +605,7 @@ if (defined($opt_p)) {																# complete summary plot
 			GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gred');
 		} elsif ($uc_R < 0.5) { 	GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gyellow'); }
 		else {						GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gwhite'); }
-	        printf(GMT "%f %f r = %.1f\n",0.64,0.05,$uc_R);
+	        printf(GMT "%f %f r = %.1f\n",0.61,0.05,$uc_R);
 	}
 	GMT_pstext('-F+f12,Helvetica,SeaGreen+jTR -Gwhite');
 		printf(GMT "%f %f [%.1f/%.1f cm/s @~s@~\@-e/r\@-]\n",

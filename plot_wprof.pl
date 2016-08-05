@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Tue May 24 22:31:14 2016
+#                    dlm: Thu May 26 11:29:32 2016
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 19 51 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 20 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -17,6 +17,7 @@
 #	May 24, 2016: - BUG: ymin did not work for nsamp
 #				  - fixed for partial-depth profiles
 #				  - suppress plotting of nsamp == 0
+#	May 26, 2016: - added instrument coord system to plot labels
 
 # Tweakables:
 #
@@ -139,7 +140,9 @@ sub plot_wprof($)
 
 	GMT_pstext('-F+f9,Helvetica,CornFlowerBlue+jTL -N');
 		printf(GMT "0.64 1.020 $LADCP{BEAM_FREQUENCY}kHz $LADCP{INSTRUMENT_TYPE} $P{ADCP_orientation}\n");
-		printf(GMT "0.64 1.055 bin setup\n		0.77 1.055 : %.1fm/%1.fm/%1.fm\n",
+#		printf(GMT "0.64 1.055 %s\n		0.77 1.055 : %.1fm/%1.fm/%1.fm\n",
+		printf(GMT "0.64 1.055 %s [%.1fm/%1.fm/%1.fm]\n",
+			$LADCP{BEAM_COORDINATES} ? 'beam vels' : 'Earth vels',
 			$LADCP{BLANKING_DISTANCE},$LADCP{TRANSMITTED_PULSE_LENGTH},$LADCP{BIN_LENGTH});
 		print(GMT "0.64 1.090 mean tilt\n 		0.77 1.096 :\n");
 		print(GMT "0.64 1.130 rms a\@-pkg\@-\n	0.77 1.1315 :\n");

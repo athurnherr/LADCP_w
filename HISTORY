@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Wed May 25 12:14:13 2016
+                    dlm: Wed Jun  8 22:07:57 2016
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 172 19 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 182 43 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 ----------------------------------------------------------------------
@@ -170,3 +170,13 @@ V1.3:
 	May 25, 2016:
 		- updated version to V1.3beta1 [version.pl] [.hg/hgrc]
 		- published
+
+	May 26, 2016: V1.3beta2
+		- updated version to V1.3beta2 [version.pl] [.hg/hgrc]
+		- udated ANTS_tools lib to V1.7 (beam interpolation)
+		- adapted [LADCP_w_ocean] to beam interpolation
+
+...
+
+	Jun  8, 2016:
+		- removed plot_attitude_biases_w.pl

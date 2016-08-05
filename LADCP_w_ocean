@@ -2,19 +2,22 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Tue May 24 16:33:29 2016
+#                    dlm: Sat Jun 11 18:34:12 2016
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 1868 26 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 272 65 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
-#   ! plots:
+#   ! use instrument tilt in sidelobe editing
+#	! use instrument tilt in e.g. Sv
+#
+#   - plots:
 #       - avoid over-plotting axis labels
 #       - allow for different nsamp magnitudes
 #       - add "dc" "uc" labels
 #       - add seabed to eps.VKE profile
 #       - add seabed to LADCP_w_postproc .wprof output
-#   ! use instrument tilt in sidelobe editing
+#
 #   - worry about water-depth differences (disabled warning) 
 #   - make upcast-flag valid for yoyo casts
 #   - make diagnostic output 3-beam field work for Earth coordinates
@@ -251,13 +254,30 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - added w12, w34 for earth-coordinates
 #   May 19, 2016: - updated to ADCP_tools V1.6
 #	May 24, 2016: - calc_binDepths() -> binDepths()
+#	May 26, 2016: - added -d)isable bin interpolation
+#				  - adapted to w_CTD, w_winch
+#				  - re-enabled disabled L0 warning
+#				  - suppressing L0 warnings on screen
+#	May 27, 2016: - cosmetics
+#				  - added reflr_w to .wsamp output
+#	May 29, 2016: - BUG: do ProcessingParams did not handle all errors correctly
+#	Jun  1, 2016: - made empirical accoustic backscatter correction optional
+#				  - split [default_paths.pl] to same plus [default_output.pl]
+#	Jun  2, 2016: - added applyTiltCorrection()
+#				  - BUG: PPI-editing was no longer enabled automatically
+#						 for 150kHz instruments
+#	Jun  3, 2016: - BUG: earth-coordinate data did not have gimbal-pitch
+#						 calculated
+#	Jun  6, 2016: - removed applyTiltCorrection()
+#	Jun 11, 2016: - BUG: w12, w34 were wrong for Earth-coord data
 # HISTORY END
 
 # CTD REQUIREMENTS
 #	- elapsed		elapsed seconds; see note below
 #	- depth
 #	- ss			sound speed
-#	- w				ddepth/dt
+#	- w[_CTD]		ddepth/dt
+#	- w_winch		OPTIONAL; winch-speed estimate
 #	- temp			OPTIONAL; used for backscatter calculation
 #	- %lat/%lon		OPTIONAL
 
@@ -302,9 +322,9 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 
 # VELOCITY AMBIGUITY ERRORS
 #	- quite extensive tests with DIMES US2 station 146, which has a lot of
-#	  ambiguity velocity errors, reveal that -m 1 catches those errors
+#	  ambiguity velocity errors, reveal that $w_max_lim catches those errors
 #	  quite nicely
-#	- even when the errors are not filtered with -m 1, they do not
+#	- even when the errors are not filtered with $w_max_lim, they do not
 #	  affect the w profiles, as long as the median bin values are used
 
 ($ANTS) 	  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
@@ -344,13 +364,13 @@ my($TINY) = 1e-16;
 require "$WCALC/defaults.pl";												# load default/option parameters
 
 $antsParseHeader = 0;
-&antsUsage('3:4a:b:c:e:g:h:i:k:lm:n:o:p:qr:s:t:uv:Vw:x:',0,
+&antsUsage('3:4a:b:c:de:g:h:i:k:lm:n:o:p:qr:s:t:uv:Vw:x:',0,
 	"[print software -V)ersion] [-v)erbosity <level[$opt_v]>]",
 	"[-q)uick (no single-ping denoising)]",
-    "[require -4)-beam solutions] [apply beamvel-m)ask <file> if it exists]",
+    "[require -4)-beam solutions] [-d)isable bin interpolation] [apply beamvel-m)ask <file> if it exists]",
 	"[valid LADCP -b)ins <bin,bin[$opt_b]>",
 	"[-c)orrelation <min[$opt_c counts]>] [-t)ilt <max[$opt_t deg]> [-e)rr-vel <max[$opt_e m/s]>]",
-	"[-r)esidual <rms.max[$opt_r m/s]>]",
+	"[-r)esidual <rms.max[,delta.max][$opt_r m/s]>]",
 	"[-h water <depth|filename>]",
 	"[max LADCP time-series -g)ap <length[$opt_g s]>]",
 	"[-i)nitial CTD time offset <guestimate> [-u)se as final]]",
@@ -386,19 +406,30 @@ if (@ARGV) {															# run label
 	$RUN = 'profiles';
 }
 
-#-----------------------------
+#----------------------------------------------------------------
 # Handle Processing Parameters
-#-----------------------------
+#	- paths need to be read first to define ProcessingParams file
+# 	  and output directories
+#	- processing params file is read next to allow setting
+#	  plotting_level
+#	- default_output.pl is read finally to set any missing output
+#	  variables to default values
+#----------------------------------------------------------------
 
-require "$WCALC/default_paths.pl";										# load default input/output paths
-croak("$processing_param_file: $@")
-	unless ($err = do "$processing_param_file");						# load processing parameters
+require "$WCALC/default_paths.pl";										# define default input/output paths
+my($retval) = do $processing_param_file;								# load processing parameters
+if (!defined($retval) && $@ ne '') {
+	croak("$processing_param_file: $@\n");
+} elsif (!defined($retval) && $! != 0) {
+	croak("$processing_param_file: $!\n");
+}
+require "$WCALC/default_output.pl";										# set default output plots and files
 
 $processing_options = "-k $opt_k -o $opt_o -c $opt_c -t $opt_t -e $opt_e -g $opt_g -3 $opt_3";
 $processing_options .= " -i $opt_i" if defined($opt_i);
-$processing_options .= " -r $opt_r" if defined($opt_r);
 $processing_options .= ' -l' if defined($opt_l);
 $processing_options .= ' -q' if defined($opt_q);
+$processing_options .= ' -d' if defined($opt_d);
 
 if (defined($opt_x)) {													# eval cmd-line expression to override anything
 	$processing_options .= " -x $opt_x";
@@ -410,6 +441,12 @@ if ($opt_4) {															# disallow 3-beam solutions
 	$RDI_Coords::minValidVels = 4;
 }
 	
+if (defined($opt_r)) {													# residuals filters
+	$processing_options .= " -r $opt_r";
+	($residuals_rms_max,$residuals_delta_max) = split(',',$opt_r);
+	croak("$0: cannot decode -r $opt_r\n") unless ($residuals_rms_max > 0);
+}
+
 ($LADCP_firstBin,$LADCP_lastBin) = split(',',$opt_b);					# select valid bins
 	croak("$0: cannot decode -b $opt_b\n")
     	unless (numberp($LADCP_firstBin) &&
@@ -430,6 +467,7 @@ $processing_options .= " -w $opt_w";
 
 croak("$0: \$out_basename undefined\n")									# plotting routines use this to label the plots
 	unless defined($out_basename);
+&antsAddParams('RDI_Coords::binMapping',$RDI_Coords::binMapping);
 &antsAddParams('processing_options',$processing_options);
 &antsAddParams('out_basename',$out_basename);
 &antsAddParams('profile_id',$PROF,'run_label',$RUN);
@@ -467,7 +505,7 @@ sub warning(@)
 		printf(LOGF @msg);
 		print(LOGF "\n");
 	}
-	return if ($opt_v == 0);
+	return if ($opt_v == 0) || ($lvl == 0);
 
 	if ($opt_v == 1) {
 		print(STDERR "$LADCP_file: ") if defined($LADCP_file);
@@ -502,7 +540,11 @@ sub debugmsg(@)
 
 progress("Reading LADCP data from <$LADCP_file>...\n");
 readData($LADCP_file,\%LADCP);
-progress("\t%d ensembles\n",scalar(@{$LADCP{ENSEMBLE}}));
+if ($LADCP{BEAM_COORDINATES}) {
+	progress("\t%d ensembles (beam coordinates)\n",scalar(@{$LADCP{ENSEMBLE}}));
+} else {
+	progress("\t%d ensembles (Earth coordinates)\n",scalar(@{$LADCP{ENSEMBLE}}));
+}
 
 error("$LADCP_file: cannot process multi-ping ensembles\n")
 	unless ($LADCP{PINGS_PER_ENSEMBLE} == 1);
@@ -548,6 +590,7 @@ warning(1,"if at all, bin 1 should not be used for short blank-after-transmit va
 #------------------------------------------------------------
 # Edit beam-velocity data
 #	0) beam-vel mask on -m
+#		mask file has three columns: from_ens to_ens ignore_beam
 #	1) correlation threshold
 #------------------------------------------------------------
 
@@ -596,8 +639,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 	}
 	error("$LADCP_file: no valid data\n") unless ($nvv > 0);
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$opt_c,$cte,round(100*$cte/$nvv));
-#	progress("\tattitude threshold (-t %d deg): %d velocites removed (%d%% of total)\n",$opt_t,$pte,round(100*$pte/$nvv));
-} else {
+} else { # if BEAM_COORDINATES
 	progress("Editing velocity data...\n");
 	error("$LADCP_file: cannot apply beamvel-mask $opt_m to earth-coordinate data\n")
 		if defined($opt_m);
@@ -608,7 +650,6 @@ if ($LADCP{BEAM_COORDINATES}) {
 	}
 	error("$LADCP_file: no valid data\n") unless ($nvv > 0);
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$opt_c,$cte,round(100*$cte/$nvv));
-#	progress("\tattitude threshold (-t %d deg): %d velocites removed (%d%% of total)\n",$opt_t,$pte,round(100*$pte/$nvv));
 }
 
 #-------------------------------------------------------------------
@@ -630,29 +671,40 @@ if ($LADCP{BEAM_COORDINATES}) {
 	}
 	$nvw = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
+		$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH} =
+		 	gimbal_pitch($LADCP{ENSEMBLE}[$ens]->{PITCH},$LADCP{ENSEMBLE}[$ens]->{ROLL});
+
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			if ($bad_beam) {
 				undef($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$bad_beam-1]);
 				undef($LADCP{ENSEMBLE}[$ens]->{BT_VELOCITY}[$bin][$bad_beam-1]);
 			}
-			($LADCP{ENSEMBLE}[$ens]->{U}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{V}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{W}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin]) =
-				velBeamToEarth(\%LADCP,$ens,@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]});
+			($LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin],
+			 $LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin],
+			 $LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin],
+			 $LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin]) = earthVels(\%LADCP,$ens,$bin);
+			($LADCP{ENSEMBLE}[$ens]->{V12}[$bin],$LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
+			 $LADCP{ENSEMBLE}[$ens]->{V34}[$bin],$LADCP{ENSEMBLE}[$ens]->{W34}[$bin]) = BPEarthVels(\%LADCP,$ens,$bin);
+		}
+
+		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			$LADCP{ENSEMBLE}[$ens]->{U}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin];
+			$LADCP{ENSEMBLE}[$ens]->{V}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin];
+			$LADCP{ENSEMBLE}[$ens]->{W}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin];
+			$LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin];
+			undef($LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin]);
+			undef($LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin]);
+			undef($LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin]);
+			undef($LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin]);
+
 			if (defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin])) {
 				$per_bin_nsamp[$bin]++;
 				$nvw++;
 			}
-			$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH} =
-			 	gimbal_pitch($LADCP{ENSEMBLE}[$ens]->{PITCH},$LADCP{ENSEMBLE}[$ens]->{ROLL});
+		
 			$LADCP{ENSEMBLE}[$ens]->{U_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{U}[$bin];
 			$LADCP{ENSEMBLE}[$ens]->{V_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{V}[$bin];
 			$LADCP{ENSEMBLE}[$ens]->{W_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin];
-			
-			($LADCP{ENSEMBLE}[$ens]->{V12}[$bin],$LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{V34}[$bin],$LADCP{ENSEMBLE}[$ens]->{W34}[$bin]) =
-			 	velBeamToBPEarth(\%LADCP,$ens,@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]});
 		}
 	}
 	progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
@@ -665,6 +717,8 @@ if ($LADCP{BEAM_COORDINATES}) {
 	progress("Counting valid vertical velocities...\n");
 	$nvw = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
+		$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH} =
+		 	gimbal_pitch($LADCP{ENSEMBLE}[$ens]->{PITCH},$LADCP{ENSEMBLE}[$ens]->{ROLL});
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			($LADCP{ENSEMBLE}[$ens]->{U}[$bin],
 			 $LADCP{ENSEMBLE}[$ens]->{V}[$bin],
@@ -681,9 +735,9 @@ if ($LADCP{BEAM_COORDINATES}) {
 			$LADCP{ENSEMBLE}[$ens]->{V12}[$bin] = $LADCP{ENSEMBLE}[$ens]->{V34}[$bin] = nan;
 
 			# for 3-beam solutions, the following code sets w12 and w34 equal to w
-			my($delta) = $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin] * sqrt(2)/2 * tan(rad($LADCP{BEAM_ANGLE}));
-			$LADCP{ENSEMBLE}[$ens]->{W12}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin] - $delta;
-			$LADCP{ENSEMBLE}[$ens]->{W34}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin] + $delta; 
+			my($delta) = $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin] / sqrt(2) / tan(rad($LADCP{BEAM_ANGLE}));
+			$LADCP{ENSEMBLE}[$ens]->{W12}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin] + $delta/2;
+			$LADCP{ENSEMBLE}[$ens]->{W34}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin] - $delta/2; 
 		}
 	}
 	progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
@@ -844,8 +898,11 @@ undef($antsOldHeaders);
 &antsAddParams('lat',$P{lat}) if defined($P{lat});
 &antsAddParams('lon',$P{lon}) if defined($P{lon});
 
-($CTD_elapsed,$CTD_depth,$CTD_svel,$CTD_w) = &fnr('elapsed','depth','ss','w');
-$CTD_temp = &fnrNoErr('temp');
+($CTD_elapsed,$CTD_depth,$CTD_svel) = &fnr('elapsed','depth','ss');
+$CTD_w 	  		= &fnrNoErr('w_CTD');
+$CTD_w	  		= &fnr('w') unless defined($CTD_w);
+$CTD_winchvel 	= &fnrNoErr('w_winch');
+$CTD_temp 		= &fnrNoErr('temp');
 warning(0,"no CTD temperature --- using ADCP temperature instead => Sv degraded!\n",$s)
    unless defined($CTD_temp);
 
@@ -857,7 +914,8 @@ do {																		# read data
 	push(@{$CTD{DEPTH}},  $ants_[0][$CTD_depth]);
 	push(@{$CTD{SVEL}},   $ants_[0][$CTD_svel]);
 	push(@{$CTD{W}},      $ants_[0][$CTD_w]);
-	push(@{$CTD{TEMP}},	  $ants_[0][$CTD_temp]) if defined($CTD_temp);
+	push(@{$CTD{TEMP}},	  $ants_[0][$CTD_temp]) 	if defined($CTD_temp);
+	push(@{$CTD{W_WINCH}},$ants_[0][$CTD_winchvel]) if defined($CTD_winchvel);
 	if ($ants_[0][$CTD_depth] > $CTD_maxdepth) {
 		$CTD_maxdepth = $ants_[0][$CTD_depth];
 		$CTD_atbottom = $#{$CTD{DEPTH}};
@@ -1091,10 +1149,9 @@ if ($nWsq > 0 && $nWsqI > 0) {
 	&antsAddParams('rms_w_reflr_err',sqrt($sumWsq/$nWsq),'rms_w_reflr_err_interior',sqrt($sumWsqI/$nWsqI));
 	progress("\t%.2f cm/s rms reference-layer w_ocean, %.2f cm/s away from boundaries\n",
 						100*sqrt($sumWsq/$nWsq),100*sqrt($sumWsqI/$nWsqI));
-#	if (sqrt($sumWsqI/$nWsqI) > 0.05) {
-#		warning(0,"%.2f cm/s (large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
-#	} els
-	if (sqrt($sumWsqI/$nWsqI) > 0.15) {
+	if (sqrt($sumWsqI/$nWsqI) > 0.05) {
+		warning(0,"%.2f cm/s (large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
+	} elsif (sqrt($sumWsqI/$nWsqI) > 0.15) {
 		warning(2,"%.2f cm/s (implausibly large) reference-layer w_ocean away from boundaries\n",100*sqrt($sumWsqI/$nWsqI));
 	}
 } elsif ($nWsq > 0) {
@@ -1111,8 +1168,9 @@ if ($nWsq > 0 && $nWsqI > 0) {
 progress("Calculating volume-scattering coefficients (Sv)...\n");
 calc_backscatter_profs($firstGoodEns,$lastGoodEns);
 
-if (@nSv) {
+if (defined($Sv_ref_bin) && @nSv) {
 	progress("\tapplying empirical Sv correction\n");
+	&antsAddParams('Sv_correction','empirical');
 	correct_backscatter($firstGoodEns,$lastGoodEns);
 }
 
@@ -1207,6 +1265,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
 	        &antsAddParams('sidelobe_editing','seabed');
 	    }
 
+		$PPI_editing |= eval($PPI_seabed_editing_required);
 		if ($PPI_editing) {
 			&antsAddParams('PPI_editing','seabed');
 			&antsAddParams('PPI_extend_upper_limit',$PPI_extend_upper_limit)
@@ -1267,7 +1326,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
 #----------------------------------------------------------------------
 # Data Editing after LADCP and CTD data have been merged
 #	1) surface layer editing
-#	2) user-supplied $edit_data_hook
+#	2) Execute user-supplied $edit_data_hook
 #----------------------------------------------------------------------
 
 progress("Removing data from instrument at surface...\n");
@@ -1321,7 +1380,7 @@ if ($opt_a != 1) {
 
 progress("Creating binned profiles at ${opt_o}m resolution...\n");
 
-&antsAddParams('outgrid_dz',$opt_o,'outgrid_minsamp',$opt_k);					# used by LADCP_w_regrid
+&antsAddParams('outgrid_dz',$opt_o,'outgrid_minsamp',$opt_k);					# used by LADCP_w_postproc
 &antsAddParams('outgrid_firstbin',$outGrid_firstBin,'outgrid_lastbin',$outGrid_lastBin);
 
 my($min_depth) = 9e99;
@@ -1471,7 +1530,7 @@ for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 #------------------------------------------------------------------------------------------------------
 
 unless ($opt_q) {
-	progress("Removing ping-coherent residuals...\n");
+	progress("Subtracting ping-coherent residuals...\n");
 	
 	for ($ens=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
@@ -1539,30 +1598,17 @@ unless ($opt_q) {
 #----------------------------------------------------------------------
 
 if (defined($opt_r)) {
-	progress("Removing ensembles with large residuals...\n");	
+	progress("Applying residuals filters...\n");	
 	
-	$nerm = 0;
-	for ($ens=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
-		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+	progress("\trms residuals > $residuals_rms_max: ");
+	my($nerm) = editResiduals_rmsMax($firstGoodEns,$lastGoodEns,$residuals_rms_max);
+	progress("$nerm ensembles removed (%d%% of total)\n",round(100*$nerm/($lastGoodEns-$firstGoodEns+1)));
 
-		my($sum) = my($n) = 0;														# calculate rms residual
-		my(@bindepth) = binDepths($ens);
-		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
-			next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
-		  	next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-		  	my($bi) = $bindepth[$bin]/$opt_o;
-			my($res) = ($ens < $LADCP_atbottom) ? 
-						$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $DNCAST{MEDIAN_W}[$bi] :
-						$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $UPCAST{MEDIAN_W}[$bi];
-			$sum += &SQR($res); $n++;						
-		}
-
-		if ($n == 0 || sqrt($sum/$n) > $opt_r) {									# ensemble is bad
-			undef($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
-			$nerm++;
-		}
+	if (defined($residuals_delta_max)) {											# filter based on difference between
+		progress("\tbeampair residuals difference > $residuals_delta_max [m/s]: ");    
+		my($nvrm) = editResiduals_deltaMax($firstGoodEns,$lastGoodEns,$residuals_delta_max);
+        progress("$nvrm velocities removed (%d%% of total in bins $LADCP_firstBin-$LADCP_lastBin)\n",round(100*$nvrm/$nvw));
 	}
-	progress("\t$nerm ensembles removed (%d%% of total)\n",round(100*$nerm/($lastGoodEns-$firstGoodEns+1)));
 
     progress("\tre-binning profile data...\n");
     undef(%DNCAST); undef(%UPCAST);
@@ -1807,7 +1853,7 @@ if (@out_wsamp) {
 	progress("Writing vertical-velocity data to ");
 	@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
 					  'w','w12','w34','v12','v34','residual','residual12','residual34',
-					  'CTD_w','CTD_w_t','CTD_w_tt','LADCP_w',
+					  'CTD_w','CTD_w_t','CTD_w_tt','LADCP_w','LADCP_reflr_w','winch_w',
 					  'errvel','correlation','echo_amplitude','Sv',
 					  'pitch','roll','tilt','heading','3_beam','svel');
 
@@ -1846,6 +1892,8 @@ if (@out_wsamp) {
 				  $CTD{W_t}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin],
+				  $LADCP{ENSEMBLE}[$ens]->{REFLR_W},
+				  $CTD{W_WINCH}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
 				  median(@{$LADCP{ENSEMBLE}[$ens]->{CORRELATION}[$bin]}),
 				  median(@{$LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin]}),
@@ -1884,6 +1932,8 @@ if (@out_wsamp) {
 				  $CTD{W_t}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin],
+				  $LADCP{ENSEMBLE}[$ens]->{REFLR_W},
+				  $CTD{W_WINCH}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin],
 				  median(@{$LADCP{ENSEMBLE}[$ens]->{CORRELATION}[$bin]}),
 				  median(@{$LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin]}),

@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Thu Mar 31 05:52:01 2016
+#                    dlm: Thu May 26 20:42:15 2016
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 62 42 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 639 69 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -60,6 +60,8 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #				  - added $libSBE_quiet flag
 #	Mar 30, 2016: - added station number of ASCII format
 #	Mar 31, 2016: - changed version %PARAM
+#	May 26, 2016: - renamed w[.raw] to CTD_w[.raw]
+#				  - added winch_w
 
 ($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
@@ -68,24 +70,26 @@ $WCALC   = '.' if ($WCALC eq '');
 require "$WCALC/version.pl";
 require "$ANTS/ants.pl";
 require "$ANTS/fft.pl";
+require "$ANTS/libstats.pl";
 require "$ANTS/libGMT.pl";
 require "$ANTS/libSBE.pl";
 require "$ANTS/libEOS83.pl";
 &antsAddParams('LADCP_w_CTD::version',$VERSION);
 
 $antsParseHeader = 0;											# usage
-&antsUsage('ai:l:orp:s:v:',1,
+&antsUsage('ai:l:orp:s:v:w:',1,
 	'[-v)erbosity <level[0]>]',
 	'[use -a)lternate sensor pair]',
 	'[-r)etain all data (no editing)] [allow infinite -o)utliers]',
 	'[-s)ampling <rate[6Hz]>]',
-	'[-l)owpass w <cutoff[2s]>]',
+	'[-l)owpass w_CTD <cutoff[2s]>] [-w)inch-speed <granularity[10s]>]',
 	'[profile -i)d <id>]',
 	'[-p)lot_basenames <[%03d_w_CTD.ps],[%03d_sspd.ps]>]',
 	'<SBE CNV file>');
 
-&antsFloatOpt(\$opt_l,2);										# defaults
-&antsCardOpt(\$opt_s,6);
+&antsFloatOpt(\$opt_l,2);										# default low-pass cutoff for w_CTD
+&antsCardOpt(\$opt_s,6);										# default output samplint rate (Hz)
+&antsFloatOpt(\$opt_w,10);										# winch velocity granularity
 &antsCardOpt(\$opt_v,$ENV{VERB});								# support VERB env variable
 
 $CNVfile = $ARGV[0];											# open CNV file
@@ -579,7 +583,36 @@ if ($opt_l > 0) {
 	@w_lp = @w;
 }
 
-#----------------------------------------------------------------------
+#----------------------------------------
+# Estimate winch speed
+#----------------------------------------
+
+print(STDERR "Estimating winch velocity...") if ($opt_v);
+&antsAddParams('winch_velocity_granularity',$opt_w);
+
+my($from_r) = 0; my($to_r);												# step 1: bin average in time
+for (my($from_r)=my($to_r)=0; $from_r<@elapsed; $from_r=$to_r+1) {
+	my($sumw) = $w_lp[2*$from_r]/@w_lp; my($n) = 1;
+	for ($to_r=$from_r+1; $to_r<@elapsed && $elapsed[$to_r]-$elapsed[$from_r]<$opt_w; $to_r++) {
+		$sumw += $w_lp[2*$to_r]/@w_lp; $n++;
+	}
+	$winch[$from_r] = $sumw/$n;
+}
+
+my($pwinch) = $winch[0];
+for (my($to_r),my($from_r)=0; $from_r<@elapsed; ) {						# step 2: fill after median filtering
+	for ($to_r=$from_r+1; $to_r<@elapsed && !defined($winch[$to_r]); $to_r++) {}
+	my($nwinch) = $to_r<@elapsed ? $winch[$to_r] : $winch[$from_r];
+	my($winch) = median($pwinch,$winch[$from_r],$nwinch);
+	$pwinch = $winch[$from_r]; $winch[$from_r] = $winch;
+	while (++$from_r < $to_r) { $winch[$from_r] = $winch[$from_r-1]; }
+}
+		
+printf(STDERR "\n") if ($opt_v);
+
+#----------------------------------------
+# Plot Data
+#----------------------------------------
 
 if (defined($opt_p)) {
 	print(STDERR "Plotting data...\n") if ($opt_v);
@@ -597,10 +630,15 @@ if (defined($opt_p)) {
 		printf(GMT "%f %f\n",$elapsed[$r]/60,$w_lp[2*$r]/@w_lp);
 		GMT_psxy('-W1,SeaGreen') if ($r == $atBtm);
 	}
+	GMT_psxy('-W1,magenta');
+	for ($r=0; $r<@w; $r++) {
+		printf(GMT "%f %f\n",$elapsed[$r]/60,$winch[$r]);
+    }
 	GMT_psbasemap('-Bg60a30f5:"Elapsed Time [min]":/g1a1f0.1:"Vertical Package Velocity [ms@+-1@+]":WeSn');
 	GMT_unitcoords();
-	GMT_pstext('-F+f14,Helvetica,coral+jTR'); 	  print(GMT "0.98 0.98 dc\n");
-	GMT_pstext('-F+f14,Helvetica,SeaGreen+jTR');  print(GMT "0.98 0.94 uc\n");
+	GMT_pstext('-F+f14,Helvetica,coral+jBR'); 	 print(GMT "0.98 0.96 dc\n");
+	GMT_pstext('-F+f14,Helvetica,SeaGreen+jBR'); print(GMT "0.98 0.93 uc\n");
+	GMT_pstext('-F+f14,Helvetica,magenta+jBR');  print(GMT "0.98 0.89 winch\n");
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
 	if (defined($outfile)) { printf(GMT "0.01 1.06 $outfile\n",$id); }
 	else 				   { printf(GMT "0.01 1.06 %03d\n",$id); }
@@ -618,8 +656,8 @@ if (defined($opt_p)) {
 		GMT_psxy('-W1.5,SeaGreen') if ($r == $atBtm);
 	}
 	GMT_unitcoords();
-	GMT_pstext('-F+f14,Helvetica,coral+jTR'); 	print(GMT "0.98 0.02 dc\n");
-	GMT_pstext('-F+f14,Helvetica,SeaGreen+jTR');  print(GMT "0.98 0.06 uc\n");
+	GMT_pstext('-F+f14,Helvetica,coral+jTR'); 	 print(GMT "0.98 0.02 dc\n");
+	GMT_pstext('-F+f14,Helvetica,SeaGreen+jTR'); print(GMT "0.98 0.06 uc\n");
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
 	if (defined($outfile)) { printf(GMT "0.01 -0.06 $outfile\n",$id); }
 	else 				   { printf(GMT "0.01 -0.06 %03d\n",$id); }
@@ -630,10 +668,11 @@ if (defined($opt_p)) {
 
 print(STDERR "Writing output...\n") if ($opt_v);
 
-@antsNewLayout = ('elapsed','press','temp','cond','depth','salin','sspd','w.raw','w','lat','lon');
+@antsNewLayout = ('elapsed','press','temp','cond','depth','salin','sspd','w_CTD.raw','w_CTD','w_winch','lat','lon');
 for ($r=0; $r<@w; $r++) {
 	&antsOut($elapsed[$r],$press[$r],$temp[$r],$cond[$r],$depth[$r],$salin[$r],
-			 $sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp,$lat[$r],$lon[$r]);
+			 $sspd[$r],$w[$r],$w_lp[2*$r]/@w_lp,$winch[$r],
+			 $lat[$r],$lon[$r]);
 }
 
 exit(0);															# don't flush @ants_

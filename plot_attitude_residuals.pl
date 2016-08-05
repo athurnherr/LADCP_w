@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ A T T I T U D E _ R E S I D U A L S . P L 
 #                    doc: Sun May 15 16:08:59 2016
-#                    dlm: Tue May 24 16:39:01 2016
+#                    dlm: Wed Jun  8 22:12:19 2016
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 54 24 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 92 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,11 +15,12 @@
 #                 - expunged $realLastGoodEns
 #	May 19, 2016: - added notes about beam planes
 #   May 24, 2016: - calc_binDepths() -> binDepths()
+#   Jun  8, 2016: - adapted to correct tilt axis
 
 # IMPORTANT NOTE:
 #   - the variables prefixed with p/r refer to beam-pairs 1,2 and 3,4 respectively,
 #     i.e. the p variables correspond to the roll plane and the r variables
-#          correspond to the pitch plane
+#     correspond to the pitch plane. This is confusing.
 
 require "$ANTS/libGMT.pl";
 
@@ -59,8 +60,8 @@ sub plot_attitude_residuals($)
 			next unless numberp($LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W12}[$bin]) &&
 						numberp($LADCP{ENSEMBLE}[$e]->{SSCORRECTED_OCEAN_W34}[$bin]);
 
-			my($pi) = int($LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH}+$opt_t);							# pitch/roll indices
-			my($ri) = int($LADCP{ENSEMBLE}[$e]->{ROLL}+$opt_t);
+			my($ri) = int($LADCP{ENSEMBLE}[$e]->{GIMBAL_PITCH}+$opt_t);							# pitch/roll indices
+			my($pi) = int($LADCP{ENSEMBLE}[$e]->{ROLL}+$opt_t);
 			my($bi) = $bindepth[$bin]/$opt_o;
 
 			if ($e < $LADCP_atbottom) {															# downcast
