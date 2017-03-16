@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Thu May 26 20:42:15 2016
+#                    dlm: Fri Jul 29 11:20:47 2016
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 639 69 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 69 48 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -62,6 +62,11 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	Mar 31, 2016: - changed version %PARAM
 #	May 26, 2016: - renamed w[.raw] to CTD_w[.raw]
 #				  - added winch_w
+#	Jul 29, 2016: - change w_CTD plot label to reflect sign convention
+
+# NOTES:
+#	w_CTD is positive during the downcast to make the sign of the apparent
+#		  water velocity consistent with w_ocean
 
 ($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
@@ -634,7 +639,7 @@ if (defined($opt_p)) {
 	for ($r=0; $r<@w; $r++) {
 		printf(GMT "%f %f\n",$elapsed[$r]/60,$winch[$r]);
     }
-	GMT_psbasemap('-Bg60a30f5:"Elapsed Time [min]":/g1a1f0.1:"Vertical Package Velocity [ms@+-1@+]":WeSn');
+	GMT_psbasemap('-Bg60a30f5:"Elapsed Time [min]":/g1a1f0.1:"Downward Package Velocity [ms@+-1@+]":WeSn');
 	GMT_unitcoords();
 	GMT_pstext('-F+f14,Helvetica,coral+jBR'); 	 print(GMT "0.98 0.96 dc\n");
 	GMT_pstext('-F+f14,Helvetica,SeaGreen+jBR'); print(GMT "0.98 0.93 uc\n");

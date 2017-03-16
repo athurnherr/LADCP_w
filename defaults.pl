@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Mon Jun  6 22:07:19 2016
+#                    dlm: Sun Mar 12 12:53:44 2017
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 179 18 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 459 36 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -76,6 +76,12 @@
 #	May 28, 2016: - added delta-residual filter (-r)
 #	Jun  1, 2016: - added $plotting_level
 #	Jun  2, 2016: - added $tilt_correction_*
+#	Jun  6, 2016: - removed $tilt_correction_*
+#	Jul 12, 2016: - updated docu on acoustic backscatter
+#	Jul 31, 2016: - BUG: -d to disable bin mapping did not work, because
+#						 this file is read before the options are parsed
+#	Aug  5, 2016: - updated header
+#	Dec 22, 2016: - added $opt_p
 
 #======================================================================
 # Output Log Files
@@ -117,8 +123,7 @@ $plotting_level = 1;
 # linear bin interpolation (which is better than bin mapping).
 # This only has an effect for beam-coordinate data.
 
-$RDI_Coords::binMapping = $opt_d ? 'none' : 'linterp';
-
+# $RDI_Coords::binMapping = 'none';
 
 # The following variables allow bias-correcting the attiude 
 # sensors.
@@ -325,6 +330,15 @@ $TL_max_allowed_three_lag_spread = 3;
 &antsFloatOpt(\$opt_3,0.6);
 
 
+# Time lagging is carried out in "partial cast pieces". By default
+# the down- and upcasts are treated separately, which is accomplished
+# by setting $opt_p to '+'. In general, the $opt_p variable contains
+# a comma-separated list of elapsed splitting times (in minutes),
+# with '+' denoting the time of maximum depth.
+
+$opt_p = '+' unless defined($opt_p);
+
+
 #======================================================================
 # Acoustic Backscatter and Seabed Search
 #======================================================================
@@ -332,11 +346,15 @@ $TL_max_allowed_three_lag_spread = 3;
 # After applying the method of Deines (1999), an empirical correction
 # for Sv is applied to the data. The following variable determines which
 # bin is chosen to construct a reference profile for Sv. The bin number
-# is automatically increased if the selected bin does not contain valid
+# is automatically increased if its value is less than LADCP_firstBin (-b),
+# and also if the selected bin does not contain valid
 # data, i.e. the default value of 1 ensures that the closest valid bin
 # is used to construct the reference profile. The empirical correction
 # causes artifacts every 100m. To disable the empirical
-# correction, undefine the following variable.
+# correction, undefine the following variable ($Sv_ref_bin = undef;)
+#
+# NOTE: Accoustic backscatter data in the reference bin are not
+#		corrected beyond the method of Deines (1999).
 
 $Sv_ref_bin = 1; 
 
@@ -435,9 +453,12 @@ $BT_max_w_error = 0.03;
 
 
 # The -o option sets the output grid resolution in meters. The following
-# sets the default value.
+# sets the default value. It was increased from 20m to 40m in Feb 2017
+# for V1.3 because this value was required for the DoMORE-2 data and
+# also improves the profiles from 2017 P18, as well as from a recent
+# GoM data set provided by J. Ochoa.
 
-&antsFloatOpt(\$opt_o,20);
+&antsFloatOpt(\$opt_o,40);
 
 
 # The following variables limit the bins used to grid w_oean

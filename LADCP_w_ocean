@@ -2,14 +2,15 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Sat Jun 11 18:34:12 2016
+#                    dlm: Mon Mar  6 13:46:31 2017
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 272 65 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 280 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
 #   ! use instrument tilt in sidelobe editing
-#	! use instrument tilt in e.g. Sv
+#	- use instrument tilt in e.g. calculation of Sv
+#	- use instrument tilt in PPI editing
 #
 #   - plots:
 #       - avoid over-plotting axis labels
@@ -270,6 +271,12 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #						 calculated
 #	Jun  6, 2016: - removed applyTiltCorrection()
 #	Jun 11, 2016: - BUG: w12, w34 were wrong for Earth-coord data
+#	Jul  7, 2016: - BUG: finally fixed with velEarthToBPw() from [RDI_Coords.pl]
+#	Jul 31, 2016: - BUG: -d did not work because it was handled in [defaults.pl]
+#	Oct 16, 2016: - cosmetics
+#	Dec 22, 2016: - moved $opt_p to [defaults.pl]
+#	Dec 23, 2016: - BUG: -u did not set required variables to proceed
+#	Mar  6, 2017: - BUG: division by zero when water-depth ~ max(CTD_depth)
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -394,7 +401,7 @@ if ($opt_V) {
 &antsUsageError() unless (@ARGV==1 || @ARGV==2);
 
 &antsCardOpt(\$opt_s,0);												# skip # initial ensembles
-$opt_p = '+' unless defined($opt_p);									# separate uc/dc time lagging
+#$opt_p = '+' unless defined($opt_p);									# separate uc/dc time lagging
 
 &antsFloatOpt(\$opt_a,1);												# pressure acceleration correction
 
@@ -429,7 +436,6 @@ $processing_options = "-k $opt_k -o $opt_o -c $opt_c -t $opt_t -e $opt_e -g $opt
 $processing_options .= " -i $opt_i" if defined($opt_i);
 $processing_options .= ' -l' if defined($opt_l);
 $processing_options .= ' -q' if defined($opt_q);
-$processing_options .= ' -d' if defined($opt_d);
 
 if (defined($opt_x)) {													# eval cmd-line expression to override anything
 	$processing_options .= " -x $opt_x";
@@ -439,6 +445,11 @@ if (defined($opt_x)) {													# eval cmd-line expression to override anythi
 if ($opt_4) {															# disallow 3-beam solutions
 	$processing_options .= " -4";
 	$RDI_Coords::minValidVels = 4;
+}
+
+if ($opt_d) {
+	$processing_options .= ' -d';
+	$RDI_Coords::binMapping = 'none';
 }
 	
 if (defined($opt_r)) {													# residuals filters
@@ -734,10 +745,9 @@ if ($LADCP{BEAM_COORDINATES}) {
 
 			$LADCP{ENSEMBLE}[$ens]->{V12}[$bin] = $LADCP{ENSEMBLE}[$ens]->{V34}[$bin] = nan;
 
-			# for 3-beam solutions, the following code sets w12 and w34 equal to w
-			my($delta) = $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin] / sqrt(2) / tan(rad($LADCP{BEAM_ANGLE}));
-			$LADCP{ENSEMBLE}[$ens]->{W12}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin] + $delta/2;
-			$LADCP{ENSEMBLE}[$ens]->{W34}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin] - $delta/2; 
+			# for 3-beam solutions, w12 = w34 = w (I think)
+			($LADCP{ENSEMBLE}[$ens]->{W12}[$bin],$LADCP{ENSEMBLE}[$ens]->{W34}[$bin]) =
+				velEarthToBPw($LADCP,$ens,@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]});
 		}
 	}
 	progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
@@ -963,7 +973,6 @@ for (my($d)=$min_depth+1; $d<=$#sVelProf; $d++) {							# fill interior gaps
 	$sVelProf[$d] = $sVelProf[$d-1]
 		unless defined($sVelProf[$d]);
 }
-	
 
 #-------------------
 # Determine time lag
@@ -993,6 +1002,8 @@ if (defined($opt_i)) {
 
 if ($opt_u) {
 	progress("\tskipping time lagging (-u)\n");
+	$CTD_time_lag[0] = $CTD{TIME_LAG};
+	$CTD_tl_toEns[0] = $lastGoodEns;
 } else {
 
 	#------------------------
@@ -1078,7 +1089,7 @@ for (my($skipped)=0,my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
 
 	if ($ens > $CTD_tl_toEns[$cli]) {											# use correct lag piece
 		$cli++;
-		die("assertion failed!\n\ttest: \$cli(=$cli) <= \$#CTD_time_lag\n")
+		die("assertion failed!\n\ttest: \$cli(=$cli) <= \$#CTD_time_lag(=$#CTD_time_lag) at ens=$ens\n")
 			unless ($cli <= $#CTD_time_lag);
 		$lag = $CTD_time_lag[$cli];
 	}
@@ -1271,17 +1282,23 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
 			&antsAddParams('PPI_extend_upper_limit',$PPI_extend_upper_limit)
 				if numberp($PPI_extend_upper_limit);
 			progress("Editing data to remove PPI from seabed...\n");
-			  progress("\tConstructing depth-average soundspeed profile...\n");
-			  die("assertion failed") unless defined($water_depth);
-			  my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
-			  my($sum) = $dz * $sVelProf[$#sVelProf];
-			  $DASSprof[$#sVelProf] = $sum/$dz;
-			  for (my($d)=$#sVelProf-1; $d>=0; $d--) {
-			  	die("assertion failed (d=$d, #sVelProf=$#sVelProf)") unless numberp($sVelProf[$d]);
-			  	$sum += $sVelProf[$d];
+			progress("\tConstructing depth-average soundspeed profile...\n");
+			die("assertion failed") unless defined($water_depth);
+			my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
+			my($sum) = $dz * $sVelProf[$#sVelProf];
+			if ($dz == 0) {													# water-depth <= max CTD depth
+				warning(1,"inferred water depth very close to max(CTD depth)\n");
+				$DASSprof[$#sVelProf] = $sVelProf[$#sVelProf];
+            } else {
+				die("assertion failed") unless defined($dz > 0);
+				$DASSprof[$#sVelProf] = $sum/$dz;
+            }
+			for (my($d)=$#sVelProf-1; $d>=0; $d--) {
+				die("assertion failed (d=$d, #sVelProf=$#sVelProf)") unless numberp($sVelProf[$d]);
+				$sum += $sVelProf[$d];
 			  	$dz++;
 				$DASSprof[$d] = $sum/$dz;
-			  }
+			}
 			($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,$water_depth);
 	        progress("\t$nvrm velocities from $nerm ensembles removed\n");
 	    }

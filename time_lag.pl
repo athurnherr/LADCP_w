@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Mon Mar  7 18:31:34 2016
+#                    dlm: Tue Mar  7 09:03:20 2017
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 71 68 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 73 63 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -69,6 +69,8 @@
 #	Feb 19, 2016: - added support for -l
 #				  - added warning
 #	Mar  7, 2016: - BUG: editing did not work correctly in all cases
+#	Mar  6, 2017: - BUG: assertion in mad_w failed with 2017 P18 DL#206
+#	Mar  9, 2017: - tightened timelag editing (good_diff: 2->1)
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -78,23 +80,24 @@
 
 my($TINY) = 1e-6;
 
-sub mad_w($$$)									# mean absolute deviation
+sub mad_w($$$)																# mean absolute deviation
 {
-	my($fe,$le,$so) = @_;						# first/last LADCP ens, CTD scan offset
-	my($sad) = my($n) = 0;
+	my($fe,$le,$so) = @_;													# first/last LADCP ens, CTD scan offset
 
 	my($LADCP_mean_w,$CTD_mean_w,$nsamp) = (0,0,0);
-	for (my($e)=$fe; $e<=$le; $e++) {			# first, calculate mean w in window
+	for (my($e)=$fe; $e<=$le; $e++) {										# first, calculate mean w in window
 		my($s) = int(($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
-		next unless ($s>=0 && $s<=$#{$CTD{ELAPSED}});
+
+#	THE FOLLOWING LINE CAUSES AN ASSERTION FAILURE WITH 2017 P08 DL#206. I AM NOT SURE WHETHER MY
+#	FIX SOLVES THE UNDERLYING PROBLEM OR ONLY THIS SPECIAL CASE.
+#		next unless ($s>=0 && $s<=$#{$CTD{ELAPSED}});
+
+		next unless ($s>0 && $s<=$#{$CTD{ELAPSED}});
 		die("assertion failed\n" .
 			"\ttest: abs($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$s]) <= $CTD{DT}/2\n" .
 			"\te = $e, s = $s, ensemble = $LADCP{ENSEMBLE}[$e]->{NUMBER}"
 		) unless (abs($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[$s]) <= $CTD{DT}/2+$TINY);
 		next unless numberp($LADCP{ENSEMBLE}[$e]->{REFLR_W});
-		my($dw) = $LADCP{ENSEMBLE}[$e]->{REFLR_W}-$LADCP_mean_w - ($CTD{W}[$s+$so]-$CTD_mean_w);
-		next unless (abs($dw) <= $w_max_lim);
-
 		$LADCP_mean_w += $LADCP{ENSEMBLE}[$e]->{REFLR_W};
 		$CTD_mean_w   += $CTD{W}[$s+$so];
 		$nsamp++;
@@ -103,15 +106,18 @@ sub mad_w($$$)									# mean absolute deviation
 	$LADCP_mean_w /= $nsamp;
 	$CTD_mean_w /= $nsamp;
 
-	for (my($e)=$fe; $e<=$le; $e++) {			# now, calculate mad
-		my($s) = int(($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
-		my($dw) = $LADCP{ENSEMBLE}[$e]->{REFLR_W}-$LADCP_mean_w - ($CTD{W}[$s+$so]-$CTD_mean_w);
+	my($sad) = 0;															# now, calculate mad
+	for (my($e)=$fe; $e<=$le; $e++) {			
 		next unless numberp($LADCP{ENSEMBLE}[$e]->{REFLR_W});
+		my($s) = int(($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
+		next unless ($s>=0 && $s<=$#{$CTD{ELAPSED}});
+		next unless numberp($LADCP{ENSEMBLE}[$e]->{REFLR_W});
+		my($dw) = $LADCP{ENSEMBLE}[$e]->{REFLR_W}-$LADCP_mean_w - ($CTD{W}[$s+$so]-$CTD_mean_w);
+#		print(STDERR "dw = $dw ($LADCP{ENSEMBLE}[$e]->{REFLR_W}-$LADCP_mean_w - ($CTD{W}[$s+$so]-$CTD_mean_w)\n");
 		next unless (abs($dw) <= $w_max_lim);
 		$sad += abs($dw);
-		$n++;
 	}
-	return ($n>0) ? $sad/$n : 9e99;				# n == 0, e.g. in bottom gap
+	return $sad/$nsamp;
 }
 
 
@@ -121,12 +127,16 @@ sub bestLag($$$$)								# find best lag in window
 	my($bestso) = 0;							# error at first-guess offset
 	my($bestmad) = mad_w($fe,$le,0);
 
+#	print(STDERR "bestLag($fe,$le,$ww,$soi)\n");
 	for (my($dso) = 1; $dso <= int($ww/2/$CTD{DT} + 0.5); $dso+=$soi) {
 		my($mad) = mad_w($fe,$le,-$dso);
+#		print(STDERR "-$dso $mad\n");
 		$bestmad=$mad,$bestso=-$dso if ($mad < $bestmad);
 		$mad = mad_w($fe,$le,$dso);
+#		print(STDERR " $dso $mad\n");
 		$bestmad=$mad,$bestso=$dso if ($mad < $bestmad);
 	}
+#	print(STDERR "-> $bestso $bestmad\n");
 	return ($bestso,$bestmad);
 }
 
@@ -279,7 +289,7 @@ RETRY:
 	#----------------------------------------------------
 
 	my(@fg,@lg);
-	my($min_runlength) = 7; my($scan_runlength) = 7; my($min_good) = 4; my($good_diff) = 2;
+	my($min_runlength) = 7; my($scan_runlength) = 7; my($min_good) = 4; my($good_diff) = 1;
 	unless ($failed || $scan_increment>1) {
 		my($state) = 0; 
 		for (my($i)=0; 1; $i++) {

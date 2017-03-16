@@ -1,9 +1,9 @@
 #======================================================================
 #                    V E R S I O N . P L 
 #                    doc: Tue Oct 13 10:40:57 2015
-#                    dlm: Thu Jun  2 12:20:26 2016
+#                    dlm: Sun Mar 12 12:11:05 2017
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 27 110 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 26 15 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -17,12 +17,14 @@
 #	Apr 16, 2016: - V1.2beta8
 #	May 12, 2016: - V1.2
 #	May 19, 2016: - updated ADCP tools to V1.6
+#	Aug  5, 2017: - updated ANTS lib to V6.7
+#	Mar 12, 2017: - updated ANTS lit to V6.8
 
 #$VERSION = '1.1';				# Jan  4, 2016
 #$VERSION = '1.2';				# May 12, 2016
 
-$VERSION = '1.3beta2';
+$VERSION = '1.3';
 
-$antsMinLibVersion 		= 6.6;
-$ADCP_tools_minVersion 	= 1.7;		# May 2016 (RDI_Coords with bin interpolation & better pitch/roll rotation)
+$antsMinLibVersion 		= 6.8;		# Feb 2017: - .lsfit.poly, .nminterp.linear added
+$ADCP_tools_minVersion 	= 1.9;		# Feb 2017: - round() namespace clash resolved
 

@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ T I M E _ L A G S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Tue May 24 22:11:30 2016
+#                    dlm: Tue Mar  7 12:04:21 2017
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 59 81 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 35 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,7 +12,7 @@
 #	Mar 16, 2016: - adapted to gmt5
 #   May 18, 2016: - added version
 #	May 24, 2016: - fixed for partial-depth casts
-
+#	mar  7, 2017: - added time lines for -p
 
 require "$ANTS/libGMT.pl";
 
@@ -30,7 +30,19 @@ sub plot_time_lags($)
 	my($R) = "-R$xmin/$xmax/$ymin/$ymax";
 	GMT_begin($pfn,'-JX10',$R,'-P');
 
-	GMT_psxy('-Sc0.1 -Gcoral');
+	GMT_psxy('-W1,grey30');											# time lines
+	for (my($x)=round($xmin,10); $x<=$xmax; $x+=10) {
+		printf(GMT "%f $ymin\n%f $ymax\n>\n",$x,$x);
+	}
+
+	GMT_psxy('-W8,yellow');											# offset runs
+	for (my($i)=0; $i<@bmo_buf; $i++) {
+		printf(GMT ">\n%f %f\n%f %f\n",
+			$fg_buf[$i]/60-0.5,$bmo_buf[$i],
+			$lg_buf[$i]/60+0.5,$bmo_buf[$i]);
+	}
+
+	GMT_psxy('-Sc0.1 -Gcoral');										# individual offsets
 		for (my($wi)=0; $wi<@elapsed_buf; $wi++) {
 			last unless ($elapsed_buf[$wi]<$LADCP{ENSEMBLE}[$LADCP_atbottom]->{ELAPSED});
 			printf(GMT "%f %f\n",$elapsed_buf[$wi]/60,$so_buf[$wi]);
@@ -41,14 +53,7 @@ sub plot_time_lags($)
 			printf(GMT "%f %f\n",$elapsed_buf[$wi]/60,$so_buf[$wi]);
         }
 
-	GMT_psxy('-W1,grey20');
-	for (my($i)=0; $i<@bmo_buf; $i++) {
-		printf(GMT ">\n%f %f\n%f %f\n",
-			$fg_buf[$i]/60-0.5,$bmo_buf[$i],
-			$lg_buf[$i]/60+0.5,$bmo_buf[$i]);
-	}
-
-	GMT_unitcoords();																	# LABELS
+	GMT_unitcoords();												# labels
 	GMT_pstext('-F+f9,Helvetica,orange+jTR -N -Gwhite');
         print(GMT "0.99 0.99 V$VERSION\n");
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');

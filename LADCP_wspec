@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W S P E C 
 #                    doc: Thu Jun 11 12:02:49 2015
-#                    dlm: Thu Mar 31 11:08:44 2016
+#                    dlm: Sun Mar 12 12:01:59 2017
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 154 41 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 48 17 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE window spectra from LADCP profiles';
@@ -31,8 +31,8 @@ $antsSummary = 'calculate VKE window spectra from LADCP profiles';
 #   Mar 31, 2016: - changed version %PARAM
 #				  - BUG: nspec was nan insted of 0
 #				  - replaced wspec:: %PARAM-prefix with LADCP_wspec::
+#	Mar 12, 2017: - removed ANTSBIN (which is not public)
 
-($ANTSBIN) = (`which list` =~ m{^(.*)/[^/]*$});
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
 $WCALC = '.' if ($WCALC eq '');
@@ -44,8 +44,8 @@ require "$ANTSLIB/libstats.pl";
 require "$ANTSLIB/fft.pl";
 require "$ANTSLIB/lfit.pl";
 require "$ANTSLIB/nrutil.pl";
-require "$ANTSBIN/.lsfit.poly";
-require "$ANTSBIN/.nminterp.linear";
+require "$ANTSLIB/.lsfit.poly";
+require "$ANTSLIB/.nminterp.linear";
 &antsAddParams('LADCP_wspec::version',$VERSION);
 
 #----------------------------------------------------------------------

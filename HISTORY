@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Wed Jun  8 22:07:57 2016
+                    dlm: Thu Mar 16 11:53:07 2017
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 182 43 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 260 19 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 ----------------------------------------------------------------------
@@ -175,8 +175,86 @@ V1.3:
 		- updated version to V1.3beta2 [version.pl] [.hg/hgrc]
 		- udated ANTS_tools lib to V1.7 (beam interpolation)
 		- adapted [LADCP_w_ocean] to beam interpolation
+		- minor improvement to [LADCP_w_postproc]
+		- improved [plot_wprof.pl]
 
-...
+	Jun  1, 2016
+		- improvements to [LADCP_w_ocean]
+		- added [default_output.pl]
+		- added [plot_residuals12.pl] [plot_residuals34.pl]
+
+	Jun  2, 2016:
+		- minor improvement and bug fix in [LADCP_w_ocean]
+
+	Jun  3, 2016:
+		- minor bug fix in [LADCP_w_ocean]
+
+	Jun  6, 2016:
+		- minor improvement in [LADCP_w_ocean] [defaults.pl] [edit_data.pl]
 
 	Jun  8, 2016:
 		- removed plot_attitude_biases_w.pl
+		- slight improvement to [plot_attitude_residuals.pl]
+
+	Jun 11, 2016:
+		- began debugging w12 & w34 for Earth-coord data [LADCP_w_ocean]
+
+	Jul  7, 2016:
+		- major BUG in [LADCP_w_ocean] (beam-pair velocities for Earth
+		  coord data)
+
+	Jul 12, 2016:
+		- docu in [defaults.pl]		  
+
+	Jul 29, 2016:
+		- minor plotting bug in [LADCP_w_CTD]
+
+	Jul 31, 2016:
+		- minor bug in [LADCP_w_ocean] [defaults.pl]		  
+
+	Aug  5, 2016:
+		- committed version found on whoosher after repair
+		- manually uploaded from ECOGIG cruise laptop:
+			- [LADCP_w_ocean] 	changes since Jun 11, 2016
+			- [defaults.pl]		changes since Jun  2, 2016
+			- [LADCP_w_CTD]		changes since May 26, 2016
+        - updated [version.pl] to require ANTSlib V6.7
+        - updated HISTORY
+
+	Aug 16, 2016:
+		- [LADCP_VKE] increased -l default 1.2e-7 based on UK2.5 SR1
+		  			  repeat section
+
+	Dec 22, 2016:
+		- [LADCP_w_ocean] moved $opt_p to [defaults.pl]		  			  
+
+	Dec 23, 2016:
+		- [LADCP_w_ocean] minor bug
+
+	Sep  1, 2016:
+		- [LADCP_VKE] changed -l to mean epsilon, and increased value to
+					  1e-10
+
+	Mar  6, 2017:
+		- [LADCP_w_ocean] minor bug
+		- [time_lag.pl] minor bug
+
+	Mar  7, 2017:
+		- added time lines to [plot_time_lags.pl]
+
+	Mar  9, 2017:
+		- tightened timelag editing condition in [time_lag.pl]
+		- updated [HISTORY]
+
+	Mar 12, 2017:
+		- adapted to antslib V6.8 [version.pl]
+		- adapted ADCP_tools to V1.9
+		- increased -o default from 20 to 40m
+		- updated to V1.3
+
+	Mar 15, 2017:
+		- added [loadANTS.pl] for V1.3
+		- updated howto
+
+	Mar 16, 2017:
+		- published
