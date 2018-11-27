@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Thu May 26 11:29:32 2016
+#                    dlm: Tue Mar 20 15:26:21 2018
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 20 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 22 53 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -18,6 +18,8 @@
 #				  - fixed for partial-depth profiles
 #				  - suppress plotting of nsamp == 0
 #	May 26, 2016: - added instrument coord system to plot labels
+#	Mar 20, 2018: - BUG: units of vertical package acceleration were wrong
+#				  - added blue background for likely in-ice package accelerations
 
 # Tweakables:
 #
@@ -164,19 +166,23 @@ sub plot_wprof($)
 	}
 			printf(GMT "0.91 1.090 %.1f\\260\n",$P{uc_mean_tilt});
 
-	if ($P{dc_rms_accel_pkg} < 0.7) {
+	if ($P{dc_rms_accel_pkg} < 0.1) {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gblue -N');
+	} elsif ($P{dc_rms_accel_pkg} < 0.7) {
 		GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
 	} else {
 		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gyellow -N');
 	}
-		printf(GMT "0.78 1.125 %.1fm\@+2\@+/s\n",$P{dc_rms_accel_pkg});
+		printf(GMT "0.78 1.125 %.1fm/s\@+2\@+\n",$P{dc_rms_accel_pkg});
 		
-	if ($P{uc_rms_accel_pkg} < 0.7) {
+	if ($P{uc_rms_accel_pkg} < 0.1) {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gblue -N');
+	} elsif ($P{uc_rms_accel_pkg} < 0.7) {
 		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
 	} else {
 		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gyellow -N');
 	}
-		printf(GMT "0.89 1.125 %.1fm\@+2\@+/s\n",$P{uc_rms_accel_pkg});
+		printf(GMT "0.89 1.125 %.1fm/s\@+2\@+\n",$P{uc_rms_accel_pkg});
 		
 	my($depth_tics) = ($plot_wprof_ymax-$plot_prof_ymin < 1000 ) ? 'f10a100' : 'f100a500';				# AXES
 	setR1();

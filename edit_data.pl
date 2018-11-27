@@ -1,9 +1,9 @@
 #======================================================================
-#                    E D I T _ D A T A . P L 
+#                    / D A T A / S R C / O C E A N O G R A P H Y / L A D C P _ V E R T I C A L _ V E L O C I T Y / E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Mon Jun  6 21:13:28 2016
+#                    dlm: Tue Nov 27 11:07:33 2018
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 543 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 46 71 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -41,6 +41,9 @@
 #				  - verified that removed velocities are counted correctly
 #	Jun  3, 2016: - BUG: applyTiltCorrection() did not use gimbal_pitch
 #	Jun  6, 2016: - removed applyTiltCorrection()
+#	Oct 13, 2017: - BUG: editPPI() only allowed for nominal transducer frequencies
+#	May  1, 2018: - added editLargeHSpeeds()
+#	Nov 17, 2018: - BUG: spurious letter "z" had crept in at some stage
 
 # NOTES:
 #	- all bins must be edited (not just the ones between $LADCP_firstBin
@@ -53,6 +56,7 @@
 
 #======================================================================
 # correctAttitude($ens,$pitch_bias,$roll_bias,$heading_bias)
+#	- attitude bias correction
 #	- this is called before gimbal_pitch is calculated
 #======================================================================
 
@@ -371,11 +375,11 @@ sub editPPI($$$)
 	my($nerm) = 0;			# of ensembles affected
 
 	unless (defined($bha)) {
-		if    ($LADCP{BEAM_FREQUENCY} == 1200) { $bha = 2.4; }
-		elsif ($LADCP{BEAM_FREQUENCY} ==  600) { $bha = 2.5; }
-		elsif ($LADCP{BEAM_FREQUENCY} ==  300) { $bha = 3.7; }
-		elsif ($LADCP{BEAM_FREQUENCY} ==  150) { $bha = 6.7; }
-		elsif ($LADCP{BEAM_FREQUENCY} ==   75) { $bha = 8.4; }
+		if    (abs($LADCP{BEAM_FREQUENCY}-1200)/1200 <= 0.1) { $bha = 2.4; }
+		elsif (abs($LADCP{BEAM_FREQUENCY}-600) / 600 <= 0.1) { $bha = 2.5; }
+		elsif (abs($LADCP{BEAM_FREQUENCY}-300) / 300 <= 0.1) { $bha = 3.7; }
+		elsif (abs($LADCP{BEAM_FREQUENCY}-150) / 150 <= 0.1) { $bha = 6.7; }
+		elsif (abs($LADCP{BEAM_FREQUENCY}-75)  /  75 <= 0.1) { $bha = 8.4; }
 		else { error("$0: unexpected transducer frequency $LADCP{BEAM_FREQUENCY}\n"); }
 	}
 	
@@ -539,6 +543,27 @@ sub editResiduals_deltaMax($$$)
 		}
     }
     return $nvrm;
+}
+
+#======================================================================
+# $nerm = editLargeHSpeeds($fe,$te,$max_hspeed)
+#	- filter based on 2018 GO-SHIP LADCP profile #106, where UL 
+#	  velocities become bad when ship starts dragging rosette
+#	- only valid bin range is edited/counted
+#======================================================================
+
+sub editLargeHSpeeds($$$)
+{
+	my($fe,$te,$limit) = @_;
+	my($nerm) = 0;
+	for (my($ens)=$fe; $ens<=$te; $ens++) {
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+		next unless (vel_speed($LADCP{ENSEMBLE}[$ens]->{REFLR_U},
+							   $LADCP{ENSEMBLE}[$ens]->{REFLR_U}) > $limit);
+		undef($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+		$nerm++;
+	}
+    return $nerm;
 }
 
 #======================================================================

@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Tue Mar 14 17:38:00 2017
+#                    dlm: Tue Jul 24 17:02:30 2018
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 155 45 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 399 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -103,6 +103,11 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #	Mar 13, 2017: - added -a)mbient <eps>
 #	Mar 14, 2017: - disabled -a) by default, because -a 0 is clearly bad and
 #				    I have no evidence yet that -a something is better than -l 0
+#	Oct 17, 2017: - added default 'eps' field on -k
+#				  - added eps.ms field to files processed without -k
+#	Dec  9, 2017: - added support for $antsSuppressCommonOptions
+#	Apr 24, 2018: - BUG: output was one field too wide (filled with nans) because antsBufNFields was not reset
+#	Apr 25, 2018: - added -y and removed spectral bins from default output
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -137,7 +142,8 @@ $opt_c_default = 100;					# short-wavelength cutoff
 # Usage
 #----------------------------------------------------------------------
 
-&antsUsage('a:bc:de:f:g:i:k:l:mno:p:q:r:s:tuw:x:z:',0,
+$antsSuppressCommonOptions = 1;
+&antsUsage('a:bc:de:f:g:i:k:l:mno:p:q:r:s:tuw:x:yz:',0,
 		    "[poly-o)rder <n[$opt_o]> to de-mean data; -1 to disable>] [apply cosine-t)aper]",
 		    '[-d)own/-u)pcast-only] [exclude -b)ottom window]',								# LADCP_wspec options
 			"[-s)urface <layer depth to exclude[${opt_s}m]>",
@@ -150,6 +156,7 @@ $opt_c_default = 100;					# short-wavelength cutoff
 			'[o-m)it spectral correction] [spectral-tilt-correction -r)ange <max[0m]>]',
 			"[-e)ps-parameterization <constant[${c}s^-0.5]>",
 			'[include microstructure -k)e dissipation <file:field> in _VKE plot]',
+			'[-y) record spectra in output file]',
 			'[write output -f)iles to <directory>]',
 			'[write output filed with -i)ndividual spectra <basename>]',
 			'[output -p)lot <ps-file[#_VKE.ps]>]',
@@ -239,6 +246,7 @@ if (defined(fnrNoErr('dc_w'))) {													# pre-process with LADCP_wspec when
 	undef(@antsLayout);																# shouldn't matter, because it will get overwritten
 	undef($antsOldHeaders);															# forget those
 	undef(@ants_);
+	$antsBufNFields = 0;
 
 } elsif (defined(fnrNoErr('pwrdens.0'))) {
 	croak("$0: -d, -u, -b, -w, -s meaningless when $0 used with spectral input\n")
@@ -398,7 +406,6 @@ sub fit_universal_w_spec($)														# vertical velocity => p0
 
 		my($DOF) = 0;
 		
-		
 		my($sumd,$sumx,$sumy) = (0,0,0);										# fit kz^-2 power law
 		for (my($f)=$fs_fmin; $f<=$fs_fmax; $f++) {
 			my($i) = $f - $pg_fmin;
@@ -455,6 +462,7 @@ sub fit_universal_w_spec($)														# vertical velocity => p0
 my(@eps_ms,@depth_ms);										# output variables
 if (defined($opt_k)) {
 	my($file,$field) = split(':',$opt_k);
+	$field = 'eps' unless defined($field);
 	open(ADDF,"$file") || croak("$file: $!\n");				# open file
 	my(@afl) = &antsFileLayout(ADDF);						# read layout
 	my($akf,$aef);
@@ -485,8 +493,7 @@ $rf      = &antsNewField('p0fit.r');						# correlation coefficient
 $slpf	 = &antsNewField('p0fit.slope');					# power-law slope
 $sslpf	 = &antsNewField('p0fit.slope.sig');				# power-law slope stddev
 $wepsf   = &antsNewField('eps.VKE');						# epsilon from VKE
-$msepsf  = &antsNewField('eps.ms')							# externally supplied microstructure eps
-	if defined($opt_k);
+$msepsf  = &antsNewField('eps.ms');							# externally supplied microstructure eps if available
 
 my(@outLayout) = @antsNewLayout;							# save for later
 for ($f=0; $f<@outLayout; $f++) {							# determine last spectral field in input
@@ -599,7 +606,9 @@ for (my($r)=0; $r<@ants_; $r++) {														# loop over all windows
 			$sum += $eps_ms[$i]; $n++;
 		}
 		$ants_[$r][$msepsf] = $n ? $sum / $n : nan;
-	}
+	} else {
+		$ants_[$r][$msepsf] = nan;
+    }
 	
 	#---------------
 	# produce output
@@ -727,5 +736,12 @@ if (defined($opt_p)) {															# complete plot
 $antsOldHeaders = $Hbuf;
 $antsHeadersPrinted = 0;
 
-&antsFlush();																	# output record with results
+unless (defined($opt_y)) {														# remove spectral bins from output
+	splice(@antsNewLayout,$pg_fmin,$nfreq);
+	for (my($r)=0; $r<@ants_; $r++) {
+		splice(@{$ants_[$r]},$pg_fmin,$nfreq);
+    }
+}
+
+&antsFlush();																	# output results
 &antsExit();

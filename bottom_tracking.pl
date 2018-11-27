@@ -1,9 +1,9 @@
 #======================================================================
 #                    B O T T O M _ T R A C K I N G . P L 
 #                    doc: Wed Oct 20 21:05:37 2010
-#                    dlm: Tue May 24 16:34:43 2016
+#                    dlm: Tue May  1 21:48:54 2018
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 116 5 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 21 14 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,8 +15,10 @@
 #	Mar  4, 2014: - removed old unused code
 #	Jan 26, 2016: - added %PARAMs
 #   May 24, 2016: - calc_binDepths() -> binDepths()
+#	May  1, 2018: - log-file cosmetics
 
-# This code is essentially identical to the one used in LADCPproc. Differences:
+# This code is derived from the one used in LADCPproc, with the following
+# differences:
 #	1) velocity editing is simpler: no wake editing, no PPI editing, no shear
 #	   editing, no w outlier
 #	2) median/mad calculated instead of mean/stddev
@@ -129,7 +131,7 @@ sub calc_BTprof($$$$)
 	progress("\t$nBTfound BT ensembles found\n");
 	progress("\t$nBTdepthFlag flagged bad because of wrong bottom depth\n");
 	progress("\t$nBTvalidVelFlag flagged bad because of no valid velocities\n");
-	progress("\t$nBTwFlag flagged bad because of incorrect vertical velocity\n");
+	progress("\t$nBTwFlag flagged bad because of inconsistent vertical velocity\n");
 
 	for (my($gi)=0; $gi<@BTw; $gi++) {						# calc grid medians & mads
 		$BT{N_SAMP}[$gi] = @{$BTw[$gi]};

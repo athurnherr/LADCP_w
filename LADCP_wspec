@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W S P E C 
 #                    doc: Thu Jun 11 12:02:49 2015
-#                    dlm: Sun Mar 12 12:01:59 2017
+#                    dlm: Thu Nov  1 10:09:48 2018
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 48 17 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 39 29 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE window spectra from LADCP profiles';
@@ -32,6 +32,11 @@ $antsSummary = 'calculate VKE window spectra from LADCP profiles';
 #				  - BUG: nspec was nan insted of 0
 #				  - replaced wspec:: %PARAM-prefix with LADCP_wspec::
 #	Mar 12, 2017: - removed ANTSBIN (which is not public)
+#	Dec  9, 2017: - added $antsSuppressCommonOptions = 1;
+#	Dec 14, 2017: - added w.rms to output
+#	May 13, 2018: - BUG: Removal of higher order polynomials (-o > 0) did not work
+#	May 16, 2018: - modified depth.{min,max} to respect input resolution
+#	Nov  1, 2018: - cosmetics
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -52,13 +57,14 @@ require "$ANTSLIB/.nminterp.linear";
 # Usage
 #----------------------------------------------------------------------
 
+$antsSuppressCommonOptions = 1;
 &antsUsage('bc:dg:o:s:tuw:',0,
             '[poly-o)rder <n[0]> to de-mean data; -1 to disable>] [suppress cosine-t)aper]',
             '[-d)own/-u)pcast-only] [exclude -b)ottom window]',
             '[shortwave -c)utoff <kz or lambda>]',
             '[-s)urface <layer depth to exclude[150m]>',
             '[-g)ap <max depth layer to fill with interpolation[40m]>]',
-            '[-w)indow <power-of-two input-records[32]>]',
+            '[-w)indow <power-of-two input-records>]',
             '[LADCP-profile(s)]');
 
 &antsIntOpt(\$opt_o,0);                                     # polynomial order to remove
@@ -132,9 +138,9 @@ $dz = &antsXCheck($zfnr,0,$#ants_,1.01);						# calc dT; 1% jitter
 
 $opt_g = int(($opt_g - 1) / $dz);								# [m] -> [records]
 
-unless (defined($opt_w)) {										# window size
+unless (defined($opt_w)) {										# default window size: largest pwr-of-two <= 600m
 	for ($opt_w=32; $opt_w*$dz>600; $opt_w/=2) {}
-	&antsInfo("%d-m windows ($opt_w records)",$opt_w*$dz);
+	&antsInfo("%d-m windows ($opt_w samples)",$opt_w*$dz);
 }
 &antsAddParams('LADCP_wspec::window_size',$opt_w,'LADCP_wspec::output_depth_resolution',$dz*$opt_w);
 
@@ -146,7 +152,7 @@ $resolution_bandwidth = 1 / $zrange;
 $resolution_bandwidth *= 2*$PI;
 &antsAddParams('LADCP_wspec::resolution_bandwidth',$resolution_bandwidth);
 
-push(@antsNewLayout,'widx','depth','depth.min','depth.max','hab','nspec','w.nsamp.avg');
+push(@antsNewLayout,'widx','depth','depth.min','depth.max','hab','w.rms','nspec','w.nsamp.avg');
 for (my($i)=0; $i<$opt_w/2+1; $i++) {
 	my($kz) = 2*$PI*$i/$zrange;
 	last if ($kz > $kzlim);
@@ -233,16 +239,33 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 		$opt_b = 1;
 	}
 
+	#--------------------------------------------------
+	# calculate rms w in window
+	#	- also determines if there are missing y values
+	#--------------------------------------------------
+	
+	my($dc_gap) = $opt_u;											# exclude dc with -d, uc with -u
+	my($uc_gap) = $opt_d;
+	my($sumsq,$n) = (0,0);
+	for (my($r)=$fromR; $r<$fromR+$opt_w; $r++) {
+		if (numberp($ants_[$r][$dcwfnr])) {
+			$sumsq += $ants_[$r][$dcwfnr]**2;
+			$n++;
+		} else {
+			$dc_gap = 1;
+		}
+		if (numberp($ants_[$r][$ucwfnr])) {
+			$sumsq += $ants_[$r][$ucwfnr]**2;
+			$n++;
+		} else {
+			$uc_gap = 1;
+		}
+	}
+	my($wrms) = ($n > 0) ? sqrt($sumsq/$n) : nan;
+
 	#-----------------------------------
 	# output nan on non-numeric y values
 	#-----------------------------------
-
-	my($dc_gap) = $opt_u;											# exclude dc with -d, uc with -u
-	my($uc_gap) = $opt_d;
-	for (my($r)=$fromR; $r<$fromR+$opt_w; $r++) {
-		$dc_gap |= !numberp($ants_[$r][$dcwfnr]);
-		$uc_gap |= !numberp($ants_[$r][$ucwfnr]);
-	}
 
 	if ($dc_gap && $uc_gap) {
 		push(@out,$ants_[$fromR+$opt_w/2][$zfnr]);		
@@ -255,6 +278,7 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 	    }
 	    push(@out,defined($habfnr) ?								# hab
 						avgF($habfnr,$fromR) : nan);
+		push(@out,$wrms);											# rms w						
 		push(@out,0);												# nspec
 		push(@out,nan);												# w.nsamp.avg
 		for ($i=0; $i<=$opt_w/2; $i++) {							# power
@@ -285,7 +309,7 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 			&lfit($zfnr,$dcwfnr,-1,\@A,\@iA,\@covar,\&modelEvaluate,$fromR,$fromR+$opt_w-1);
 			&modelCleanup();
 			for (my($i)=0; $i<$opt_w; $i++) {
-				modelEvaluate($i,$zfnr,\@afunc);
+				modelEvaluate($fromR+$i,$zfnr,\@afunc);
 				for ($calc=0,my($p)=1; $p<=$modelNFit; $p++) {
 					$calc += $A[$p] * $afunc[$p];
 				}
@@ -298,7 +322,7 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 			&lfit($zfnr,$ucwfnr,-1,\@A,\@iA,\@covar,\&modelEvaluate,$fromR,$fromR+$opt_w-1);
 			&modelCleanup();
 			for (my($i)=0; $i<$opt_w; $i++) {
-				modelEvaluate($i,$zfnr,\@afunc);
+				modelEvaluate($fromR+$i,$zfnr,\@afunc);
 				for ($calc=0,my($p)=1; $p<=$modelNFit; $p++) {
 					$calc += $A[$p] * $afunc[$p];
 				}
@@ -341,16 +365,18 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 	@uc_pwr = &pgram_onesided($opt_w,@uc_coeff)
 		unless ($uc_gap);
 	
-	push(@out,$ants_[$fromR+$opt_w/2][$zfnr]);					# middle z
+#	push(@out,$ants_[$fromR+$opt_w/2][$zfnr]);					# middle z
+	push(@out,avgF($zfnr,$fromR));								# average z
 	if ($ants_[0][$zfnr] > $ants_[1][$zfnr]) {					# input descending
-		push(@out,$ants_[$fromR+$opt_w-1][$zfnr]);				# z.min
-		push(@out,$ants_[$fromR][$zfnr]); 						# z.max
+		push(@out,$ants_[$fromR+$opt_w-1][$zfnr]-$dz/2);		# z.min
+		push(@out,$ants_[$fromR][$zfnr]+$dz/2);					# z.max
 	} else {													# input ascending
-		push(@out,$ants_[$fromR][$zfnr]);						# z.min
-		push(@out,$ants_[$fromR+$opt_w-1][$zfnr]);				# z.max
+		push(@out,$ants_[$fromR][$zfnr]-$dz/2);					# z.min
+		push(@out,$ants_[$fromR+$opt_w-1][$zfnr]+$dz/2);		# z.max
     }
     push(@out,defined($habfnr) ?								# hab
 					avgF($habfnr,$fromR) : nan);
+	push(@out,$wrms);											# w.rms					
 	my($nspec) = !$dc_gap + !$uc_gap;							# nspec
 	push(@out,$nspec);
 	my($nsamp_sum) = my($nsn) = 0;								# w.nsamp.avg

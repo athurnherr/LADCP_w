@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Sun Mar 12 12:53:44 2017
+#                    dlm: Wed May  2 14:11:50 2018
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 459 36 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 308 44 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -82,6 +82,11 @@
 #						 this file is read before the options are parsed
 #	Aug  5, 2016: - updated header
 #	Dec 22, 2016: - added $opt_p
+#	Nov 27, 2017: - added @valid_ensemble_range
+#	Nov 29, 2017: - replaced opt_i by initial_time_lag
+#	Apr 24, 2018: - added $water_depth_db_cmd
+#	May  2, 2018: - added max_hspeed
+#				  - replaced $PPI_seabed_editing_required by &PPI_seabed_editing_required
 
 #======================================================================
 # Output Log Files
@@ -112,6 +117,12 @@ $plotting_level = 1;
 #======================================================================
 # Input Data 
 #======================================================================
+
+# The two elements in the @valid_ensemble_range array limit the minimum
+# and maximum ensemble numbers considered during processing. This is
+# useful primarily for files with lots of on-deck data.
+
+# @valid_ensemble_range = (3000,10000)
 
 # Set $opt_4 to 1 (or use the -4 option) to suppress 3-beam LADCP 
 # solutions. This only has an effect for beam-coordinate data.
@@ -247,12 +258,32 @@ $per_bin_valid_frac_lim = 0.15;
 $surface_layer_depth = 25;
 
 
+# Water depth is important for precious ping interference editing 
+# (see below) and for setting the height-above bottom field.
+# 	- by default, water depth for dowwnward-facing ADCPs is determined
+#	  from the seabed echo return
+#	- when water depth is set explicitly either via the $water_depth or
+#	  the $opt_h variable no search for the seabed is done
+#	- the variable $water_depth_db_cmd can be set to the name of an 
+#	  external command, which is used to get nominal water depth
+#	  from a data base if there is no other water depth information
+#	  (from echo return or supplied by user). The command will be
+#	  called with longitude and latitude as the only arguments and
+#	  is expected to return the water depth in meters.
+
+#$water_depth = 2048;					# uncomment to set water depth to 2048m
+#$opt_h	= 2048;							# uncomment to set water depth to 2048m
+#$water_depth_db_cmd = 'waterdepth';	# uncomment to use 'waterdepth' command to get water depth
+
+
 # Previous Ping Interference editing as described in [edit_data.pl]
-#	- enabled by default for WH150 data
-#	- PPI_seabed_editing_required defines a string with a perl expression 
-#	  that is evaluated once the data are loaded; if true, seabed PPI
-#	  editing is enabled 
-#	- to enable PPI editing without condition, set $PPI_editing = 1;
+#	- enabled by default seabed editing of WH150 data but nothing else
+#	- PPI_seabed_editing_required is a function that is called
+#	  once the data are loaded for the downlooker only; if it 
+#	  returns true, seabed PPI editing is enabled
+#	- PPI_surface_editing_required is a function that is called
+#	  once the data are loaded for the uplooker only; if it 
+#	  returns true, sea surface PPI editing is enabled
 #	- 2014 CLIVAR P16 #47 has a slight discontinuity at 4000m; this
 #	  discontinuity is there without PPI filtering but gets slightly
 #	  worse with PPI filtering. Setting $PPI_extend_upper_limit to 
@@ -263,10 +294,18 @@ $surface_layer_depth = 25;
 #	  set by the shortest acoustic path between the ADCP and the 
 #	  seabed.
 
-$PPI_seabed_editing_required = '($LADCP{BEAM_FREQUENCY} < 300)';
+sub PPI_seabed_editing_required()
+{
+#	return 1;								# uncomment to enable unconditional PPI editing
+	return ($LADCP{BEAM_FREQUENCY} < 300);	# low-frequency instruments require PPI editing
+}
 
-#$PPI_editing = 1;						# uncomment to enable PPI always
-#$PPI_extend_upper_limit = 1.03;		# see comments above
+sub PPI_surface_editing_required()
+{
+	return 0;								# no sea surface PPI editing by default
+}
+
+#$PPI_extend_upper_limit = 1.03;			# see comments above
 
 
 # The following variables control the "non-obvious" sidelobe editing for
@@ -285,14 +324,35 @@ $sidelobe_editing_UL_seabed		= 1;
 $vessel_draft					= 6;		# in meters
 
 
+# The following function, which is called after the LADCP data have been 
+# read, must return the maximum horizontal reference-layer
+# speed that is allowed. The following values are based on 2018 GO-SHIP
+# S4P profile #106 where the CTD rosette was dragged quickly during
+# the latter part of the upcast. Of course, it is possible that the
+# differnces between the UL and DL data could be due to tilt-
+# sensor differences, rather than due to instrument type.
+
+sub max_hspeed()
+{
+	if (abs($LADCP{BEAM_FREQUENCY}-300) <= 25) {		# 300kHz Workhorse
+		$max_hspeed = 0.55;	# meters/second
+	} elsif (abs($LADCP{BEAM_FREQUENCY}-150) <= 25) {	# 150kHz Workhorse
+		$max_hspeed = 0.35;	# meters/second
+	} else {
+		warning(2,"unknown horizontal speed limit for this instrument frequency ($LADCP{BEAM_FREQUENCY} kHz)\n");
+		$max_hspeed = 9e99;
+	}
+}
+
 #======================================================================
 # Time Lagging
 #======================================================================
 
-# The -i option allows defining an initial guess for the time lag between
-# the LADCP and the CTD data.
+# The following variable allows specifying an initial guess for the time 
+# lag between the LADCP and the CTD data. The -i option overrides any value
+# set in the [ProcessingParams] file.
 
-# $opt_i = 567;
+# $initial_time_lag = 567;
 
 
 # The following variables define the bins used to calculate the reference-

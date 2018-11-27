@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon Mar  6 13:46:31 2017
+#                    dlm: Tue Nov 27 14:04:39 2018
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 280 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 282 15 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -277,6 +277,22 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Dec 22, 2016: - moved $opt_p to [defaults.pl]
 #	Dec 23, 2016: - BUG: -u did not set required variables to proceed
 #	Mar  6, 2017: - BUG: division by zero when water-depth ~ max(CTD_depth)
+#	Oct 12, 2017: - BUG: beampair w did not work for earth-coord vels; major re-write
+#						 of earthcoord code to unify processing
+#	Nov 26, 2017: - BUG: $bad_beam did not work correctly with bin interpolation
+#				  - BUG: ping-coherent residual removal did not respect missing values
+#	Nov 28, 2017: - added $initial_time_lag
+#				  - expanded semantics of -q to disable time-lagging and residual filters
+#	Dec  9, 2017: - added $antsSuppressCommonOptions = 1;
+#	Dec 17, 2017: - added dependencies
+#	Apr 24, 2018: - added support for $water_depth_db_cmd
+#	May  1, 2018: - added threshold for reference-layer horizontal speed
+#				  - added ambiguity velocity check
+#	May  2, 2018: - BUG: ref-lr threshold did not work
+#				  - BUG: BT code was called for UL when -h was used
+#				  - replaced $PPI_seabed_editing_required by &PPI_seabed_editing_required
+#				  - BUG: surface PPI editing code could not be enabled; added &PPI_surface_editing_required
+#	Nov  2, 2018: - BUG: for 3-beam solutions, residual{12,34} with affected beam was wrong
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -371,13 +387,13 @@ my($TINY) = 1e-16;
 require "$WCALC/defaults.pl";												# load default/option parameters
 
 $antsParseHeader = 0;
+$antsSuppressCommonOptions = 1;
 &antsUsage('3:4a:b:c:de:g:h:i:k:lm:n:o:p:qr:s:t:uv:Vw:x:',0,
 	"[print software -V)ersion] [-v)erbosity <level[$opt_v]>]",
-	"[-q)uick (no single-ping denoising)]",
     "[require -4)-beam solutions] [-d)isable bin interpolation] [apply beamvel-m)ask <file> if it exists]",
 	"[valid LADCP -b)ins <bin,bin[$opt_b]>",
 	"[-c)orrelation <min[$opt_c counts]>] [-t)ilt <max[$opt_t deg]> [-e)rr-vel <max[$opt_e m/s]>]",
-	"[-r)esidual <rms.max[,delta.max][$opt_r m/s]>]",
+	"[max -r)esidual <rms.max[,delta.max][$opt_r m/s]>]",
 	"[-h water <depth|filename>]",
 	"[max LADCP time-series -g)ap <length[$opt_g s]>]",
 	"[-i)nitial CTD time offset <guestimate> [-u)se as final]]",
@@ -387,13 +403,14 @@ $antsParseHeader = 0;
 	"[pressure-sensor -a)cceleration-derivative correction <residual/CTD_w_tt>]",
 	"[-o)utput bin <resolution[$opt_o m]>] [-k) require <min[$opt_k]> samples]",
 	"[e-x)ecute <perl-expr>]",
+	"[-q)uick-and-dirty (no single-ping denoising, residual and time-lagging filters)]",
 	"<profile-id> [run-label]");
 
 if ($opt_V) {
-	printf(STDERR "+-------------------------+\n");
-	printf(STDERR "| LADCP_w Software V%s	|\n",$VERSION);
-	printf(STDERR "|(c) 2015- A.M. Thurnherr |\n");
-	printf(STDERR "+-------------------------+\n");
+	printf(STDERR "+------------------------------+\n");
+	printf(STDERR "| LADCP_w Software V%s        |\n",$VERSION);
+	printf(STDERR "| (c) 2015-2017 A.M. Thurnherr |\n");
+	printf(STDERR "+------------------------------+\n");
 	exit(0);
 }
 
@@ -433,9 +450,17 @@ if (!defined($retval) && $@ ne '') {
 require "$WCALC/default_output.pl";										# set default output plots and files
 
 $processing_options = "-k $opt_k -o $opt_o -c $opt_c -t $opt_t -e $opt_e -g $opt_g -3 $opt_3";
-$processing_options .= " -i $opt_i" if defined($opt_i);
 $processing_options .= ' -l' if defined($opt_l);
-$processing_options .= ' -q' if defined($opt_q);
+
+if (defined($opt_q)) {													# quick-and-dirty
+	$processing_options .= ' -q';
+	$opt_l = 1;															# disable time-lagging filter
+}
+
+if (defined($opt_i)) {													# set initial time lag
+	$processing_options .= " -i $opt_i";
+	$initial_time_lag = &antsFloatOpt($opt_i);
+}
 
 if (defined($opt_x)) {													# eval cmd-line expression to override anything
 	$processing_options .= " -x $opt_x";
@@ -447,7 +472,7 @@ if ($opt_4) {															# disallow 3-beam solutions
 	$RDI_Coords::minValidVels = 4;
 }
 
-if ($opt_d) {
+if ($opt_d) {															# disable bin mapping
 	$processing_options .= ' -d';
 	$RDI_Coords::binMapping = 'none';
 }
@@ -478,7 +503,7 @@ $processing_options .= " -w $opt_w";
 
 croak("$0: \$out_basename undefined\n")									# plotting routines use this to label the plots
 	unless defined($out_basename);
-&antsAddParams('RDI_Coords::binMapping',$RDI_Coords::binMapping);
+#&antsAddParams('RDI_Coords::binMapping',$RDI_Coords::binMapping);		# must be set below since binmapping depends on coords
 &antsAddParams('processing_options',$processing_options);
 &antsAddParams('out_basename',$out_basename);
 &antsAddParams('profile_id',$PROF,'run_label',$RUN);
@@ -551,12 +576,26 @@ sub debugmsg(@)
 
 progress("Reading LADCP data from <$LADCP_file>...\n");
 readData($LADCP_file,\%LADCP);
+&antsAddDeps($LADCP_file);
 if ($LADCP{BEAM_COORDINATES}) {
 	progress("\t%d ensembles (beam coordinates)\n",scalar(@{$LADCP{ENSEMBLE}}));
 } else {
 	progress("\t%d ensembles (Earth coordinates)\n",scalar(@{$LADCP{ENSEMBLE}}));
 }
 
+if ($valid_ensemble_range[0] > 0) {					# remove leading invalid records
+	my($ens) = 0;
+	while ($ens < @{$LADCP{ENSEMBLE}} && $LADCP{ENSEMBLE}[$ens]->{NUMBER}<$valid_ensemble_range[0]) { $ens++ }
+	splice(@{$LADCP{ENSEMBLE}},0,$ens);
+	progress("\t%d invalid leading ensembles removed\n",$ens)
+}
+if ($valid_ensemble_range[1] > 0) {					# remove trailing invalid records
+	my($ens) = 0;
+	while ($ens < @{$LADCP{ENSEMBLE}} && $LADCP{ENSEMBLE}[$ens]->{NUMBER}<$valid_ensemble_range[1]) { $ens++ }
+	splice(@{$LADCP{ENSEMBLE}},$ens);
+	progress("\t%d invalid trailing ensembles removed\n",@{$LADCP{ENSEMBLE}}-$ens)
+}
+			   
 error("$LADCP_file: cannot process multi-ping ensembles\n")
 	unless ($LADCP{PINGS_PER_ENSEMBLE} == 1);
 warning(2,"$LADCP_file: wide-bandwidth setting\n")
@@ -598,11 +637,15 @@ warning(1,"if at all, bin 1 should not be used for short blank-after-transmit va
 			   'ADCP_frequency',$LADCP{BEAM_FREQUENCY},
 			   'ADCP_blanking_distance',$LADCP{BLANKING_DISTANCE});
 
+
 #------------------------------------------------------------
-# Edit beam-velocity data
-#	0) beam-vel mask on -m
-#		mask file has three columns: from_ens to_ens ignore_beam
-#	1) correlation threshold
+# Edit velocity data
+#	beam coords:
+#		1) beam-vel mask on -m
+#		   mask file has three columns: from_ens to_ens ignore_beam
+#		2) correlation threshold
+#	Earth coords:
+#		1) correlation threshold
 #------------------------------------------------------------
 
 if ($LADCP{BEAM_COORDINATES}) {
@@ -663,6 +706,27 @@ if ($LADCP{BEAM_COORDINATES}) {
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$opt_c,$cte,round(100*$cte/$nvv));
 }
 
+#------------------------------------------------------------
+# Create beam coordinate velocities for Earth-velocity data
+#	- velocities are replaced "in place"
+#	- BT velocities are treated separately in [find_seabed.pl]
+#	- this transformation will remove all 3-beam solutions
+#	- disable bin mapping because Earth coords are typically bin-remapped
+#------------------------------------------------------------
+
+unless ($LADCP{BEAM_COORDINATES}) {
+	progress("Replacing earth- with beam-velocities...\n");
+	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
+		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+			@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]} = 
+				&velEarthToBeam(\%LADCP,$ens,@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]});
+        }
+    }
+	$RDI_Coords::binMapping = 'none';
+}
+
+&antsAddParams('RDI_Coords::binMapping',$RDI_Coords::binMapping);		# finally, bin mapping is known
+
 #-------------------------------------------------------------------
 # Calculate earth velocities
 #	- this is done for all bins (not just valid ones), to allow
@@ -673,85 +737,59 @@ if ($LADCP{BEAM_COORDINATES}) {
 #	  been very useful so far)
 #-------------------------------------------------------------------
 
-if ($LADCP{BEAM_COORDINATES}) {
-	my($dummy);
-	progress("Calculating earth-coordinate velocities...\n");
-	if ($bad_beam) {
-		progress("\tdiscarding velocities from beam $bad_beam\n");
-		&antsAddParams('bad_beam_discarded',$bad_beam);
-	}
-	$nvw = 0;
-	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
-		$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH} =
-		 	gimbal_pitch($LADCP{ENSEMBLE}[$ens]->{PITCH},$LADCP{ENSEMBLE}[$ens]->{ROLL});
-
-		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
-			if ($bad_beam) {
-				undef($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$bad_beam-1]);
-				undef($LADCP{ENSEMBLE}[$ens]->{BT_VELOCITY}[$bin][$bad_beam-1]);
-			}
-			($LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin]) = earthVels(\%LADCP,$ens,$bin);
-			($LADCP{ENSEMBLE}[$ens]->{V12}[$bin],$LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{V34}[$bin],$LADCP{ENSEMBLE}[$ens]->{W34}[$bin]) = BPEarthVels(\%LADCP,$ens,$bin);
-		}
-
-		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
-			$LADCP{ENSEMBLE}[$ens]->{U}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin];
-			$LADCP{ENSEMBLE}[$ens]->{V}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin];
-			$LADCP{ENSEMBLE}[$ens]->{W}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin];
-			$LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin];
-			undef($LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin]);
-			undef($LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin]);
-			undef($LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin]);
-			undef($LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin]);
-
-			if (defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin])) {
-				$per_bin_nsamp[$bin]++;
-				$nvw++;
-			}
-		
-			$LADCP{ENSEMBLE}[$ens]->{U_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{U}[$bin];
-			$LADCP{ENSEMBLE}[$ens]->{V_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{V}[$bin];
-			$LADCP{ENSEMBLE}[$ens]->{W_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin];
-		}
-	}
-	progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
-	progress("\t3-beam solutions : $RDI_Coords::threeBeam_1 " .
-								  "$RDI_Coords::threeBeam_2 " .
-								  "$RDI_Coords::threeBeam_3 " .
-								  "$RDI_Coords::threeBeam_4\n")
-	    unless ($opt_4);
-} else { # Earth Coordinates
-	progress("Counting valid vertical velocities...\n");
-	$nvw = 0;
-	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
-		$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH} =
-		 	gimbal_pitch($LADCP{ENSEMBLE}[$ens]->{PITCH},$LADCP{ENSEMBLE}[$ens]->{ROLL});
-		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
-			($LADCP{ENSEMBLE}[$ens]->{U}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{V}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{W}[$bin],
-			 $LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin]) = @{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]};
-			if (defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin])) {
-				$per_bin_nsamp[$bin]++;
-				$nvw++;
-			}
-			$LADCP{ENSEMBLE}[$ens]->{U_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{U}[$bin];
-			$LADCP{ENSEMBLE}[$ens]->{V_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{V}[$bin];
-			$LADCP{ENSEMBLE}[$ens]->{W_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin];
-
-			$LADCP{ENSEMBLE}[$ens]->{V12}[$bin] = $LADCP{ENSEMBLE}[$ens]->{V34}[$bin] = nan;
-
-			# for 3-beam solutions, w12 = w34 = w (I think)
-			($LADCP{ENSEMBLE}[$ens]->{W12}[$bin],$LADCP{ENSEMBLE}[$ens]->{W34}[$bin]) =
-				velEarthToBPw($LADCP,$ens,@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]});
-		}
-	}
-	progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
+my($dummy);
+progress("Calculating earth-coordinate velocities...\n");
+if ($bad_beam) {
+	progress("\tdiscarding velocities from beam $bad_beam\n");
+	&antsAddParams('bad_beam_discarded',$bad_beam);
 }
+$nvw = 0;
+for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
+	$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH} =
+		gimbal_pitch($LADCP{ENSEMBLE}[$ens]->{PITCH},$LADCP{ENSEMBLE}[$ens]->{ROLL});
+
+	if ($bad_beam) {
+		for (my($bin)=0; $bin<=$LADCP{N_BINS}-1; $bin++) {
+			undef($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][$bad_beam-1]);
+			undef($LADCP{ENSEMBLE}[$ens]->{BT_VELOCITY}[$bin][$bad_beam-1]);
+		}
+    }
+
+	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+		($LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin],
+		 $LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin],
+		 $LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin],
+		 $LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin]) = earthVels(\%LADCP,$ens,$bin);
+		($LADCP{ENSEMBLE}[$ens]->{V12}[$bin],$LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
+		 $LADCP{ENSEMBLE}[$ens]->{V34}[$bin],$LADCP{ENSEMBLE}[$ens]->{W34}[$bin]) = BPEarthVels(\%LADCP,$ens,$bin);
+	}
+
+	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+		$LADCP{ENSEMBLE}[$ens]->{U}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin];
+		$LADCP{ENSEMBLE}[$ens]->{V}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin];
+		$LADCP{ENSEMBLE}[$ens]->{W}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin];
+		$LADCP{ENSEMBLE}[$ens]->{ERRVEL}[$bin] = $LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin];
+		undef($LADCP{ENSEMBLE}[$ens]->{INTERP_U}[$bin]);
+		undef($LADCP{ENSEMBLE}[$ens]->{INTERP_V}[$bin]);
+		undef($LADCP{ENSEMBLE}[$ens]->{INTERP_W}[$bin]);
+		undef($LADCP{ENSEMBLE}[$ens]->{INTERP_ERRVEL}[$bin]);
+
+		if (defined($LADCP{ENSEMBLE}[$ens]->{W}[$bin])) {
+			$per_bin_nsamp[$bin]++;
+			$nvw++;
+		}
+    
+		$LADCP{ENSEMBLE}[$ens]->{U_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{U}[$bin];
+		$LADCP{ENSEMBLE}[$ens]->{V_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{V}[$bin];
+		$LADCP{ENSEMBLE}[$ens]->{W_UNEDITED}[$bin] = $LADCP{ENSEMBLE}[$ens]->{W}[$bin];
+	}
+}
+progress("\t$nvw valid velocities in bins $LADCP_firstBin-$LADCP_lastBin\n");
+progress("\t3-beam solutions : $RDI_Coords::threeBeam_1 " .
+							  "$RDI_Coords::threeBeam_2 " .
+							  "$RDI_Coords::threeBeam_3 " .
+							  "$RDI_Coords::threeBeam_4\n")
+    unless ($opt_4);
 
 error("$LADCP_file: insufficient valid velocities\n") unless ($nvw >= $min_valid_vels);
 
@@ -856,7 +894,9 @@ error("deepest depth is at end of cast (no upcast data)\n")
 
 #----------------------------------------------------------------------
 # More editing
-#	- this requires ${first,last}GoodEns to be known
+#	- attitude threshold
+#	- data in far bins (beyond reliable range)
+#	- at this stage ${first,last}GoodEns are known
 #	- TILT field is set as a side-effect
 #----------------------------------------------------------------------
 
@@ -896,15 +936,16 @@ progress("\tattitude threshold (max_tilt = %d deg): %d velocites removed (%d%% o
 progress("\tvelocities beyond bin $first_bad_bin (<%d%% valid values): %d velocites removed (%d%% of total in bins $LADCP_firstBin-$LADCP_lastBin)\n",
 	round(100*$per_bin_valid_frac_lim),$fprm,round(100*$fprm/$nvw));
 
-#--------------
+#----------------------------------------------------------------------
 # Read CTD data
-#--------------
+#----------------------------------------------------------------------
 
 progress("Reading CTD data from <$CTD_file>...\n");
 open(STDIN,$CTD_file) || error("$CTD_file: $!\n");
 error("$CTD_file: no data\n") unless (&antsIn());
 undef($antsOldHeaders);
 
+&antsAddDeps($CTD_file);
 &antsAddParams('lat',$P{lat}) if defined($P{lat});
 &antsAddParams('lon',$P{lon}) if defined($P{lon});
 
@@ -978,9 +1019,9 @@ for (my($d)=$min_depth+1; $d<=$#sVelProf; $d++) {							# fill interior gaps
 # Determine time lag
 #-------------------
 
-if (defined($opt_i)) {
+if (defined($initial_time_lag)) {
 	progress("Setting initial time lag...\n");
-	$CTD{TIME_LAG} = $opt_i;
+	$CTD{TIME_LAG} = $initial_time_lag;
 	progress("\t-i => elapsed(CTD) ~ elapsed(LADCP) + %.1fs\n",$CTD{TIME_LAG});
 } else {
 	progress("Guestimating time lag...\n");
@@ -1191,10 +1232,10 @@ if (defined($Sv_ref_bin) && @nSv) {
 #	2) PPI 
 #----------------------------------------------------------------------------
 
-error("$0: conflicting water-depth information provided by user\n")					# this can only happen if
-	if defined($opt_h) && defined($water_depth);									# the user is setting $water_depth
-																					# explicitly?!
-if (defined($opt_h)) {																# deal with user-provided water-depth info
+error("$0: conflicting water-depth information provided by user\n")					# only happens when $water_depth is set explicitly
+	if defined($opt_h) && defined($water_depth);									
+																					
+if (defined($opt_h)) {																# handle user-provided water-depth info
 	if (numberp($opt_h)) {
 		$water_depth = $opt_h;
 	} elsif (-f $opt_h) {
@@ -1207,9 +1248,6 @@ if (defined($opt_h)) {																# deal with user-provided water-depth info
     }
 }
 	
-#die("assertion failed (water_depth = $water_depth)")
-#	unless (!defined($water_depth) || numberp($water_depth));
-
 if (!defined($water_depth) &&														# find seabed in data
 		$LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {
 	progress("Finding seabed...\n");
@@ -1226,11 +1264,11 @@ if (!defined($water_depth) &&														# find seabed in data
 		warning(1,"using water_depth from ADCP BT data\n");							# explicitly requested
 		$SS_use_BT = 1;
 	}
-	if ($SS_use_BT) {																# water depth from BT data
+	if ($SS_use_BT && numberp($water_depth_BT)) {									# water depth from BT data
 		&antsAddParams('water_depth_from','BT_data');
 		$water_depth = $water_depth_BT;
 		$sig_water_depth = $sig_water_depth_BT;
-    } else {																		# water depth from WT data
+    } elsif (defined($water_depth)) {												# water depth from WT data
 		&antsAddParams('water_depth_from','echo_amplitudes');
 	}
 }
@@ -1250,6 +1288,15 @@ if (defined($water_depth)) {														# 1 or 2 water depths available
 		warning(2,"water depth ($water_depth m) < max CTD depth ($CTD_maxdepth m) ignored\n");
 		undef($water_depth);
 	}
+}
+
+if (!defined($water_depth) && defined($water_depth_db_cmd)) {						# set water depth from data base
+	error("$0: lat/lon required for running $water_depth_db_cmd\n")
+		unless numbersp($P{lat},$P{lon});
+	chomp($water_depth = `$water_depth_db_cmd $P{lon} $P{lat}`);
+	error("$0: command '$water_depth_db_cmd $P{lon} $P{lat}' did not return valid water depth\n")
+		unless numberp($water_depth);
+	&antsAddParams('water_depth_from',"$water_depth_db_cmd $P{lon} $P{lat}");
 }
 
 if (defined($water_depth)) {														# set %PARAMs
@@ -1276,8 +1323,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
 	        &antsAddParams('sidelobe_editing','seabed');
 	    }
 
-		$PPI_editing |= eval($PPI_seabed_editing_required);
-		if ($PPI_editing) {
+		if (&PPI_seabed_editing_required()) {
 			&antsAddParams('PPI_editing','seabed');
 			&antsAddParams('PPI_extend_upper_limit',$PPI_extend_upper_limit)
 				if numberp($PPI_extend_upper_limit);
@@ -1323,7 +1369,7 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
     } else {
         &antsAddParams('sidelobe_editing','surface','vessel_draft',$vessel_draft);
     } 
-	if ($PPI_editing) {
+	if (&PPI_surface_editing_required()) {
 		&antsAddParams('PPI_editing','surface');
 		&antsAddParams('PPI_extend_upper_limit',$PPI_extend_upper_limit)
 			if numberp($PPI_extend_upper_limit);
@@ -1341,15 +1387,55 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
 }
 
 #----------------------------------------------------------------------
+# Check For Ambiguity Velocity Problems
+#----------------------------------------------------------------------
+
+progress("Checking for ambiguity velocity violations...\n");
+
+my($ambiguity_velocity) = ambiguity_velocity($LADCP{BEAM_FREQUENCY},
+											 $LADCP{BEAM_ANGLE},
+											 $LADCP{SPEED_OF_SOUND},
+											 $LADCP{TRANSMIT_LAG_DISTANCE});
+&antsAddParams('ambiguity_velocity',$ambiguity_velocity);
+my($nbad) = 0;
+for (my($ens)=$firstGoodEns; $ens<=$lastGoodEns; $ens++) {
+	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+	next unless ($CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}] > $ambiguity_velocity);
+	$nbad++;
+}
+
+my($badf) = $nbad / ($lastGoodEns - $firstGoodEns + 1);			# fraction of bad values
+if ($bad > 0.01) {												# allow 1% violations before warning is triggered
+	warning(2,"%d ensembles (%d%% of total) have CTD_w > ambiguity velocity of %.1 m/s\n",
+		$nbad,round(100*$badf),$ambiguity_velocity);
+} elsif ($nbad > 0) {
+	info("\t%d ensembles (%d%% of total) have CTD_w > ambiguity velocity of %.1 m/s",
+		$nbad,round(100*$badf),$ambiguity_velocity);
+} else {
+	info("\tnone found\n");
+}
+
+#----------------------------------------------------------------------
 # Data Editing after LADCP and CTD data have been merged
 #	1) surface layer editing
-#	2) Execute user-supplied $edit_data_hook
+#	2) reference-layer horizontal velocity threshold
+#	3) Execute user-supplied $edit_data_hook
 #----------------------------------------------------------------------
 
 progress("Removing data from instrument at surface...\n");
 &antsAddParams('surface_layer_depth',$surface_layer_depth);
 $nerm = editSurfLayer($firstGoodEns,$lastGoodEns,$surface_layer_depth);
 progress("\t$nerm ensembles removed\n");
+
+progress("Removing data collected at large horizontal package speeds...\n");
+$max_hspeed = &max_hspeed();												# defined in [defaults.h]
+&antsAddParams('max_hspeed',$max_hspeed);
+$nerm = editLargeHSpeeds($firstGoodEns,$lastGoodEns,$max_hspeed);
+my($nermf) = $nerm / ($lastGoodEns - $firstGoodEns + 1);
+info("\treference-layer horizontal speed threshold (max_hspeed = %g m/s): %d ensembles removed (%d%% of total)\n",
+	$max_hspeed,$nerm,round(100*$nermf));
+warning(2,"large fraction (%d%%) of samples exceed reference-layer horizontal speed threshold\n",round(100*$nermf))
+	if ($nermf > 0.05);		
 
 if (defined($post_merge_hook)) {
 	progress("Executing user-supplied \$post_merge_hook...\n");
@@ -1569,11 +1655,14 @@ unless ($opt_q) {
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {		# subtract from ocean velocities
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] -=
-				$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W};
+				$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W}
+					if numberp($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] -=
-				$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W};
+				$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W}
+					if numberp($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] -=
-				$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W};
+				$LADCP{ENSEMBLE}[$ens]->{MEDIAN_RESIDUAL_W}
+					if numberp($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
 		}
 		
 		$LADCP{ENSEMBLE}[$ens]->{REFLR_W} -=								# NB: this can be nan here
@@ -1587,24 +1676,30 @@ unless ($opt_q) {
     
 	for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {					# bin data
 		for (my($i)=0; $i<@{$DNCAST{W}[$bi]}; $i++) {						# code works if MEDIAN_RESIDUAL_W is nan (possible?) 
-			$DNCAST{W}  [$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
-			$DNCAST{W12}[$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
-			$DNCAST{W34}[$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
+			$DNCAST{W}  [$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W}
+				if numberp($DNCAST{W}[$bi][$i]);
+			$DNCAST{W12}[$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W}
+				if numberp($DNCAST{W12}[$bi][$i]);
+			$DNCAST{W34}[$bi][$i] -= $LADCP{ENSEMBLE}[$DNCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W}
+				if numberp($DNCAST{W34}[$bi][$i]);
 		}
-		$DNCAST{MEDIAN_W}  [$bi] = median(@{$DNCAST{W}[$bi]});
-		$DNCAST{MEDIAN_W12}[$bi] = median(@{$DNCAST{W12}[$bi]});
-		$DNCAST{MEDIAN_W34}[$bi] = median(@{$DNCAST{W34}[$bi]});
+		$DNCAST{MEDIAN_W}  [$bi] = median(@{$DNCAST{W}[$bi]}) 	if numberp($DNCAST{MEDIAN_W}  [$bi]);
+		$DNCAST{MEDIAN_W12}[$bi] = median(@{$DNCAST{W12}[$bi]}) if numberp($DNCAST{MEDIAN_W12}[$bi]);
+		$DNCAST{MEDIAN_W34}[$bi] = median(@{$DNCAST{W34}[$bi]}) if numberp($DNCAST{MEDIAN_W34}[$bi]);
 		$DNCAST{MAD_W}	   [$bi] = mad2($DNCAST{MEDIAN_W}[$bi],@{$DNCAST{W}[$bi]});
 	}
 	for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 		for (my($i)=0; $i<@{$UPCAST{W}[$bi]}; $i++) {
-			$UPCAST{W}  [$bi][$i] -= $LADCP{ENSEMBLE}[$UPCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
-			$UPCAST{W12}[$bi][$i] -= $LADCP{ENSEMBLE}[$UPCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
-			$UPCAST{W34}[$bi][$i] -= $LADCP{ENSEMBLE}[$UPCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W};
+			$UPCAST{W}  [$bi][$i] -= $LADCP{ENSEMBLE}[$UPCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W}
+				if numberp($UPCAST{W}[$bi][$i]);
+			$UPCAST{W12}[$bi][$i] -= $LADCP{ENSEMBLE}[$UPCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W}
+				if numberp($UPCAST{W12}[$bi][$i]);
+			$UPCAST{W34}[$bi][$i] -= $LADCP{ENSEMBLE}[$UPCAST{ENSEMBLE}[$bi][$i]]->{MEDIAN_RESIDUAL_W}
+				if numberp($UPCAST{W34}[$bi][$i]);
 		}
-		$UPCAST{MEDIAN_W}  [$bi] = median(@{$UPCAST{W}[$bi]});
-		$UPCAST{MEDIAN_W12}[$bi] = median(@{$UPCAST{W12}[$bi]});
-		$UPCAST{MEDIAN_W34}[$bi] = median(@{$UPCAST{W34}[$bi]});
+		$UPCAST{MEDIAN_W}  [$bi] = median(@{$UPCAST{W}[$bi]})	if numberp($UPCAST{MEDIAN_W}  [$bi]);
+		$UPCAST{MEDIAN_W12}[$bi] = median(@{$UPCAST{W12}[$bi]})	if numberp($UPCAST{MEDIAN_W12}[$bi]);
+		$UPCAST{MEDIAN_W34}[$bi] = median(@{$UPCAST{W34}[$bi]})	if numberp($UPCAST{MEDIAN_W34}[$bi]);
 		$UPCAST{MAD_W}	   [$bi] = mad2($UPCAST{MEDIAN_W}[$bi],@{$UPCAST{W}[$bi]});
 	}
 
@@ -1614,7 +1709,7 @@ unless ($opt_q) {
 # remove ensembles with large rms residuals
 #----------------------------------------------------------------------
 
-if (defined($opt_r)) {
+if (defined($opt_r) && !$opt_q) {
 	progress("Applying residuals filters...\n");	
 	
 	progress("\trms residuals > $residuals_rms_max: ");
@@ -1711,8 +1806,10 @@ for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		my($bi) = $bindepth[$bin]/$opt_o;
 		next unless numberp($DNCAST{MEDIAN_W}[$bi]);
-		push(@{$DNCAST{RESIDUAL12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]-$DNCAST{MEDIAN_W}[$bi]);
-		push(@{$DNCAST{RESIDUAL34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]-$DNCAST{MEDIAN_W}[$bi]);
+		push(@{$DNCAST{RESIDUAL12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]-$DNCAST{MEDIAN_W}[$bi])
+			if numberp($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
+		push(@{$DNCAST{RESIDUAL34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]-$DNCAST{MEDIAN_W}[$bi])
+			if numberp($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
     }
 }
 for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {
@@ -1728,8 +1825,10 @@ for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 		my($bi) = $bindepth[$bin]/$opt_o;
 		next unless numberp($UPCAST{MEDIAN_W}[$bi]);
-		push(@{$UPCAST{RESIDUAL12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]-$UPCAST{MEDIAN_W}[$bi]);
-		push(@{$UPCAST{RESIDUAL34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]-$UPCAST{MEDIAN_W}[$bi]);
+		push(@{$UPCAST{RESIDUAL12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]-$UPCAST{MEDIAN_W}[$bi])
+			if numberp($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
+		push(@{$UPCAST{RESIDUAL34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]-$UPCAST{MEDIAN_W}[$bi])
+			if numberp($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
     }
 }
 for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
@@ -1842,7 +1941,8 @@ if (@out_BR) {
 # Calculate BT-referenced vertical-velocity profile
 #--------------------------------------------------
 
-if (defined($water_depth)) {
+if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && defined($water_depth)) {
+	
 	progress("Calculating BT-referenced vertical velocities\n");
 	calc_BTprof($firstGoodEns,$lastGoodEns,$water_depth,$sig_water_depth);
 
@@ -1887,6 +1987,12 @@ if (@out_wsamp) {
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
+
+		sub res($$)
+		{
+			my($meas,$mean) = @_;
+			return numberp($meas) ? ($meas - $mean) : undef;
+		}
 	    
 		for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		  next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
@@ -1902,9 +2008,9 @@ if (@out_wsamp) {
 				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin],
 				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin],
 				  $LADCP{ENSEMBLE}[$ens]->{V12}[$bin],$LADCP{ENSEMBLE}[$ens]->{V34}[$bin],
-				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $DNCAST{MEDIAN_W}[$bi],
-				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] - $DNCAST{MEDIAN_W}[$bi],
-				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] - $DNCAST{MEDIAN_W}[$bi],
+				  res($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],$DNCAST{MEDIAN_W}[$bi]),
+				  res($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin],$DNCAST{MEDIAN_W}[$bi]),
+				  res($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin],$DNCAST{MEDIAN_W}[$bi]),
 				  $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $CTD{W_t}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
@@ -1942,9 +2048,9 @@ if (@out_wsamp) {
 				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin],
 				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin],
 				  $LADCP{ENSEMBLE}[$ens]->{V12}[$bin],$LADCP{ENSEMBLE}[$ens]->{V34}[$bin],
-				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] - $UPCAST{MEDIAN_W}[$bi],
-				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] - $UPCAST{MEDIAN_W}[$bi],
-				  $LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] - $UPCAST{MEDIAN_W}[$bi],
+				  res($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin],$UPCAST{MEDIAN_W}[$bi]),
+				  res($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin],$UPCAST{MEDIAN_W}[$bi]),
+				  res($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin],$UPCAST{MEDIAN_W}[$bi]),
 				  $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $CTD{W_t}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 				  $CTD{W_tt}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],

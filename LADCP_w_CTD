@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Fri Jul 29 11:20:47 2016
+#                    dlm: Fri Oct  5 14:52:00 2018
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 69 48 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 85 93 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -63,6 +63,27 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	May 26, 2016: - renamed w[.raw] to CTD_w[.raw]
 #				  - added winch_w
 #	Jul 29, 2016: - change w_CTD plot label to reflect sign convention
+#	Oct  3, 2017: - cosmetics
+#				  - added -q to suppress plots when generating 1Hz files
+#	Dec  9, 2017: - added $antsSuppressCommonOptions = 1;
+#	Dec 17, 2017: - added dependencies
+#	Mar  8, 2018: - made error messages work with -v
+#				  - renamed -l)owpass option to -c)utoff
+#				  - added new -l)atitude
+#	Mar  9, 2018: - changed -l) to location (include lon as well)
+#	May 22, 2018: - added code to remove initial at surface interval
+#	Jul 24, 2018: - improved CTD load error message
+#	Oct  4, 2018: - minor improvement in log
+#				  - BUG: profiles collected with LOTS of wave heave (AAIW 2005, 004)
+#						 failed the contiguous pressure test at 2dbar resolution
+#					     => increased to 3dbar
+#	Oct  5, 2018: - BUG: previous bug "fix" did not solve a real problem, because
+#						 problem with AAIW data is lack of pressure resolution
+#						 => returned to 2dbar
+#				  - added plotting errors
+#				  - improved log message
+#				  - BUG: initial in-air scans were not handled correctly (nscans not updated)
+
 
 # NOTES:
 #	w_CTD is positive during the downcast to make the sign of the apparent
@@ -76,39 +97,49 @@ require "$WCALC/version.pl";
 require "$ANTS/ants.pl";
 require "$ANTS/fft.pl";
 require "$ANTS/libstats.pl";
+require "$ANTS/libconv.pl";
 require "$ANTS/libGMT.pl";
 require "$ANTS/libSBE.pl";
 require "$ANTS/libEOS83.pl";
 &antsAddParams('LADCP_w_CTD::version',$VERSION);
 
 $antsParseHeader = 0;											# usage
-&antsUsage('ai:l:orp:s:v:w:',1,
+$antsSuppressCommonOptions = 1;
+&antsUsage('ai:l:orp:qs:v:w:',1,
 	'[-v)erbosity <level[0]>]',
 	'[use -a)lternate sensor pair]',
 	'[-r)etain all data (no editing)] [allow infinite -o)utliers]',
 	'[-s)ampling <rate[6Hz]>]',
-	'[-l)owpass w_CTD <cutoff[2s]>] [-w)inch-speed <granularity[10s]>]',
-	'[profile -i)d <id>]',
+	'[lowpass w_CTD -c)utoff <limit[2s]>] [-w)inch-speed <granularity[10s]>]',
+	'[profile -i)d <id>] [station -l)ocation <lat/lon>]',
 	'[-p)lot_basenames <[%03d_w_CTD.ps],[%03d_sspd.ps]>]',
+	'[-q)uiet (no plots)]',
 	'<SBE CNV file>');
 
-&antsFloatOpt(\$opt_l,2);										# default low-pass cutoff for w_CTD
-&antsCardOpt(\$opt_s,6);										# default output samplint rate (Hz)
+&antsFloatOpt(\$opt_c,2);										# default low-pass cutoff for w_CTD
+&antsCardOpt(\$opt_s,6);										# default output sampling rate (Hz)
 &antsFloatOpt(\$opt_w,10);										# winch velocity granularity
 &antsCardOpt(\$opt_v,$ENV{VERB});								# support VERB env variable
 
 $CNVfile = $ARGV[0];											# open CNV file
 open(F,&antsFileArg());
+&antsAddDeps($CNVfile);
 &antsActivateOut();												# activate ANTS file
 
 #----------------------------------------------------------------------
 # Read Data
 #----------------------------------------------------------------------
 
+sub _croak(@)
+{
+	print(STDERR "\n") if ($opt_v);
+	croak(@_);
+}
+
 print(STDERR "Reading $CNVfile...") if ($opt_v);
 
 chomp($rec = <F>);
-croak("$CNVfile: no data\n")
+_croak("$CNVfile: no data\n")
 	unless defined($rec);
 
 if ($rec =~ /^\*/) {												# SBE CNV file
@@ -116,10 +147,21 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 	($nfields,$nscans,$sampint,$badval,$ftype,$lat,$lon) =			# decode SBE header 
 		SBE_parseHeader(F,0,0); 									# SBE field names, no time check
 	
-	croak("$CNVfile: unexpected sampling interval $sampint\n")
+	_croak("$CNVfile: unexpected sampling interval $sampint\n")
 		unless (abs($sampint-1/24) < 1e-5);
-	croak("$CNVfile: no latitude in header\n")
+
+	if (defined($opt_l)) {											# set/override station location with -l
+		my($slat,$slon) = split('[,/]',$opt_l);
+		$lat = GMT2deg($slat);
+		$lon = GMT2deg($slon);
+		_croak("$0: cannot decode -l $opt_l\n")
+			unless numberp($lat) && numberp($lon);
+	}
+	_croak("$CNVfile: no latitude in header => -l required\n")
 		unless numberp($lat);
+
+	&antsAddParams('lat',$lat);
+	&antsAddParams('lon',$lon);
 	
 	$pressF = fnr('prDM');
 	
@@ -151,15 +193,15 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 	
 	if (@ants_ != $nscans) {
 		if ($opt_v > 1) {
-			printf(STDERR "\n\nWARNING: $CNVfile has wrong number of scans in header\n");
+			printf(STDERR "\n\nWARNING: $CNVfile has wrong number of scans in header (%d instead of %d)\n",$nscans,scalar(@ants_));
 		} else {
-			printf(STDERR "WARNING: $CNVfile has wrong number of scans in header\n");
+			printf(STDERR "WARNING: $CNVfile has wrong number of scans in header (%d instead of %d)\n",$nscans,scalar(@ants_));
 		}
 		$nscans = @ants_;
 	}
 } else { 																			# simple CSV ASCII file format:
 	($lat,$lon,$station) = split(',',$rec);
-	croak("$CNVfile: ASCII file format error (1st rec must be lat,lon[,id])\n")		#	header: lat,lon[,station]
+	_croak("$CNVfile: ASCII file format error (1st rec must be lat,lon[,id])\n")		#	header: lat,lon[,station]
 		unless numberp($lat) && numberp($lon) &&
 				$lat>=-90 && $lat<=90 &&
 				$lon>=-360 && $lon<=360;
@@ -171,7 +213,7 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 	for ($nscans=0; <F>; $nscans++) {
 		chomp;
 		@{$ants_[$nscans]} = split(',');											# 	CSV format
-		croak("$CNVfile: unexpected scan #$ants_[$nscans][0] (%d expected)\n",$nscans+1)
+		_croak(sprintf("$CNVfile: unexpected scan #$ants_[$nscans][0] (%d expected)\n",$nscans+1))
 			unless ($ants_[$nscans][0] == $nscans+1);
 		$ants_[$nscans][$pressF] = nan unless defined($ants_[$nscans][$pressF]);	# missing values
 		$ants_[$nscans][$tempF] = nan unless defined($ants_[$nscans][$tempF]);
@@ -179,7 +221,8 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 	}
 }
 
-printf(STDERR "\n\t%d scans",$nscans) if ($opt_v > 1);
+printf(STDERR "\n\t%d scans (%d seconds)",$nscans,int($nscans*$sampint))
+	if ($opt_v > 1);
 printf(STDERR "\n") if ($opt_v);
 
 #----------------------------------------------------------------------
@@ -187,9 +230,9 @@ printf(STDERR "\n") if ($opt_v);
 #----------------------------------------------------------------------
 
 $id = defined($opt_i) ? $opt_i : &antsParam('station');
-croak("$CNVfile: no station information in header => -i required\n")
+_croak("$CNVfile: no station information in header => -i required\n")
 	unless defined($id);
-croak("$CNVfile: non-numeric station information <$id> in header => -i required\n")
+_croak("$CNVfile: non-numeric station information <$id> in header => -i required\n")
 	unless numberp($id);
 	
 if (-t STDOUT) {
@@ -204,6 +247,8 @@ if (-t STDOUT) {
 	}
     open(STDOUT,">$outfile") || die("$outfile: $!\n");
 }
+
+undef($opt_p) if $opt_q;											# suppress all plots on -q
 
 #----------------------------------------------------------------------
 # Edit Data
@@ -227,7 +272,7 @@ unless ($opt_r) {
 	print(STDERR "Editing Data...") if ($opt_v);
 
 	#----------------------------------------
-	# trim initial records with
+	# trim initial scans with
 	# 	- nan pressure
 	#	- nan conductivity
 	#	- conductivity <= 10 mS/cm
@@ -240,36 +285,38 @@ unless ($opt_r) {
 			  	numberp($ants_[0][$condF]) &&
 			  	(($P{'cond.unit'} eq 'mS/cm' && $ants_[0][$condF] > 10) ||
 			     ($P{'cond.unit'} eq 'S/m'   && $ants_[0][$condF] > 1));
-	croak("\n$CNVfile: no valid records (wrong conductivity units?)\n")
-		unless (@ants_);			     
-	printf(STDERR "\n\t%d initial at-surface records trimmed",$trimmed) if ($opt_v > 1);
+	_croak("\n$CNVfile: no valid scans (wrong conductivity units?)\n")
+		unless (@ants_);
+	$nscans -= $trimmed;
+	printf(STDERR "\n\t%d initial in-air scans trimmed",$trimmed) if ($opt_v > 1);
 	my($lvp) = $ants_[0][$pressF];
 	my($lvc) = $ants_[0][$condF];
 	
-	#------------------------------------------------
+	#-------------------------------------------------------------------------
 	# edit pressure outliers outside contiguous range
-	#	- 2dbar resolution
+	#	- 2dbar resolution increased to 3dbar because of 2005 AAIW profile 004
 	#	- histogram shifted by 100dbar to allow for negative values
-	#------------------------------------------------
+	#-------------------------------------------------------------------------
+	my($press_rez) = 2;
 	my($outliers) = my($modeSamp) = 0; my($modeBin,$min,$max); local(@hist);
 	for (my($s)=0; $s<$nscans; $s++) {
 		next unless ($ants_[$s][$pressF]>=-100 && $ants_[$s][$pressF]<=6500);
-		my($b) = ($ants_[$s][$pressF]+100) / 2;
+		my($b) = ($ants_[$s][$pressF]+100) / $press_rez;
 		$hist[$b]++;
 		next unless ($hist[$b] > $modeSamp);
 		$modeSamp = $hist[$b]; $modeBin = $b;
 	}
-	printf(STDERR "\n\tvalid pressure guess: %d dbar (%d samples)",2*$modeBin-100,$modeSamp)
+	printf(STDERR "\n\tvalid pressure guess: %d dbar (%d samples)",$press_rez*$modeBin-100,$modeSamp)
 		if ($opt_v > 1);
 	($min,$max) = validRange($modeBin);
-	$min = 2*$min-100; $max = 2*$max-100;
+	$min = $press_rez*$min-100; $max = $press_rez*$max-100;
 	for (my($s)=0; $s<$nscans; $s++) {
 		if ($ants_[$s][$pressF] > $max) { $outliers++; $ants_[$s][$pressF] = nan; }
 		if ($ants_[$s][$pressF] < $min) { $outliers++; $ants_[$s][$pressF] = nan; }
 	}
 	&antsAddParams("pressure_outliers",sprintf("%d",$outliers));
 	printf(STDERR "\n\tcontinuous pressure range: %d..%d dbar (%d outliers removed)",$min,$max,$outliers) if ($opt_v > 1);
-	croak("$CNVfile: pressure editing removed too many 'outliers'\n")
+	_croak("$CNVfile: pressure editing removed too many 'outliers'\n")
 		unless ($opt_o || $outliers < 100);
 	
 	#----------------------------------------------------
@@ -292,7 +339,7 @@ unless ($opt_r) {
 	}
 	&antsAddParams("conductivity_outliers",sprintf("%d",$outliers));
 	printf(STDERR "\n\tcontinuous conductivity range: %.1f..%.1f S/m (%d outliers removed)",$min,$max,$outliers) if ($opt_v > 1);
-	croak("$CNVfile: conductivity editing removed too many 'outliers'\n")
+	_croak("$CNVfile: conductivity editing removed too many 'outliers'\n")
 		unless ($opt_o || $outliers/$nscans < 0.4);
 
 	#----------------------------------------------------
@@ -324,7 +371,7 @@ unless ($opt_r) {
 	&antsAddParams("temperature_outliers",sprintf("%d",$outliers));
 	printf(STDERR "\n\tcontinuous temperature range: %.1f..%.1f degC (%d outliers removed)",$min,$max,$outliers)
 		if ($opt_v > 1);
-	croak("$CNVfile: temperature editing removed too many 'outliers'\n")
+	_croak("$CNVfile: temperature editing removed too many 'outliers'\n")
 		unless ($opt_o || $outliers/$nscans < 0.4);
 
 	#----------------------------------------
@@ -359,7 +406,7 @@ unless ($opt_r) {
 		}
 	}
 	&antsAddParams("pressure_spikes_removed",sprintf("%d+%d",$ns1,$ns2));
-	printf(STDERR "\n\t%d+%d pressure spikes removed",$ns1,$ns2) if ($opt_v > 1);
+	printf(STDERR "\n\t%d+%d pressure spikes removed",$ns1,$ns2) if ($opt_v>1 && $ns1+$ns2>0);
 
 	#--------------------------------------------------
 	# edit conductivity spikes based on large gradients
@@ -436,7 +483,7 @@ for (my($s)=0; $s<$nscans; $s++) {
 	$minP = $ants_[$s][$pressF]
 		if numberp($ants_[$s][$pressF]) && ($ants_[$s][$pressF] < $minP);
 }
-croak("$CNVfile: no valid CTD pressure data below 25dbar\n")
+_croak("$CNVfile: no valid CTD pressure data below 25dbar\n")
 	unless ($minP < 9e99);
 
 if ($minP < 25) {
@@ -449,6 +496,27 @@ if ($minP < 25) {
 } else {
 	printf(STDERR "\n\tpartial-depth cast below %.1f dbar (no correction applied)",$minP) if ($opt_v > 1);
 }
+printf(STDERR "\n") if ($opt_v);
+
+#----------------------------------------------------------------------
+# Removing Initial At-Surface Data
+#----------------------------------------------------------------------
+
+print(STDERR "Removing intial at-surface data...") if ($opt_v);
+
+my($trimmed) = 0;
+while ($ants_[$trimmed][$pressF] < 0.5) { $trimmed++; }
+for (my($r)=$trimmed; $r<$nscans; $r++) {
+	$ants_[$r][$elapsedF] -= $ants_[$trimmed][$elapsedF];
+}
+splice(@ants_,0,$trimmed);
+$nscans -= $trimmed;
+
+&antsAddParams('surface_data_trimmed',int($trimmed*$sampint));
+&antsAddParams('cast_duration',int($nscans*$sampint));
+
+printf(STDERR "\n\t%d seconds of data trimmed",int($trimmed*$sampint)) if ($opt_v > 1);
+
 printf(STDERR "\n") if ($opt_v);
 
 #----------------------------------------------------------------------
@@ -524,9 +592,9 @@ printf(STDERR "\n") if ($opt_v);
 #	- interpolate missing vertical velocities first
 #----------------------------------------------------------------------
 
-if ($opt_l > 0) {
+if ($opt_c > 0) {
 	print(STDERR "Low-pass filtering vertical package velocity...") if ($opt_v);
-	&antsAddParams('w_lowpass_cutoff',$opt_l);
+	&antsAddParams('w_lowpass_cutoff',$opt_c);
 	
 	my($trimmed) = 0;
 	shift(@w),shift(@depth),shift(@elapsed),shift(@sspd),$trimmed++
@@ -563,7 +631,7 @@ if ($opt_l > 0) {
 		$fftbuf[2*$r] = $w[$r];
 		$fftbuf[2*$r+1] = 0;
 	}
-	printf(STDERR "\n\t%d zero records added",$pot-$r) if ($opt_v > 1);
+	printf(STDERR "\n\tzero-padded %d scans",$pot-$r) if ($opt_v > 1);
 	while ($r < $pot) { 												# pad with zeroes
 		$fftbuf[2*$r] = $fftbuf[2*$r+1] = 0;
 		$r++;
@@ -579,7 +647,7 @@ if ($opt_l > 0) {
 		my($in) = 2*$n-$ip; 											# -ve freq fco
 		my($f)	= $ip/2/$n*$opt_s; 										# frequency
 		$fco[$ip] = $fco[$ip+1] = $fco[$in] = $fco[$in+1] = 0
-			if ($f > 1/$opt_l); 										# low-pass filter
+			if ($f > 1/$opt_c); 										# low-pass filter
 	}
 	@w_lp = &FOUR1(1,@fco); 											# inverse FFT
 	
@@ -622,13 +690,16 @@ printf(STDERR "\n") if ($opt_v);
 if (defined($opt_p)) {
 	print(STDERR "Plotting data...\n") if ($opt_v);
 	my(@pfmt) = split(',',$opt_p);
-	croak("$0: cannot decode -p $opt_p\n")
+	_croak("$0: cannot decode -p $opt_p\n")
 		unless (@pfmt == 2);
 
 	my($xmin) = $elapsed[0]/60;
 	my($xmax) = $elapsed[$#elapsed]/60;
 	my($ymin) = -3; my($ymax) = 3;
 	my($plotsize) = '13c';
+
+	_croak(sprintf("%s: invalid region of interest (-R$xmin/$xmax/$ymin/$ymax)\n",sprintf($pfmt[0],$id)))
+		unless ($xmax > $xmin && $ymax > $ymin);
 	GMT_begin(sprintf($pfmt[0],$id),"-JX${plotsize}","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4 -P');
 	GMT_psxy('-W1,coral');
 	for ($r=0; $r<@w; $r++) {
@@ -653,6 +724,8 @@ if (defined($opt_p)) {
 	my($xmax) = round($max_sspd+3,5);
 	my($ymin) = 0; my($ymax) = round($depth[$atBtm]+70,100);
 	my($plotsize) = '13c';
+	_croak(sprintf("%s: invalid region of interest (-R$xmin/$xmax/$ymin/$ymax)\n",sprintf($pfmt[1],$id)))
+		unless ($xmax > $xmin && $ymax > $ymin);
 	GMT_begin(sprintf($pfmt[1],$id),"-JX${plotsize}/-${plotsize}","-R$xmin/$xmax/$ymin/$ymax",'-X6 -Y4 -P');
 	GMT_psbasemap('-Bg10a10f1:"Speed of Sound [m/s]":/g1000a500f100:"Depth [m]":WeSn');
 	GMT_psxy('-W2,coral');

@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Tue Mar  7 09:03:20 2017
+#                    dlm: Tue Oct 16 16:26:06 2018
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 73 63 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 80 38 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -71,6 +71,13 @@
 #	Mar  7, 2016: - BUG: editing did not work correctly in all cases
 #	Mar  6, 2017: - BUG: assertion in mad_w failed with 2017 P18 DL#206
 #	Mar  9, 2017: - tightened timelag editing (good_diff: 2->1)
+#	Mar 22, 2018: - re-wrote heuristics to remove lags with large mads
+#				  - BUG: bestLag with 1 valid sample returned 0 mad
+#				  - BUG: timelag editing did not work correctly when there was not a sufficiently long valid lag
+#	Mar 27, 2018: - BUG: re-written heuristic could fail when there was a valid but unpopular lag with very low mad.
+#						 Solution: remove very unpopular lags first
+#	Oct  4, 2018: - added timelagging debug code
+#	Oct 16, 2018: - removed debug code
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -102,22 +109,21 @@ sub mad_w($$$)																# mean absolute deviation
 		$CTD_mean_w   += $CTD{W}[$s+$so];
 		$nsamp++;
 	}
-	return 9e99 unless ($nsamp);
+	return 9e99 unless ($nsamp > 1);
 	$LADCP_mean_w /= $nsamp;
 	$CTD_mean_w /= $nsamp;
 
-	my($sad) = 0;															# now, calculate mad
+	my($sad) = $nsamp = 0;													# now, calculate mad
 	for (my($e)=$fe; $e<=$le; $e++) {			
-		next unless numberp($LADCP{ENSEMBLE}[$e]->{REFLR_W});
 		my($s) = int(($LADCP{ENSEMBLE}[$e]->{ELAPSED} + $CTD{TIME_LAG} - $CTD{ELAPSED}[0]) / $CTD{DT} + 0.5);
 		next unless ($s>=0 && $s<=$#{$CTD{ELAPSED}});
 		next unless numberp($LADCP{ENSEMBLE}[$e]->{REFLR_W});
 		my($dw) = $LADCP{ENSEMBLE}[$e]->{REFLR_W}-$LADCP_mean_w - ($CTD{W}[$s+$so]-$CTD_mean_w);
 #		print(STDERR "dw = $dw ($LADCP{ENSEMBLE}[$e]->{REFLR_W}-$LADCP_mean_w - ($CTD{W}[$s+$so]-$CTD_mean_w)\n");
 		next unless (abs($dw) <= $w_max_lim);
-		$sad += abs($dw);
+		$sad += abs($dw); $nsamp++;
 	}
-	return $sad/$nsamp;
+	return $nsamp ? $sad/$nsamp : 9e99;
 }
 
 
@@ -198,17 +204,33 @@ RETRY:
 		$n_valid_windows++;
 		$nBest{$so}++; $madBest{$so} += $mad;
 	}
+	my($maxN) = 0;
 	foreach my $i (keys(%nBest)) {
+		$maxN = $nBest{$i} if ($nBest{$i} > $maxN);
 		$madBest{$i} /= $nBest{$i};
 	}
 
-	my($med_mad) = median(values(%madBest));								# remove lags with large mads
-	my($mad_mad) = mad2($med_mad,values(%madBest));
+	foreach my $lag (keys(%nBest)) {										# remove unpopular lags
+		next if ($nBest{$lag} >= $maxN/10);
+		$n_valid_windows -= $nBest{$lag};
+		$nBest{$lag} = 0; $madBest{$lag} = 9e99;
+	}
+	
+##	my($med_mad) = median(values(%madBest));								# remove lags with large mads
+##	my($mad_mad) = mad2($med_mad,values(%madBest));
+##	foreach my $lag (keys(%nBest)) {
+##		next if ($madBest{$lag} <= $med_mad+$mad_mad);
+##		$n_valid_windows -= $nBest{$lag};
+##		$nBest{$lag} = 0;
+##  }
+
+	my($min_mad) = min(values(%madBest));									# remove lags with large mads
 	foreach my $lag (keys(%nBest)) {
-		next if ($madBest{$lag} <= $med_mad+$mad_mad);
+		next if ($madBest{$lag} <= 3*$min_mad);
 		$n_valid_windows -= $nBest{$lag};
 		$nBest{$lag} = 0;
 	}
+
 
 	my(@best_lag);															# find 3 most popular lags
 	foreach my $lag (keys(%nBest)) {
@@ -236,7 +258,6 @@ RETRY:
 			$best_lag[0],int(($nBest{$best_lag[0]}/$n_valid_windows)*100+0.5),100*$madBest{$best_lag[0]});
 	}
 
-																			
 	unless ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]}	# require quorum
 				>= $opt_3*$n_valid_windows) {
 		if (max(@best_lag)-min(@best_lag) > $TL_max_allowed_three_lag_spread) {
@@ -275,6 +296,16 @@ RETRY:
 		undef(%nBest); undef(%madBest); undef(@best_lag);
 		goto RETRY;
     }
+
+	#----------------------------------------------------
+	# Here, either $failed is set, or we have a valid lag.
+	#----------------------------------------------------
+
+#	if ($failed) {
+#		for (my($wi)=0; $wi<$n_windows; $wi++) {
+#			print(STDERR "$wi $so[$wi] $mad[$wi]\n");
+#		}
+#	}
 
 	#----------------------------------------------------
 	# Here, either $failed is set, or we have a valid lag.
@@ -354,6 +385,7 @@ RETRY:
 					   ($lg[$i] == $n_windows-1) ? $LADCP{ENSEMBLE}[$lastGoodEns]->{ELAPSED}  : $elapsed[$lg[$i]]);
 		}
 #		print(STDERR "elim = @elim\n");
+		$failed = 1 unless (@elim);
 		$nerm = $failed
 			  ? editBadTimeLagging($first_ens,$last_ens,-1)
 			  : editBadTimeLagging($first_ens,$last_ens,@elim);

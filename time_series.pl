@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ S E R I E S . P L 
 #                    doc: Sun May 23 16:40:53 2010
-#                    dlm: Wed Apr 17 17:05:16 2013
+#                    dlm: Wed May  2 11:23:48 2018
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 20 63 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 24 57 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -18,11 +18,19 @@
 #	Oct 12, 2011: - re-worked ref_lr_w()
 #				  - stopped depth integration across gaps >= 5s
 #	Apr 17, 2013: - improved gap message (added ensemble range)
+#	Nov 27, 2017: - BUG: gap heuristic could not deal with P06#001
+#				  - BUG: gap heuristic could not deal with P06#025
+#	May  1, 2018: - added reflr u and v calculations
+#				  - BUG: reflr u and v calcs did not work
 
 # NOTES:
 #	- resulting DEPTH field based on integrated w without any sound speed correction
 #	- single-ping ensembles assumed, i.e. no percent-good tests applied
 #	- specified bin numbers are 1-relative
+
+#----------------------------------------------------------------------
+# Reference-Layer Velocities
+#----------------------------------------------------------------------
 
 sub ref_lr_w($$$$)										# calc ref-layer vert vels
 {
@@ -37,6 +45,22 @@ sub ref_lr_w($$$$)										# calc ref-layer vert vels
 	$dta->{ENSEMBLE}[$ens]->{REFLR_W} = avg(@w);
 	$dta->{ENSEMBLE}[$ens]->{REFLR_W_STDDEV} = stddev2($dta->{ENSEMBLE}[$ens]->{REFLR_W},@w);
 	$dta->{ENSEMBLE}[$ens]->{REFLR_W_NSAMP} = @w;
+}
+
+sub ref_lr_uv($$$$)										# calc ref-layer horiz vels
+{
+	my($dta,$ens,$rl_b0,$rl_b1) = @_;
+	my(@u,@v);
+
+	for (my($bin)=$rl_b0-1; $bin<=$rl_b1-1; $bin++) {
+		next unless defined($dta->{ENSEMBLE}[$ens]->{U}[$bin]);
+		die unless numbersp($dta->{ENSEMBLE}[$ens]->{U}[$bin],$dta->{ENSEMBLE}[$ens]->{V}[$bin]);
+		push(@u,$dta->{ENSEMBLE}[$ens]->{U}[$bin]);
+		push(@v,$dta->{ENSEMBLE}[$ens]->{V}[$bin]);
+	}
+	return unless (@u);
+	$dta->{ENSEMBLE}[$ens]->{REFLR_U} = avg(@u); $dta->{ENSEMBLE}[$ens]->{REFLR_V} = avg(@v);
+	$dta->{ENSEMBLE}[$ens]->{REFLR_UV_NSAMP} = @u;
 }
 
 #======================================================================
@@ -76,19 +100,22 @@ sub calcLADCPts($$$$)
 				  $dta->{ENSEMBLE}[$lastgood]->{UNIX_TIME}; # ... last good ens
 	
 		if ($dt > $max_gap) {
-			if ($max_depth>50 && $depth<0.1*$max_depth) {
-				warning(1,"long gap (%ds) near end of profile --- terminated at ensemble #$dta->{ENSEMBLE}[$e]->{NUMBER}\n",$dt);
-				last;				
-            }
-            if ($depth < 10) {
-				warning(1,"long gap (%ds) near beginning of profile --- restarted at ensemble #$dta->{ENSEMBLE}[$e]->{NUMBER}\n",$dt);
-				$firstgood = $lastgood = $e;
-				undef($atbottom); undef($max_depth);
-				$depth = 0;
-				$dta->{ENSEMBLE}[$e]->{ELAPSED} = 0;
-				$dta->{ENSEMBLE}[$e]->{DEPTH} = $depth;
-				$w_gap_time = 0;
-				next;
+			if (($max_depth>50 && abs($depth)<0.1*$max_depth) &&					# looks like a profile
+				(@{$dta->{ENSEMBLE}}-$e < 0.25*@{$dta->{ENSEMBLE}})) {				# in the final quartile of the data
+					warning(1,"long gap (%ds) after likely profile (0->%d->%dm) --- finishing at ens#$dta->{ENSEMBLE}[$e]->{NUMBER}\n",
+						$dt,$max_depth,$depth);
+					last;				
+            } elsif ((abs($depth) < 10) ||											# shallow gap at the beginning
+            		 ($depth == $max_depth)) {										# biased in-air data
+						warning(1,"long surface gap (%ds) --- restarting at ens#$dta->{ENSEMBLE}[$e]->{NUMBER}\n",$dt);
+						warning(1,"[depth = $depth, max_depth = $max_depth]\n");
+						$firstgood = $lastgood = $e;
+						undef($atbottom); undef($max_depth);
+						$depth = 0;
+						$dta->{ENSEMBLE}[$e]->{ELAPSED} = 0;
+						$dta->{ENSEMBLE}[$e]->{DEPTH} = $depth;
+						$w_gap_time = 0;
+						next;
 			}
 			if ($dta->{ENSEMBLE}[$e]->{ELAPSED} < 200) {
 				warning(1,"long gap (%ds) at ensembles #$dta->{ENSEMBLE}[$lastgood]->{NUMBER}-$dta->{ENSEMBLE}[$e]->{NUMBER}, %ds into the profile\n",
@@ -107,7 +134,13 @@ sub calcLADCPts($$$$)
 		$lastgood = $e;
 	}
 
+	for (my($e)=$firstgood; $e<=$lastgood; $e++) {						# calculate u and v
+		ref_lr_uv($dta,$e,$rl_b0,$rl_b1);
+	}
+
 	return ($firstgood,$lastgood,$atbottom,$w_gap_time);
 }
+
+#----------------------------------------------------------------------
 
 1;

@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Thu Mar 16 11:53:07 2017
+                    dlm: Tue Nov 27 16:57:47 2018
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 260 19 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 372 37 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 ----------------------------------------------------------------------
@@ -258,3 +258,116 @@ V1.3:
 
 	Mar 16, 2017:
 		- published
+
+----------------------------------------------------------------------		
+
+	Oct 3, 2017:
+		- added -q option to LADCP_w_CTD for reprocessing as 1Hz files
+
+	Oct 12, 2017:
+		- re-wrote code in [LADCP_w_ocean] to deal with earth coordinates
+		  (MAJOR BUG FIX)
+
+	Oct 13, 2017:
+		- bugfix in [edit_data.pl]
+
+	Oct 17, 2017:
+		- improvements and bugfix in [LADCP_VKE]
+
+	Nov 26, 2017:
+		- significant bug fixes in [LADCP_w_ocean] related to
+			- ping-coherent residual removal
+			- bad beam
+
+	Nov 27, 2017:
+		- improved gap heuristics in [time_series.pl]
+		- added @valid_ensmeble_range [defaults.pl]
+
+	Nov 28, 2017:
+		- increased version to V1.4 [version.pl] [.hg/hgrc]
+		- worked on updating howto
+		- improvements to [LADCP_w_ocean]
+		- removed wcorr plot from [LADCP_w_postproc]
+
+	Nov 29, 2017:
+		- replaced opt_i by initial_time_lag in [defaults.pl]
+
+	Dec  9, 2017:		
+		- removed common options from [LADCP_w_ocean] [LADCP_w_postproc]
+		  [LADCP_wspec] [LADCP_w_CTD] [LADCP_VKE]
+
+	Dec 14, 2017:		
+		- improvements to [LADCP_wspec]
+
+	Dec 17, 2017:
+		- added dependencies to [LADCP_w_ocean] [LADCP_w_CTD]
+
+	Mar  8, 2018:
+		- improvements to [LADCP_w_CTD]
+
+	Mar  9, 2018:
+		- improvements to [LADCP_w_CTD]
+
+	Mar 20, 2018:
+		- added blue background color for in-ice profiles in [plot_wprof.pl]
+		- fixed acceleration unit error in [plot_wprof.pl]
+
+	Mar 22, 2018:
+		- adapted howto
+		- massively improved time-lagging heuristic [time_lag.pl]
+		- improved [plot_time_lags.pl]
+
+	Mar 27, 2018:
+		- bugfix to new time lagging heuristic in [time_lag.pl]
+
+	Apr 24, 2018:
+		- improvements to [LADCP_w_ocean] [LADCP_VKE] [defaults.pl]
+
+	Apr 25, 2018:
+		- improvement to [LADCP_VKE]
+
+	May  1, 2018:
+		- added reflr_u filter in [LADCP_w_ocean] [edit_data.pl] [time_series.pl]
+		- added ambiguity velocity check in [LADCP_w_ocean]
+
+	May  2, 2018:
+	 	- bug fixes in [LADCP_w_ocean], related to
+	 		- reflr threshold
+	 		- PPI
+	 	- adapted [defaults.pl] to reflr_u filter
+
+	May 13, 2018:
+		- fixed bug in [LADCP_wspec]
+
+	May 16, 2018:
+		- improvement to [LADCP_wspec]
+
+	May 22, 2018:
+		- improvement to [LADCP_w_CTD]
+
+	Jul 24, 2018:
+		- improvement to [LADCP_w_CTD]
+
+	Sep 13, 2018:
+		- added '.' to library path in [version.pl]
+
+	Oct  4, 2018:
+		- improvements to [LADCP_w_CTD]
+
+	Oct  5, 2018:
+		- improvements and bugfix in [LADCP_w_CTD]
+
+	Oct 31, 2018:
+		- improvements to [LADCP_w_postproc]
+
+	Nov  1, 2018:
+		- improvements to [LADCP_w_postproc]
+
+	Nov  2, 2018:
+		- 2-beam residuals bug fix in [LADCP_w_ocean]
+
+	Nov 17, 2018:
+		- updated [HISTORY]
+		- updated prerequisites in [version.pl]
+		- updated [LADCP_w_howto.pdf]
+

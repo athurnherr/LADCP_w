@@ -1,9 +1,9 @@
 #======================================================================
 #                    . H G I G N O R E 
 #                    doc: Thu Oct 27 10:27:55 2011
-#                    dlm: Tue Dec 22 11:01:28 2015
+#                    dlm: Wed Oct 31 10:22:46 2018
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 16 14 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 20 16 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 syntax: glob
@@ -14,6 +14,10 @@ README.Publish
 
 Plots/
 Documentation/
+ADCP_tools/
+ANTSlib/
+Makefile.Archive
+LADCP_w_Software.tgz
 
 Dec_17_2010/
 Dec_24_2010/

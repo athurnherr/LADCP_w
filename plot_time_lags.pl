@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ T I M E _ L A G S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Tue Mar  7 12:04:21 2017
+#                    dlm: Thu Mar 22 10:56:17 2018
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 35 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 40 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -12,7 +12,8 @@
 #	Mar 16, 2016: - adapted to gmt5
 #   May 18, 2016: - added version
 #	May 24, 2016: - fixed for partial-depth casts
-#	mar  7, 2017: - added time lines for -p
+#	Mar  7, 2017: - added time lines for -p
+#	Mar 22, 2018: - removed plotting of yellow runs on -l
 
 require "$ANTS/libGMT.pl";
 
@@ -35,11 +36,13 @@ sub plot_time_lags($)
 		printf(GMT "%f $ymin\n%f $ymax\n>\n",$x,$x);
 	}
 
-	GMT_psxy('-W8,yellow');											# offset runs
-	for (my($i)=0; $i<@bmo_buf; $i++) {
-		printf(GMT ">\n%f %f\n%f %f\n",
-			$fg_buf[$i]/60-0.5,$bmo_buf[$i],
-			$lg_buf[$i]/60+0.5,$bmo_buf[$i]);
+	unless ($opt_l) {
+		GMT_psxy('-W8,yellow'); 									# indicate valid runs
+		for (my($i)=0; $i<@bmo_buf; $i++) {
+			printf(GMT ">\n%f %f\n%f %f\n",
+				$fg_buf[$i]/60-0.5,$bmo_buf[$i],
+				$lg_buf[$i]/60+0.5,$bmo_buf[$i]);
+	    }
 	}
 
 	GMT_psxy('-Sc0.1 -Gcoral');										# individual offsets
