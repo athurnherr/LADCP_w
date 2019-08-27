@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Tue Nov 27 14:04:39 2018
+#                    dlm: Sun Apr 21 14:16:03 2019
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 282 15 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 298 81 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -293,6 +293,9 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - replaced $PPI_seabed_editing_required by &PPI_seabed_editing_required
 #				  - BUG: surface PPI editing code could not be enabled; added &PPI_surface_editing_required
 #	Nov  2, 2018: - BUG: for 3-beam solutions, residual{12,34} with affected beam was wrong
+#	Apr 12, 2019: - added logfile error message for non-existing file
+#	Apr 18, 2019: - added addtional RDI coordinate transformation %PARAMs
+#	Apr 21, 2019: - BUG: removed duplicate warning about lacking water-depth info
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -575,6 +578,8 @@ sub debugmsg(@)
 #---------------------------
 
 progress("Reading LADCP data from <$LADCP_file>...\n");
+error("cannot open <$LADCP_file> for reading\n")
+	unless (-r $LADCP_file);
 readData($LADCP_file,\%LADCP);
 &antsAddDeps($LADCP_file);
 if ($LADCP{BEAM_COORDINATES}) {
@@ -725,7 +730,10 @@ unless ($LADCP{BEAM_COORDINATES}) {
 	$RDI_Coords::binMapping = 'none';
 }
 
-&antsAddParams('RDI_Coords::binMapping',$RDI_Coords::binMapping);		# finally, bin mapping is known
+&antsAddParams('RDI_Coords::binMapping', 	    $RDI_Coords::binMapping,		# finally, bin mapping is known
+			   'RDI_Coords::minValidVels',      $RDI_Coords::minValidVels,
+			   'RDI_Coords::beamTransformation',$RDI_Coords::beamTransformation);
+
 
 #-------------------------------------------------------------------
 # Calculate earth velocities
@@ -1363,7 +1371,8 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
 			($nvrm,$nerm) = editSideLobes($firstGoodEns,$lastGoodEns,$water_depth);
         	progress("\t$nvrm velocities from $nerm ensembles removed\n");
         } else {
-			warning(2,"unknown water depth --- cannot edit UL data for sidelobe interference from seabed\n");
+#			WARNING ALREADY PRODUCED ABOVE
+#			warning(2,"unknown water depth --- cannot edit UL data for sidelobe interference from seabed\n");
         }
         &antsAddParams('sidelobe_editing','surface+seabed','vessel_draft',$vessel_draft);
     } else {

@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Wed May  2 14:11:50 2018
+#                    dlm: Wed Apr 17 11:30:31 2019
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 308 44 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 343 41 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -332,12 +332,15 @@ $vessel_draft					= 6;		# in meters
 # differnces between the UL and DL data could be due to tilt-
 # sensor differences, rather than due to instrument type.
 
+$max_hspeed_300kHz = 0.55; # m/s
+$max_hspeed_150kHz = 0.35; # m/s
+
 sub max_hspeed()
 {
 	if (abs($LADCP{BEAM_FREQUENCY}-300) <= 25) {		# 300kHz Workhorse
-		$max_hspeed = 0.55;	# meters/second
+		$max_hspeed = $max_hspeed_300kHz;
 	} elsif (abs($LADCP{BEAM_FREQUENCY}-150) <= 25) {	# 150kHz Workhorse
-		$max_hspeed = 0.35;	# meters/second
+		$max_hspeed = $max_hspeed_150kHz;
 	} else {
 		warning(2,"unknown horizontal speed limit for this instrument frequency ($LADCP{BEAM_FREQUENCY} kHz)\n");
 		$max_hspeed = 9e99;

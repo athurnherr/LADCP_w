@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Fri Oct  5 14:52:00 2018
+#                    dlm: Mon Apr 29 18:00:44 2019
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 85 93 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 111 15 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -83,7 +83,10 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #				  - added plotting errors
 #				  - improved log message
 #				  - BUG: initial in-air scans were not handled correctly (nscans not updated)
-
+#	Mar 25, 2019: - changed error message to allow creating 1Hz from 4Hz file (SBE19)
+#				  - BUG: ITS was not set. How is this possible?????
+#	Apr 21, 2019: - modified code to allow production of 24Hz files (previous code required
+#					min 2 samples per bin, allowing for max 12Hz sampling rate)
 
 # NOTES:
 #	w_CTD is positive during the downcast to make the sign of the apparent
@@ -105,7 +108,7 @@ require "$ANTS/libEOS83.pl";
 
 $antsParseHeader = 0;											# usage
 $antsSuppressCommonOptions = 1;
-&antsUsage('ai:l:orp:qs:v:w:',1,
+&antsUsage('ac:i:l:orp:qs:v:w:',1,
 	'[-v)erbosity <level[0]>]',
 	'[use -a)lternate sensor pair]',
 	'[-r)etain all data (no editing)] [allow infinite -o)utliers]',
@@ -147,8 +150,10 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 	($nfields,$nscans,$sampint,$badval,$ftype,$lat,$lon) =			# decode SBE header 
 		SBE_parseHeader(F,0,0); 									# SBE field names, no time check
 	
-	_croak("$CNVfile: unexpected sampling interval $sampint\n")
-		unless (abs($sampint-1/24) < 1e-5);
+#	_croak("$CNVfile: unexpected sampling interval $sampint s\n")
+#		unless (abs($sampint-1/24) < 1e-5);
+	_croak("$CNVfile: insufficient time resolution ($sampint s) for ${opt_s}Hz time series\n")
+		if (round(1/$sampint/$opt_s) < 1);
 
 	if (defined($opt_l)) {											# set/override station location with -l
 		my($slat,$slon) = split('[,/]',$opt_l);
@@ -163,10 +168,12 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 	&antsAddParams('lat',$lat);
 	&antsAddParams('lon',$lon);
 	
-	$pressF = fnr('prDM');
+	$pressF = fnrNoErr('prdM');										# pressure; SBE19plus
+	$pressF = fnr('prDM') unless defined($pressF);					# SBE 9plus
 	
 	if ($opt_a) {													# temp/cond alternate sensor pair
 		$tempF	= fnr('t190C');
+		&antsAddParams('ITS',90);
 		$condF	= fnrNoErr('c1S/m');
 		if (defined($condF)) {
 			$condHistRes = 20;										# 0.2 S/m bins
@@ -175,7 +182,9 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 			$condHistRes = 2;										# 2.0 mS/cm bins
 		}
 	} else {														# primary sensor pair
-		$tempF	= fnr('t090C');
+		$tempF  = fnrNoErr('tv290C');								# SBE 19plus
+		$tempF	= fnr('t090C') unless defined($tempF);				# SBE 9plus
+		&antsAddParams('ITS',90);
 		$condF	= fnrNoErr('c0S/m');
 		if (defined($condF)) {
 			$condHistRes = 20;
