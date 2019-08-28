@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Mon Apr 29 18:00:44 2019
+#                    dlm: Wed Aug 28 17:47:08 2019
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 111 15 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 296 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -87,6 +87,8 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #				  - BUG: ITS was not set. How is this possible?????
 #	Apr 21, 2019: - modified code to allow production of 24Hz files (previous code required
 #					min 2 samples per bin, allowing for max 12Hz sampling rate)
+#	Aug 27, 2019: - began adding correction for dropped CTD scans
+#	Aug 28, 2019: - made it work
 
 # NOTES:
 #	w_CTD is positive during the downcast to make the sign of the apparent
@@ -150,8 +152,6 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 	($nfields,$nscans,$sampint,$badval,$ftype,$lat,$lon) =			# decode SBE header 
 		SBE_parseHeader(F,0,0); 									# SBE field names, no time check
 	
-#	_croak("$CNVfile: unexpected sampling interval $sampint s\n")
-#		unless (abs($sampint-1/24) < 1e-5);
 	_croak("$CNVfile: insufficient time resolution ($sampint s) for ${opt_s}Hz time series\n")
 		if (round(1/$sampint/$opt_s) < 1);
 
@@ -193,6 +193,15 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 			$condHistRes = 2;
 		}
 	}
+
+	$systimeF = &fnrNoErr('timeY');									# apply correction for dropped scans
+	$xmerrF  = &fnrNoErr('modError');
+	if (defined($systimeF) && defined($xmerrF)) {
+		$fill_gaps = 1;
+	} else {
+		print(STDERR "\n\n") if ($opt_v > 1);
+		print(STDERR "WARNING: timeY and/or modError missing from $CNVfile -- cannot correct for CTD modulo errors\n");
+    }	
 	
 	$latF = &fnrNoErr('lat');										# GPS data if available (to make files useful for u/v processing)
 	$lonF = &fnrNoErr('lon');
@@ -230,9 +239,121 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 	}
 }
 
-printf(STDERR "\n\t%d scans (%d seconds)",$nscans,int($nscans*$sampint))
+printf(STDERR "\n\t%d scans (%d minutes)",$nscans,round($nscans*$sampint/60))
 	if ($opt_v > 1);
 printf(STDERR "\n") if ($opt_v);
+
+#----------------------------------------------------------------------
+# Fill gaps in CTD time series due to dropped scans (modulo errors)
+#----------------------------------------------------------------------
+
+if ($fill_gaps) {
+	print(STDERR "Filling CTD time-series gaps...") if ($opt_v);
+
+	my($scans_filled) = 0;
+	my($scans_replaced) = 0;
+	my($scans_deleted) = 0;
+
+	for (my($scan)=30; $scan<@ants_; $scan++) {										# start a bit more than 1 second into the cast
+		next if ($ants_[$scan][$systimeF] == $ants_[$scan-1][$systimeF]);			# skip forward to next systime second
+
+#		while ($ants_[$scan][$systimeF] > $ants_[$scan-1][$systimeF]+1) {			# gap spans full second
+#			my(@splicescan);														# scan to splice in 
+#			$splicescan[$systimeF] = $ants_[$scan-1][$systimeF] + 1;
+#			$splicescan[$xmerrF] = $ants_[$scan-1][$xmerrF];
+#			for (my($i)=0; $i<24; $i++) {
+#				splice(@ants_,$scan,0,\@splicescan);
+#				$scans_filled++;
+#			}
+#		}
+			
+		my($second_start) = $scan - 1;												# backtrack to beginning of second
+		my($scans_this_sec) = 1;
+		while ($ants_[$second_start-1][$systimeF] == $ants_[$second_start][$systimeF]) {
+			$second_start--; $scans_this_sec++;
+		}
+		die("\nscan = $scan, second_start = $second_start, st = $ants_[$second_start][$systimeF]")
+			unless ($second_start > 0);
+
+		while ($scans_this_sec > 24) {												# CTD clock running fast => remove scans
+			splice(@ants_,$scan-1,1);
+			$scans_deleted++; $scans_this_sec--; $scan--;
+		}
+
+		my($gap_len) = 24 - $scans_this_sec;										# gap length in this second only
+		die("gap_len = $gap_len at scan#$scan") unless ($gap_len >= 0);
+		
+		my($ngaps) = 0;																# gaps between end of previous and beginning of next section
+		for (my($s)=$second_start; $s<=$scan; $s++) {
+			$ngaps++ if ($ants_[$s][$xmerrF] > $ants_[$s-1][$xmerrF]);
+		}
+
+		my(@splicescan);															# scan to splice in 
+		$splicescan[$systimeF] = $ants_[$second_start][$systimeF];
+		$splicescan[$xmerrF] = $ants_[$second_start][$xmerrF];
+
+		if ($ngaps==0 && $gap_len>0) {												# clock drift => add scan
+#			print(STDERR "adding $gap_len scans to make up for clock drift starting at scan $scan-1 (ss = $second_start) (st = $splicescan[$systimeF])\n");
+			for (my($i)=0; $i<$gap_len; $i++) {										# fill gap
+				splice(@ants_,$scan-1,0,\@splicescan);
+				$scans_filled++; $scan++;
+			}
+        } elsif ($ngaps == 1) {														# single gap => fill it
+			my($gap_location) = $second_start;										# find it
+			while ($ants_[$gap_location][$xmerrF] == $ants_[$second_start-1][$xmerrF]) {
+				$gap_location++;
+			}
+			die('INTERNAL ERROR') unless ($gap_location <= $scan);
+#			print(STDERR "filling $gap_len gap starting at scan $gap_location (ss = $second_start) (st = $splicescan[$systimeF])\n");
+			for (my($i)=0; $i<$gap_len; $i++) {										# fill gap
+				splice(@ants_,$gap_location,0,\@splicescan);
+				$scans_filled++; $scan++;
+			}
+		} else {																	# multiple gaps => delete data
+			my($last_gap);
+			for (my($s)=$second_start; $s<$scan; $s++) {							# replace ambiguous data scans
+				next if ($ants_[$s][$xmerrF] == $ants_[$second_start-1][$xmerrF]);
+				last if ($ants_[$s][$xmerrF] == $ants_[$scan][$xmerrF]);
+				splice(@ants_,$s,1,\@splicescan);									# replace
+				$scans_replaced++;
+				$last_gap = $s;
+            }		
+			for (my($i)=0; $i<$gap_len; $i++) {										# fill gaps
+				splice(@ants_,$last_gap+1,0,\@splicescan);
+				$scans_filled++; $scan++;
+			}
+		}
+
+		my($scans_this_sec) = 0;
+		die("$ants_[$second_start][$systimeF]==$ants_[$second_start-1][$systimeF]+1")
+			unless ($ants_[$second_start][$systimeF]==$ants_[$second_start-1][$systimeF]+1);
+		for (my($i)=0; $ants_[$second_start+$i][$systimeF]==$ants_[$second_start-1][$systimeF]+1; $i++) {
+			$scans_this_sec++;
+		}
+		die("\n$scans_this_sec scans in second $ants_[$second_start][$systimeF] at scans $second_start .. $scan-1 (gap_len $gap_len, $ngaps gaps)\n")
+			unless ($scans_this_sec == 24);
+	} # for ($scan
+
+#	my($sts) = 1;
+#	for (my($scan)=1; $scan<@ants_; $scan++) {
+#		$sts++,next if ($ants_[$scan][$systimeF] == $ants_[$scan-1][$systimeF]);
+#		printf(STDERR "sts = $sts beginning at scan %d (st = $ants_[$scan-1][$systimeF])\n",$scan-$sts)
+#			unless ($sts == 24);
+#		$sts = 1;
+#	}
+		
+
+	&antsAddParams('gaps_scans_filled',$scans_filled,
+				   'scans_removed',$scans_deleted,
+				   'gap_scans_cleared',$scans_replaced);
+
+	if ($opt_v>1 && $scans_filled) {
+		printf(STDERR "\n\t%d scans removed (clock drift)",$scans_deleted);
+		printf(STDERR "\n\t%d scans added (gaps & clock drift)",$scans_filled);
+		printf(STDERR "\n\t%d scans cleared (gap clusters)",$scans_replaced);
+	}
+	printf(STDERR "\n") if ($opt_v);
+} # if ($fill_gaps
 
 #----------------------------------------------------------------------
 # Redirect STDOUT to %.6Hz & create %_w_CTD.ps,%_sspd.ps if STDOUT is a tty
@@ -309,6 +430,7 @@ unless ($opt_r) {
 	my($press_rez) = 2;
 	my($outliers) = my($modeSamp) = 0; my($modeBin,$min,$max); local(@hist);
 	for (my($s)=0; $s<$nscans; $s++) {
+		$ants_[$s][$pressF] = nan unless defined($ants_[$s][$pressF]);
 		next unless ($ants_[$s][$pressF]>=-100 && $ants_[$s][$pressF]<=6500);
 		my($b) = ($ants_[$s][$pressF]+100) / $press_rez;
 		$hist[$b]++;
@@ -320,6 +442,7 @@ unless ($opt_r) {
 	($min,$max) = validRange($modeBin);
 	$min = $press_rez*$min-100; $max = $press_rez*$max-100;
 	for (my($s)=0; $s<$nscans; $s++) {
+		next unless numberp($ants_[$s][$pressF]);
 		if ($ants_[$s][$pressF] > $max) { $outliers++; $ants_[$s][$pressF] = nan; }
 		if ($ants_[$s][$pressF] < $min) { $outliers++; $ants_[$s][$pressF] = nan; }
 	}
@@ -334,6 +457,7 @@ unless ($opt_r) {
 	$outliers = $modeSamp = 0;
 	undef(@hist);
 	for (my($s)=0; $s<$nscans; $s++) {
+		$ants_[$s][$condF] = nan unless defined($ants_[$s][$condF]);
 		next unless ($ants_[$s][$condF] > 0);
 		my($b) = $ants_[$s][$condF]*$condHistRes;					# 1/10 S/m histogram resolution (1 mS/cm)
 		$hist[$b]++;
@@ -343,6 +467,7 @@ unless ($opt_r) {
 	($min,$max) = validRange($modeBin);
 	$min /= $condHistRes; $max /= $condHistRes;
 	for (my($s)=0; $s<$nscans; $s++) {
+		next unless numberp($ants_[$s][$condF]);
 		if ($ants_[$s][$condF] > $max) { $outliers++; $ants_[$s][$condF] = nan; }
 		if ($ants_[$s][$condF] < $min) { $outliers++; $ants_[$s][$condF] = nan; }
 	}
@@ -362,6 +487,7 @@ unless ($opt_r) {
 	$outliers = $modeSamp = 0;
 	undef(@hist);
 	for (my($s)=0; $s<$nscans; $s++) {
+		$ants_[$s][$tempF] = nan unless defined($ants_[$s][$tempF]);
 		next unless ($ants_[$s][$tempF] >= -10);
 		my($b) = ($ants_[$s][$tempF] + 10) * 0.5;
 		$hist[$b]++;
@@ -374,6 +500,7 @@ unless ($opt_r) {
 	$min = ($min / 0.5) - 10;
 	$max = ($max / 0.5) - 10;
 	for (my($s)=0; $s<$nscans; $s++) {
+		next unless numberp($ants_[$s][$tempF]);
 		if ($ants_[$s][$tempF] > $max) { $outliers++; $ants_[$s][$tempF] = nan; }
 		if ($ants_[$s][$tempF] < $min) { $outliers++; $ants_[$s][$tempF] = nan; }
 	}
