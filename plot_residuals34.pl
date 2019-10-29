@@ -1,13 +1,14 @@
 #======================================================================
 #                    P L O T _ R E S I D U A L S 3 4 . P L 
 #                    doc: Wed Jun  1 19:05:22 2016
-#                    dlm: Wed Jun  1 19:35:58 2016
+#                    dlm: Tue Oct 29 13:15:21 2019
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 82 67 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 84 68 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #	Jun  1, 2016: - created from [plot_residuals.pl]
+#   Oct 29, 2019: - updated psscale -B to gmt5 syntax
 
 require "$ANTS/libGMT.pl";
 
@@ -79,7 +80,8 @@ sub plot_residuals34($)
 	GMT_psbasemap("-B$ens_tics:'Ensemble [#]':/$depth_tics:'Depth [m]':WeSn");
 
 	GMT_setAnnotFontSize(7);															# SCALE BAR
-	GMT_psscale("-Dn0.83/0.1+w3/0.4+e $C -B/:'w<3,4>\@-residual\@-':");
+#	GMT_psscale("-Dn0.83/0.1+w3/0.4+e $C -B/:'w<3,4>\@-residual\@-':");
+	GMT_psscale("-Dn0.83/0.1+w3/0.4+e $C -By+l'w<3,4>\@-residual\@-'");
 		 
 	GMT_end();																			# FINISH PLOT
 }

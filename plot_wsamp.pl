@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W S A M P . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Tue May 24 23:10:28 2016
+#                    dlm: Tue Oct 29 13:15:41 2019
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 73 38 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 17 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -17,6 +17,7 @@
 #                 - expunged $realLastGoodEns
 #   May 24, 2016: - calc_binDepths() -> binDepths()
 #				  - fixed for partial-depth profiles
+#	Oct 29, 2019: - updated psscale -B to gmt5 syntax
 
 require "$ANTS/libGMT.pl";
 
@@ -75,7 +76,8 @@ sub plot_wsamp($)
 	GMT_psbasemap("-B$ens_tics:'Ensemble [#]':/$depth_tics:'Depth [m]':WeSn");
 		 
 	GMT_setAnnotFontSize(7);															# SCALE BAR
-	GMT_psscale("-Dn0.85/0.1+w3/0.4+e $C -B/:w\@-ocean\@-:");
+#	GMT_psscale("-Dn0.85/0.1+w3/0.4+e $C -B/:w\@-ocean\@-:");
+	GMT_psscale("-Dn0.85/0.1+w3/0.4+e $C -By+lw\@-ocean\@-");
 
 	GMT_end();																			# FINISH PLOT
 }

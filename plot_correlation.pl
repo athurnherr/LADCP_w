@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ C O R R E L A T I O N . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Tue May 24 23:10:09 2016
+#                    dlm: Tue Oct 29 13:13:52 2019
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 67 38 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 17 53 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -14,6 +14,7 @@
 #                 - expunged $realLastGoodEns
 #   May 24, 2016: - calc_binDepths() -> binDepths()
 #				  - fixed for partial-depth casts
+#   Oct 29, 2019: - updated psscale -B to gmt5 syntax
 
 require "$ANTS/libGMT.pl";
 
@@ -69,8 +70,8 @@ sub plot_correlation($)
 	GMT_psbasemap("-B$ens_tics:'Ensemble [#]':/$depth_tics:'Depth [m]':WeSn");
 		 
 	GMT_setAnnotFontSize(7);															# SCALE BAR
-#	GMT_psscale("-E -D8/2/3/0.4 $C -B/:corr:");
-	GMT_psscale("-Dn0.85/0.1+w3/0.4+e $C -B/:corr:");
+#	GMT_psscale("-Dn0.85/0.1+w3/0.4+e $C -B/:corr:");
+	GMT_psscale("-Dn0.85/0.1+w3/0.4+e $C -By+lcorr");
 
 	GMT_end();																			# FINISH PLOT
 }
