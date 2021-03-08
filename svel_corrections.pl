@@ -1,9 +1,9 @@
 #======================================================================
 #                    S V E L _ C O R R E C T I O N S . P L 
 #                    doc: Thu Dec 30 01:35:18 2010
-#                    dlm: Tue May 24 16:44:07 2016
+#                    dlm: Mon Jun 29 11:02:08 2020
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 116 64 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 22 74 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -19,6 +19,7 @@
 #				  - made sscorr_w return nan on undef'd input vel
 #   May 24, 2016: - calc_binDepths() -> binDepths()
 #				  - added caching to binDepths
+#	Jun 29, 2020: - renamed sscorr_w to remove conflict with RDI_Coords.pl
 
 # NOTES:
 #	In an effort to track down the scale bias, NBP0901 stn 160 was reprocessed with various
@@ -27,7 +28,7 @@
 #		2) simplified (dBin/dADCP): very similar to full correction, esp. when dBin is used
 #		3) hacked correction (1450m/s vs 1500m/s assumed soundspeed) => bias largely disappears
 
-sub sscorr_w($$$$$)												# sound-speed correction for w
+sub sscorr_LADCP_w($$$$$)										# sound-speed correction for w
 {																# see RDI Coord. Trans. manual sec. 4.1, ...
 	my($wObs,$wCTD,$ssADCP,$dADCP,$dBin) = @_;					# but there is an error: the ^2 applies to the []
 	return nan unless numberp($wObs);

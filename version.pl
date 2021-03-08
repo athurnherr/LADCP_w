@@ -1,9 +1,9 @@
 #======================================================================
 #                    V E R S I O N . P L 
 #                    doc: Tue Oct 13 10:40:57 2015
-#                    dlm: Tue Nov 27 13:15:48 2018
+#                    dlm: Thu Sep 12 12:27:38 2019
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 35 29 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 36 29 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -25,11 +25,13 @@
 #				  - added 1; to the end
 #	Nov 27, 2018: - updated ANTS lib to V7.1
 #			      - updated ADCP tools to V2.2
+#	Sep 12, 2019: - updated to V1.5 because of CTD gap correction
 
 #$VERSION = '1.1';				# Jan  4, 2016
 #$VERSION = '1.2';				# May 12, 2016
 #$VERSION = '1.3';				# Mar 15, 2017
-$VERSION = '1.4';				# Nov 28, 2017
+#$VERSION = '1.4';				# Nov 28, 2017
+$VERSION = '1.5';				# Sep 12, 2018
 
 $antsMinLibVersion 		= 7.1;
 $ADCP_tools_minVersion 	= 2.2;

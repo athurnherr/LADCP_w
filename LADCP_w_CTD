@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Wed Aug 28 17:47:08 2019
+#                    dlm: Fri Jun 26 13:07:13 2020
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 296 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 144 14 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -89,6 +89,10 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #					min 2 samples per bin, allowing for max 12Hz sampling rate)
 #	Aug 27, 2019: - began adding correction for dropped CTD scans
 #	Aug 28, 2019: - made it work
+#				  - added -g
+#	Aug 30, 2019: - renamed -g to -m)odulo error correction (not)
+#				  - added -f)ill missing data
+#	Jun 26, 2020: - added salinity -b)ias correction
 
 # NOTES:
 #	w_CTD is positive during the downcast to make the sign of the apparent
@@ -110,26 +114,35 @@ require "$ANTS/libEOS83.pl";
 
 $antsParseHeader = 0;											# usage
 $antsSuppressCommonOptions = 1;
-&antsUsage('ac:i:l:orp:qs:v:w:',1,
+$IS = &antsLoadModel('`','.nminterp','linear');
+&antsUsage("ab:c:fgi:l:morp:qs:v:w:$IS_opts",1,
 	'[-v)erbosity <level[0]>]',
 	'[use -a)lternate sensor pair]',
+	'[correct -S)alinity <bias>]',
 	'[-r)etain all data (no editing)] [allow infinite -o)utliers]',
+	'[suppress CTD -m)odulo error correction]',
 	'[-s)ampling <rate[6Hz]>]',
 	'[lowpass w_CTD -c)utoff <limit[2s]>] [-w)inch-speed <granularity[10s]>]',
 	'[profile -i)d <id>] [station -l)ocation <lat/lon>]',
 	'[-p)lot_basenames <[%03d_w_CTD.ps],[%03d_sspd.ps]>]',
 	'[-q)uiet (no plots)]',
+	'[-f)ill gaps with linear interpolation]',
 	'<SBE CNV file>');
+&antsUsageError() unless defined($IS);
 
 &antsFloatOpt(\$opt_c,2);										# default low-pass cutoff for w_CTD
 &antsCardOpt(\$opt_s,6);										# default output sampling rate (Hz)
 &antsFloatOpt(\$opt_w,10);										# winch velocity granularity
+&antsFloatOpt(\$opt_b,0);										# salinity bias
 &antsCardOpt(\$opt_v,$ENV{VERB});								# support VERB env variable
 
 $CNVfile = $ARGV[0];											# open CNV file
 open(F,&antsFileArg());
 &antsAddDeps($CNVfile);
 &antsActivateOut();												# activate ANTS file
+
+&antsAddParams('salinity_bias_corrected',$opt_b)
+	if ($opt_b != 0);
 
 #----------------------------------------------------------------------
 # Read Data
@@ -153,7 +166,7 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 		SBE_parseHeader(F,0,0); 									# SBE field names, no time check
 	
 	_croak("$CNVfile: insufficient time resolution ($sampint s) for ${opt_s}Hz time series\n")
-		if (round(1/$sampint/$opt_s) < 1);
+		if (1/$sampint/$opt_s < 1);
 
 	if (defined($opt_l)) {											# set/override station location with -l
 		my($slat,$slon) = split('[,/]',$opt_l);
@@ -194,14 +207,16 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 		}
 	}
 
-	$systimeF = &fnrNoErr('timeY');									# apply correction for dropped scans
-	$xmerrF  = &fnrNoErr('modError');
-	if (defined($systimeF) && defined($xmerrF)) {
-		$fill_gaps = 1;
-	} else {
-		print(STDERR "\n\n") if ($opt_v > 1);
-		print(STDERR "WARNING: timeY and/or modError missing from $CNVfile -- cannot correct for CTD modulo errors\n");
-    }	
+	unless ($opt_m) {												# set up correction for dropped scans
+		$systimeF = &fnrNoErr('timeY');
+		$xmerrF  = &fnrNoErr('modError');
+		if (defined($systimeF) && defined($xmerrF)) {
+			$fill_gaps = 1;
+		} else {
+			print(STDERR "\n\n") if ($opt_v > 1);
+			print(STDERR "WARNING: timeY and/or modError missing from $CNVfile -- cannot correct for CTD modulo errors\n");
+	    }
+	}
 	
 	$latF = &fnrNoErr('lat');										# GPS data if available (to make files useful for u/v processing)
 	$lonF = &fnrNoErr('lon');
@@ -248,7 +263,7 @@ printf(STDERR "\n") if ($opt_v);
 #----------------------------------------------------------------------
 
 if ($fill_gaps) {
-	print(STDERR "Filling CTD time-series gaps...") if ($opt_v);
+	print(STDERR "Correcting for CTD modulo errors and clock jitter/drift...") if ($opt_v);
 
 	my($scans_filled) = 0;
 	my($scans_replaced) = 0;
@@ -257,15 +272,19 @@ if ($fill_gaps) {
 	for (my($scan)=30; $scan<@ants_; $scan++) {										# start a bit more than 1 second into the cast
 		next if ($ants_[$scan][$systimeF] == $ants_[$scan-1][$systimeF]);			# skip forward to next systime second
 
-#		while ($ants_[$scan][$systimeF] > $ants_[$scan-1][$systimeF]+1) {			# gap spans full second
-#			my(@splicescan);														# scan to splice in 
-#			$splicescan[$systimeF] = $ants_[$scan-1][$systimeF] + 1;
-#			$splicescan[$xmerrF] = $ants_[$scan-1][$xmerrF];
-#			for (my($i)=0; $i<24; $i++) {
-#				splice(@ants_,$scan,0,\@splicescan);
-#				$scans_filled++;
-#			}
-#		}
+		if ($ants_[$scan][$systimeF] > $ants_[$scan-1][$systimeF]+1) {				# gap spans at least one full second
+			print(STDERR "\n\n") if ($opt_v > 1);
+			printf(STDERR "WARNING: %d full seconds of data missing at elapsed %d s\n",
+				$ants_[$scan][$systimeF]-$ants_[$scan-1][$systimeF]-1,
+				$ants_[$scan-1][$systimeF]-$ants_[0][$systimeF]);
+			my(@splicescan);														# scan to splice in 
+			$splicescan[$systimeF] = $ants_[$scan-1][$systimeF] + 1;
+			$splicescan[$xmerrF] = $ants_[$scan-1][$xmerrF];
+			for (my($i)=0; $i<24; $i++) {
+				splice(@ants_,$scan,0,\@splicescan);
+				$scans_filled++;
+			}
+	    }
 			
 		my($second_start) = $scan - 1;												# backtrack to beginning of second
 		my($scans_this_sec) = 1;
@@ -337,11 +356,13 @@ if ($fill_gaps) {
 #	my($sts) = 1;
 #	for (my($scan)=1; $scan<@ants_; $scan++) {
 #		$sts++,next if ($ants_[$scan][$systimeF] == $ants_[$scan-1][$systimeF]);
+#		printf(STDERR "%s seconds of data missing after scan %d\n",
+#			$ants_[$scan][$systimeF]-$ants_[$scan-1][$systimeF]-1,$scan-1)
+#				if ($ants_[$scan][$systimeF]-$ants_[$scan-1][$systimeF]-1 != 0);
 #		printf(STDERR "sts = $sts beginning at scan %d (st = $ants_[$scan-1][$systimeF])\n",$scan-$sts)
 #			unless ($sts == 24);
 #		$sts = 1;
 #	}
-		
 
 	&antsAddParams('gaps_scans_filled',$scans_filled,
 				   'scans_removed',$scans_deleted,
@@ -656,6 +677,42 @@ printf(STDERR "\n\t%d seconds of data trimmed",int($trimmed*$sampint)) if ($opt_
 printf(STDERR "\n") if ($opt_v);
 
 #----------------------------------------------------------------------
+# Fill Missing Data With Linear Interpolation
+#----------------------------------------------------------------------
+
+if ($opt_f) {
+	print(STDERR "Filling CTD time-series data gaps...") if ($opt_v);
+
+	for (my($f)=0; $f<@antsLayout; $f++) {
+		&ISInit($f,-1);
+	}
+
+	my($interpolated) = 0;
+	my($not_interpolated) = 0;
+
+	for (my($s)=0; $s<@ants_; $s++) {
+		for (my($f)=0; $f<@antsLayout; $f++) {
+			if (numberp($ants_[$s][$f])) {
+				$lastValid[$f] = $f;
+				next;
+			}
+			$not_interpolated++,next unless defined($lastValid[$f]);
+			my($iv) = interpolate(-1,100,$f,$lastValid[$f],$s);
+			$not_interpolated++,next unless numberp($iv);
+			$ants_[$s][$f] = $iv;
+			$interpolated++;
+		}
+	}
+
+	if ($opt_v > 1) {
+		print(STDERR "\n\t$interpolated values interpolated");
+		print(STDERR "\n\t$not_interpolated non-interpolatable missing values left");
+	}
+
+	printf(STDERR "\n") if ($opt_v);
+} # if ($opt_f 
+
+#----------------------------------------------------------------------
 # Binning data
 #----------------------------------------------------------------------
 
@@ -708,6 +765,7 @@ for (my($r)=0; $r<@press; $r++) {
 	$depth[$r] = &depth($press[$r],$lat);
 #	print(STDERR "depth[$r] = depth($press[$r],$lat) = $depth[$r]\n");
 	$salin[$r] = &salin($cond[$r],$temp[$r],$press[$r]);
+	$salin[$r] -= $opt_b;
 	$sspd[$r]  = &sVel($salin[$r],$temp[$r],$press[$r]);
 	$min_sspd = $sspd[$r] if ($sspd[$r] < $min_sspd);
 	$max_sspd = $sspd[$r] if ($sspd[$r] > $max_sspd);

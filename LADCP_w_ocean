@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Sun Apr 21 14:16:03 2019
+#                    dlm: Mon Jun 29 11:03:22 2020
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 298 81 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 306 76 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -296,6 +296,14 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Apr 12, 2019: - added logfile error message for non-existing file
 #	Apr 18, 2019: - added addtional RDI coordinate transformation %PARAMs
 #	Apr 21, 2019: - BUG: removed duplicate warning about lacking water-depth info
+#	Sep 10, 2019: - BUG: -i was erroneously listed as the initial CTD time offset
+#	Sep 12, 2019: - modified .prof output layout to be consistent with [LADCP_w_postproc]
+#	May 15, 2020: - BUG: re-binning on -r did not work for v12 and v34
+#				  - BUG: before re-binning, upcast v12 and v34 were actuall from DC data
+#				  - BUG: all beam-pair velocity stats were contaminated by missing values
+#				  - made bin residuals per beam pair
+#	May 16, 2020: - BUG: write_residual_profs() clobbered layout
+#	Jun 22, 2020: - sscorr_w renamed to remove conflict with [RDI_Coords.pl]
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -399,7 +407,7 @@ $antsSuppressCommonOptions = 1;
 	"[max -r)esidual <rms.max[,delta.max][$opt_r m/s]>]",
 	"[-h water <depth|filename>]",
 	"[max LADCP time-series -g)ap <length[$opt_g s]>]",
-	"[-i)nitial CTD time offset <guestimate> [-u)se as final]]",
+	"[-i)nitial LADCP time offset <guestimate> [-u)se as final]]",
 	"[calculate -n) <lags,lags[$opt_n]>] [lag -w)indow <sz,sz[$opt_w s]>] [lag-p)iece <CTD_elapsed_min|+[,...]>]",
 	"[require top-3) lags to account for <frac[$opt_3]> of all]",
 	"[disable time-l)ag filtering]",
@@ -1513,20 +1521,20 @@ for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		$min_depth = $bindepth[$bin] if ($bindepth[$bin] < $min_depth);
 		$max_depth = $bindepth[$bin] if ($bindepth[$bin] > $max_depth);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] =
-			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W}[$bin],
+			sscorr_LADCP_w($LADCP{ENSEMBLE}[$ens]->{W}[$bin],
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					 $LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND},
 					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
 					 $bindepth[$bin]);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] =
-			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
+			sscorr_LADCP_w($LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					 $LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND},
 					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
 					 $bindepth[$bin])
 				if numberp($LADCP{ENSEMBLE}[$ens]->{W12}[$bin]);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] =
-			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W34}[$bin],
+			sscorr_LADCP_w($LADCP{ENSEMBLE}[$ens]->{W34}[$bin],
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					 $LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND},
 					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
@@ -1534,17 +1542,23 @@ for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 				if numberp($LADCP{ENSEMBLE}[$ens]->{W34}[$bin]);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin] =
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] + $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}];
-		$LADCP{ENSEMBLE}[$ens]->{V12}[$bin] *= $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND};
-		$LADCP{ENSEMBLE}[$ens]->{V34}[$bin] *= $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND};
+		$LADCP{ENSEMBLE}[$ens]->{V12}[$bin] *= $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}
+			if defined($LADCP{ENSEMBLE}[$ens]->{V12}[$bin]);
+		$LADCP{ENSEMBLE}[$ens]->{V34}[$bin] *= $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}
+			if defined($LADCP{ENSEMBLE}[$ens]->{V34}[$bin]);
 		my($bi) = $bindepth[$bin]/$opt_o;
 		push(@{$DNCAST{ENSEMBLE}[$bi]},$ens);
 		push(@{$DNCAST{ELAPSED}[$bi]},$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
 		push(@{$DNCAST{DEPTH}[$bi]},$bindepth[$bin]);
 		push(@{$DNCAST{W}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
-		push(@{$DNCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
-		push(@{$DNCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
-		push(@{$DNCAST{V12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V12}[$bin]);
-		push(@{$DNCAST{V34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V34}[$bin]);
+		push(@{$DNCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin])
+			if defined($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
+		push(@{$DNCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin])
+			if defined($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
+		push(@{$DNCAST{V12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V12}[$bin])
+			if defined($LADCP{ENSEMBLE}[$ens]->{V12}[$bin]);
+		push(@{$DNCAST{V34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V34}[$bin])
+			if defined($LADCP{ENSEMBLE}[$ens]->{V34}[$bin]);
 		push(@{$DNCAST{PITCH}[$bi]},$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH});
 		push(@{$DNCAST{ROLL}[$bi]},$LADCP{ENSEMBLE}[$ens]->{ROLL});
 	}
@@ -1576,20 +1590,20 @@ for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
 		$min_depth = $bindepth[$bin] if ($bindepth[$bin] < $min_depth);
 		$max_depth = $bindepth[$bin] if ($bindepth[$bin] > $max_depth);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] =
-			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W}[$bin],
+			sscorr_LADCP_w($LADCP{ENSEMBLE}[$ens]->{W}[$bin],
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					 $LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND},
 					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
 					 $bindepth[$bin]);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin] =
-			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
+			sscorr_LADCP_w($LADCP{ENSEMBLE}[$ens]->{W12}[$bin],
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					 $LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND},
 					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
 					 $bindepth[$bin])
 				if numberp($LADCP{ENSEMBLE}[$ens]->{W12}[$bin]);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin] =
-			sscorr_w($LADCP{ENSEMBLE}[$ens]->{W34}[$bin],
+			sscorr_LADCP_w($LADCP{ENSEMBLE}[$ens]->{W34}[$bin],
 					 $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
 					 $LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND},
 					 $LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH},
@@ -1597,17 +1611,23 @@ for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
 				if numberp($LADCP{ENSEMBLE}[$ens]->{W34}[$bin]);
 		$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_W}[$bin] =
 			$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin] + $CTD{W}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}];
-		$LADCP{ENSEMBLE}[$ens]->{V12}[$bin] *= $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND};
-		$LADCP{ENSEMBLE}[$ens]->{V34}[$bin] *= $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND};
+		$LADCP{ENSEMBLE}[$ens]->{V12}[$bin] *= $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}
+			if defined($LADCP{ENSEMBLE}[$ens]->{V12}[$bin]);
+		$LADCP{ENSEMBLE}[$ens]->{V34}[$bin] *= $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]/$LADCP{ENSEMBLE}[$ens]->{SPEED_OF_SOUND}
+			if defined($LADCP{ENSEMBLE}[$ens]->{V34}[$bin]);
 		my($bi) = $bindepth[$bin]/$opt_o;
 		push(@{$UPCAST{ENSEMBLE}[$bi]},$ens);
 		push(@{$UPCAST{ELAPSED}[$bi]},$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
 		push(@{$UPCAST{DEPTH}[$bi]},$bindepth[$bin]);
 		push(@{$UPCAST{W}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
-		push(@{$UPCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
-		push(@{$UPCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
-		push(@{$UPCAST{V12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V12}[$bin]);
-		push(@{$UPCAST{V34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V34}[$bin]);
+		push(@{$UPCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin])
+			if defined($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
+		push(@{$UPCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin])
+			if defined($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
+		push(@{$UPCAST{V12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V12}[$bin])
+			if defined($LADCP{ENSEMBLE}[$ens]->{V12}[$bin]);
+		push(@{$UPCAST{V34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V34}[$bin])
+			if defined($LADCP{ENSEMBLE}[$ens]->{V34}[$bin]);
 		push(@{$UPCAST{PITCH}[$bi]},$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH});
 		push(@{$UPCAST{ROLL}[$bi]},$LADCP{ENSEMBLE}[$ens]->{ROLL});
 	}
@@ -1619,8 +1639,8 @@ for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 	$UPCAST{MEDIAN_W}[$bi] 	  	= median(@{$UPCAST{W}[$bi]});
 	$UPCAST{MEDIAN_W12}[$bi]  	= median(@{$UPCAST{W12}[$bi]});
 	$UPCAST{MEDIAN_W34}[$bi]  	= median(@{$UPCAST{W34}[$bi]});
-	$UPCAST{MEDIAN_V12}[$bi]  	= median(@{$DNCAST{V12}[$bi]});
-	$UPCAST{MEDIAN_V34}[$bi]  	= median(@{$DNCAST{V34}[$bi]});
+	$UPCAST{MEDIAN_V12}[$bi]  	= median(@{$UPCAST{V12}[$bi]});
+	$UPCAST{MEDIAN_V34}[$bi]  	= median(@{$UPCAST{V34}[$bi]});
 	$UPCAST{MEAN_PITCH}[$bi]  	= avg(@{$UPCAST{PITCH}[$bi]});
 	$UPCAST{MEAN_ROLL}[$bi]  	= avg(@{$UPCAST{ROLL}[$bi]});
 	$UPCAST{MAD_W}[$bi]		  	= mad2($UPCAST{MEDIAN_W}[$bi],@{$UPCAST{W}[$bi]});
@@ -1751,8 +1771,16 @@ if (defined($opt_r) && !$opt_q) {
 			push(@{$DNCAST{ELAPSED}[$bi]},$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
 			push(@{$DNCAST{DEPTH}[$bi]},$bindepth[$bin]);
 			push(@{$DNCAST{W}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
-			push(@{$DNCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
-			push(@{$DNCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
+			push(@{$DNCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin])
+				if defined($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
+			push(@{$DNCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin])
+				if defined($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
+			push(@{$DNCAST{V12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V12}[$bin])
+				if defined($LADCP{ENSEMBLE}[$ens]->{V12}[$bin]);
+			push(@{$DNCAST{V34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V34}[$bin])
+				if defined($LADCP{ENSEMBLE}[$ens]->{V34}[$bin]);
+			push(@{$DNCAST{PITCH}[$bi]},$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH});
+			push(@{$DNCAST{ROLL}[$bi]},$LADCP{ENSEMBLE}[$ens]->{ROLL});
 		}
 	}
 	for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {							# bin data into profile
@@ -1761,6 +1789,10 @@ if (defined($opt_r) && !$opt_q) {
 		$DNCAST{MEDIAN_W}[$bi]		= median(@{$DNCAST{W}[$bi]});
 		$DNCAST{MEDIAN_W12}[$bi]	= median(@{$DNCAST{W12}[$bi]});
 		$DNCAST{MEDIAN_W34}[$bi]	= median(@{$DNCAST{W34}[$bi]});
+		$DNCAST{MEDIAN_V12}[$bi]  	= median(@{$DNCAST{V12}[$bi]});
+		$DNCAST{MEDIAN_V34}[$bi]  	= median(@{$DNCAST{V34}[$bi]});
+		$DNCAST{MEAN_PITCH}[$bi]  	= avg(@{$DNCAST{PITCH}[$bi]});
+		$DNCAST{MEAN_ROLL}[$bi]  	= avg(@{$DNCAST{ROLL}[$bi]});
 		$DNCAST{MAD_W}[$bi] 		= mad2($DNCAST{MEDIAN_W}[$bi],@{$DNCAST{W}[$bi]});
 		$DNCAST{N_SAMP}[$bi]		= @{$DNCAST{W}[$bi]};
 	}
@@ -1778,8 +1810,16 @@ if (defined($opt_r) && !$opt_q) {
 			push(@{$UPCAST{ELAPSED}[$bi]},$CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}]);
 			push(@{$UPCAST{DEPTH}[$bi]},$bindepth[$bin]);
 			push(@{$UPCAST{W}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]);
-			push(@{$UPCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
-			push(@{$UPCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
+			push(@{$UPCAST{W12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin])
+				if defined($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W12}[$bin]);
+			push(@{$UPCAST{W34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin])
+				if defined($LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W34}[$bin]);
+			push(@{$UPCAST{V12}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V12}[$bin])
+				if defined($LADCP{ENSEMBLE}[$ens]->{V12}[$bin]);
+			push(@{$UPCAST{V34}[$bi]},$LADCP{ENSEMBLE}[$ens]->{V34}[$bin])
+				if defined($LADCP{ENSEMBLE}[$ens]->{V34}[$bin]);
+			push(@{$UPCAST{PITCH}[$bi]},$LADCP{ENSEMBLE}[$ens]->{GIMBAL_PITCH});
+			push(@{$UPCAST{ROLL}[$bi]},$LADCP{ENSEMBLE}[$ens]->{ROLL});
 		}
 	}
 	for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
@@ -1788,6 +1828,10 @@ if (defined($opt_r) && !$opt_q) {
 		$UPCAST{MEDIAN_W}[$bi]		= median(@{$UPCAST{W}[$bi]});
 		$UPCAST{MEDIAN_W12}[$bi]	= median(@{$UPCAST{W12}[$bi]});
 		$UPCAST{MEDIAN_W34}[$bi]	= median(@{$UPCAST{W34}[$bi]});
+		$UPCAST{MEDIAN_V12}[$bi]  	= median(@{$UPCAST{V12}[$bi]});
+		$UPCAST{MEDIAN_V34}[$bi]  	= median(@{$UPCAST{V34}[$bi]});
+		$UPCAST{MEAN_PITCH}[$bi]  	= avg(@{$UPCAST{PITCH}[$bi]});
+		$UPCAST{MEAN_ROLL}[$bi]  	= avg(@{$UPCAST{ROLL}[$bi]});
 		$UPCAST{MAD_W}[$bi] 		= mad2($UPCAST{MEDIAN_W}[$bi],@{$UPCAST{W}[$bi]});
 		$UPCAST{N_SAMP}[$bi]		= @{$UPCAST{W}[$bi]};
 	}
@@ -1851,18 +1895,23 @@ progress("\n");
 # Calculate and Output ADCP-Bin-Averaged Residuals
 #-------------------------------------------------
 
-if (@out_BR) {
+#if (@out_BR) {
 	progress("Binning vertical-velocity residuals wrt. ADCP bin number...");
 
-	local(@dc_bres,@uc_bres);
+	local(@dc_bres12,@uc_bres12,@dc_bres34,@uc_bres34);
 	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# DOWNCAST
 		next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
 		my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-			push(@{$dc_bres[$bin]},
+			push(@{$dc_bres12[$bin]},
 					$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]
-					- $DNCAST{MEDIAN_W}[$bindepth[$bin]/$opt_o]);
+					- $DNCAST{MEDIAN_W12}[$bindepth[$bin]/$opt_o])
+						if numberp($DNCAST{MEDIAN_W12}[$bindepth[$bin]/$opt_o]);
+			push(@{$dc_bres34[$bin]},
+					$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]
+					- $DNCAST{MEDIAN_W34}[$bindepth[$bin]/$opt_o])
+						if numberp($DNCAST{MEDIAN_W34}[$bindepth[$bin]/$opt_o]);
 		}
 	}
 	for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {						# UPCAST 
@@ -1870,60 +1919,106 @@ if (@out_BR) {
 		my(@bindepth) = binDepths($ens);
 		for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
-			push(@{$uc_bres[$bin]},
+			push(@{$uc_bres12[$bin]},
 					$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]
-					- $UPCAST{MEDIAN_W}[$bindepth[$bin]/$opt_o]);
+					- $UPCAST{MEDIAN_W12}[$bindepth[$bin]/$opt_o])
+						if numberp($UPCAST{MEDIAN_W12}[$bindepth[$bin]/$opt_o]);
+			push(@{$uc_bres34[$bin]},
+					$LADCP{ENSEMBLE}[$ens]->{SSCORRECTED_OCEAN_W}[$bin]
+					- $UPCAST{MEDIAN_W34}[$bindepth[$bin]/$opt_o])
+						if numberp($UPCAST{MEDIAN_W34}[$bindepth[$bin]/$opt_o]);
 		}
 	}
-	local(@dc_avg_bres,@uc_avg_bres,@dc_avg_bres_nsamp,@uc_avg_bres_nsamp);			# calc means/stddevs
+	local(@dc_avg_bres12,@uc_avg_bres12,@dc_avg_bres12_nsamp,@uc_avg_bres12_nsamp);	# means/stddevs
+	local(@dc_avg_bres34,@uc_avg_bres34,@dc_avg_bres34_nsamp,@uc_avg_bres34_nsamp);	
 	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {		
-		$dc_bres_nsamp[$bin] = @{$dc_bres[$bin]};
-		if ($dc_bres_nsamp[$bin] > 0) {
-			$dc_avg_bres[$bin] = avg(@{$dc_bres[$bin]}); 
-			$dc_sig_bres[$bin] = stddev2($dc_avg_bres[$bin],@{$dc_bres[$bin]});
+		$dc_bres12_nsamp[$bin] = @{$dc_bres12[$bin]};
+		if ($dc_bres12_nsamp[$bin] > 0) {
+			$dc_avg_bres12[$bin] = avg(@{$dc_bres12[$bin]}); 
+			$dc_sig_bres12[$bin] = stddev2($dc_avg_bres12[$bin],@{$dc_bres12[$bin]});
 		} else {
-			$dc_avg_bres[$bin] = nan;
-			$dc_sig_bres[$bin] = nan;
+			$dc_avg_bres12[$bin] = nan;
+			$dc_sig_bres12[$bin] = nan;
 		}
-		$uc_bres_nsamp[$bin] = @{$uc_bres[$bin]};
-		if ($uc_bres_nsamp[$bin] > 0) {
-			$uc_avg_bres[$bin] = avg(@{$uc_bres[$bin]}); 
-			$uc_sig_bres[$bin] = stddev2($uc_avg_bres[$bin],@{$uc_bres[$bin]});
+		$uc_bres12_nsamp[$bin] = @{$uc_bres12[$bin]};
+		if ($uc_bres12_nsamp[$bin] > 0) {
+			$uc_avg_bres12[$bin] = avg(@{$uc_bres12[$bin]}); 
+			$uc_sig_bres12[$bin] = stddev2($uc_avg_bres12[$bin],@{$uc_bres12[$bin]});
 		} else {
-			$uc_avg_bres[$bin] = nan;
-			$uc_sig_bres[$bin] = nan;
+			$uc_avg_bres12[$bin] = nan;
+			$uc_sig_bres12[$bin] = nan;
+		}
+		$dc_bres34_nsamp[$bin] = @{$dc_bres34[$bin]};
+		if ($dc_bres34_nsamp[$bin] > 0) {
+			$dc_avg_bres34[$bin] = avg(@{$dc_bres34[$bin]}); 
+			$dc_sig_bres34[$bin] = stddev2($dc_avg_bres34[$bin],@{$dc_bres34[$bin]});
+		} else {
+			$dc_avg_bres34[$bin] = nan;
+			$dc_sig_bres34[$bin] = nan;
+		}
+		$uc_bres34_nsamp[$bin] = @{$uc_bres34[$bin]};
+		if ($uc_bres34_nsamp[$bin] > 0) {
+			$uc_avg_bres34[$bin] = avg(@{$uc_bres34[$bin]}); 
+			$uc_sig_bres34[$bin] = stddev2($uc_avg_bres34[$bin],@{$uc_bres34[$bin]});
+		} else {
+			$uc_avg_bres34[$bin] = nan;
+			$uc_sig_bres34[$bin] = nan;
 		}
 	}
 
-	local($uc_bres_max_nsamp,$dc_bres_max_nsamp) = (0,0);							# calc rms in block of well-determined bins
+	local($uc_bres12_max_nsamp,$dc_bres12_max_nsamp) = (0,0);							# calc rms in block of well sampled bins
+	local($uc_bres34_max_nsamp,$dc_bres34_max_nsamp) = (0,0);
 	for (my($bin)=$LADCP_firstBin; $bin<=$LADCP_lastBin-1; $bin++) {				# SKIP 1ST BIN!!!
 		next if ($bin+1<$outGrid_firstBin || $bin+1>$outGrid_lastBin);				# skip bins not included in gridded output
-		$dc_bres_max_nsamp = $dc_bres_nsamp[$bin]									# nsamp in best sampled bin
-			if ($dc_bres_nsamp[$bin] > $dc_bres_max_nsamp);
-		$uc_bres_max_nsamp = $uc_bres_nsamp[$bin]
-			if ($uc_bres_nsamp[$bin] > $uc_bres_max_nsamp);
+		$dc_bres12_max_nsamp = $dc_bres12_nsamp[$bin]									# nsamp in best sampled bin
+			if ($dc_bres12_nsamp[$bin] > $dc_bres12_max_nsamp);
+		$uc_bres12_max_nsamp = $uc_bres12_nsamp[$bin]
+			if ($uc_bres12_nsamp[$bin] > $uc_bres12_max_nsamp);
+		$dc_bres34_max_nsamp = $dc_bres34_nsamp[$bin]									# nsamp in best sampled bin
+			if ($dc_bres34_nsamp[$bin] > $dc_bres34_max_nsamp);
+		$uc_bres34_max_nsamp = $uc_bres34_nsamp[$bin]
+			if ($uc_bres34_nsamp[$bin] > $uc_bres34_max_nsamp);
 	}
-	my($dc_sumsq,$uc_sumsq,$dc_n,$uc_n) = (0,0,0,0);								# calc rms residual
+	my($dc_sumsq12,$uc_sumsq12,$dc_n12,$uc_n12) = (0,0,0,0);						# calc rms residuals
+	my($dc_sumsq34,$uc_sumsq34,$dc_n34,$uc_n34) = (0,0,0,0);
 	for (my($bin)=$LADCP_firstBin; $bin<=$LADCP_lastBin-1; $bin++) {				# SKIP 1ST BIN
 		next if ($bin+1<$outGrid_firstBin || $bin+1>$outGrid_lastBin);				# skip bins not included in gridded output
-		if ($dc_bres_nsamp[$bin] >= $dc_bres_max_nsamp/3) {							# skip bins with < 1/3 max(nsamp)
-			$dc_sumsq += $dc_avg_bres[$bin]**2;
-			$dc_n++;
+		if ($dc_bres12_nsamp[$bin] >= $dc_bres12_max_nsamp/3) {						# skip bins with < 1/3 max(nsamp)
+			$dc_sumsq12 += $dc_avg_bres12[$bin]**2;
+			$dc_n12++;
 		}
-		if ($uc_bres_nsamp[$bin] >= $uc_bres_max_nsamp/3) {
-			$uc_sumsq += $uc_avg_bres[$bin]**2;
-			$uc_n++;
+		if ($uc_bres12_nsamp[$bin] >= $uc_bres12_max_nsamp/3) {
+			$uc_sumsq12 += $uc_avg_bres12[$bin]**2;
+			$uc_n12++;
+		}
+		if ($dc_bres34_nsamp[$bin] >= $dc_bres34_max_nsamp/3) {						# skip bins with < 1/3 max(nsamp)
+			$dc_sumsq34 += $dc_avg_bres34[$bin]**2;
+			$dc_n34++;
+		}
+		if ($uc_bres34_nsamp[$bin] >= $uc_bres34_max_nsamp/3) {
+			$uc_sumsq34 += $uc_avg_bres34[$bin]**2;
+			$uc_n34++;
 		}
 	}
-	local($dc_bres_rms) = ($dc_n > 0) ? sqrt($dc_sumsq/$dc_n) : nan;
-	local($uc_bres_rms) = ($uc_n > 0) ? sqrt($uc_sumsq/$uc_n) : nan;
+	$dc_bres12_rms = ($dc_n12 > 0) ? sqrt($dc_sumsq12/$dc_n12) : nan;
+	$uc_bres12_rms = ($uc_n12 > 0) ? sqrt($uc_sumsq12/$uc_n12) : nan;
+	$dc_bres34_rms = ($dc_n34 > 0) ? sqrt($dc_sumsq34/$dc_n34) : nan;
+	$uc_bres34_rms = ($uc_n34 > 0) ? sqrt($uc_sumsq34/$uc_n34) : nan;
+
+	&antsAddParams('dc_bin_residuals12.rms',$dc_bres12_rms,
+				   'dc_bin_residuals34.rms',$dc_bres34_rms,
+				   'uc_bin_residuals12.rms',$uc_bres12_rms,
+				   'uc_bin_residuals34.rms',$uc_bres34_rms);
 	
 	progress("\n\twriting binned residuals to ");
 
 	my($saveParams) = $antsCurParams;
-	@antsNewLayout = ('bin','dc_residual','dc_residual.sig','dc_residual.nsamp',
-						   ,'uc_residual','uc_residual.sig','uc_residual.nsamp');
-	&antsAddParams('BR_max_bin',max(scalar(@dc_bres),scalar(@uc_bres)));
+	@antsNewLayout = ('bin','dc_residual12','dc_residual12.sig','dc_residual12.nsamp',
+						    'uc_residual12','uc_residual12.sig','uc_residual12.nsamp',
+						    'dc_residual34','dc_residual34.sig','dc_residual34.nsamp',
+						    'uc_residual34','uc_residual34.sig','uc_residual34.nsamp');
+	&antsAddParams('BR_max_bin',max(scalar(@dc_bres12),scalar(@uc_bres12),
+									scalar(@dc_bres34),scalar(@uc_bres34)));
 
 	foreach my $of (@out_BR) {
 	    progress("<$of> ");
@@ -1936,15 +2031,17 @@ if (@out_BR) {
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
-		for (my($bin)=0; $bin<max(scalar(@dc_bres),scalar(@uc_bres)); $bin++) {
-			&antsOut($bin+1,$dc_avg_bres[$bin],$dc_sig_bres[$bin],$dc_bres_nsamp[$bin],
-							$uc_avg_bres[$bin],$uc_sig_bres[$bin],$uc_bres_nsamp[$bin]);
+		for (my($bin)=0; $bin<max(scalar(@dc_bres12),scalar(@uc_bres12)); $bin++) {
+			&antsOut($bin+1,$dc_avg_bres12[$bin],$dc_sig_bres12[$bin],$dc_bres12_nsamp[$bin],
+							$uc_avg_bres12[$bin],$uc_sig_bres12[$bin],$uc_bres12_nsamp[$bin],
+							$dc_avg_bres34[$bin],$dc_sig_bres34[$bin],$dc_bres34_nsamp[$bin],
+							$uc_avg_bres34[$bin],$uc_sig_bres34[$bin],$uc_bres34_nsamp[$bin]);
 		}
 	    &antsOut('EOF'); open(STDOUT,">&2");
 	}
 	$antsCurParams = $saveParams;
 	progress("\n");
-}
+#}
 
 #--------------------------------------------------
 # Calculate BT-referenced vertical-velocity profile
@@ -1977,11 +2074,6 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && defined($water_de
 
 if (@out_wsamp) {
 	progress("Writing vertical-velocity data to ");
-	@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
-					  'w','w12','w34','v12','v34','residual','residual12','residual34',
-					  'CTD_w','CTD_w_t','CTD_w_tt','LADCP_w','LADCP_reflr_w','winch_w',
-					  'errvel','correlation','echo_amplitude','Sv',
-					  'pitch','roll','tilt','heading','3_beam','svel');
 
 	foreach my $of (@out_wsamp) {
 	    progress("<$of> ");
@@ -1993,6 +2085,12 @@ if (@out_wsamp) {
 			next;
 		}
 			
+		@antsNewLayout = ('ensemble','bin','elapsed','depth','CTD_depth','downcast',
+						  'w','w12','w34','v12','v34','residual','residual12','residual34',
+						  'CTD_w','CTD_w_t','CTD_w_tt','LADCP_w','LADCP_reflr_w','winch_w',
+						  'errvel','correlation','echo_amplitude','Sv',
+	                      'pitch','roll','tilt','heading','3_beam','svel');
+
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || error("$of: $!\n");
 		undef($antsActiveHeader) unless ($ANTS_TOOLS_AVAILABLE);
@@ -2094,9 +2192,13 @@ if (@out_wsamp) {
 
 if (@out_profile) {
 	progress("Writing vertical-velocity profiles to ");
-	@antsNewLayout = ('depth','hab','dc_depth','dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp','dc_w12','dc_w34','dc_v12','dc_v34',
-							  		'uc_depth','uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp','uc_w12','uc_w34','uc_v12','uc_v34',
-	                          		'BT_w','BT_w.mad','BT_w.nsamp');
+	undef(@antsNewLayout);
+	push(@antsNewLayout,'depth','hab',											# consistent with [LADCP_w_postproc]
+						'dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp',
+						'uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp'); 
+	push(@antsNewLayout,'dc_depth','dc_w12','dc_w34','dc_v12','dc_v34',			# additional fields (inconsistent w postproc)
+						'uc_depth','uc_w12','uc_w34','uc_v12','uc_v34',
+	                    'BT_w','BT_w.mad','BT_w.nsamp');
 
 	foreach my $of (@out_profile) {
 	    progress("<$of> ");
@@ -2115,14 +2217,16 @@ if (@out_profile) {
 		for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}},$#{$BT{NSAMP}}); $bi++) {
 			&antsOut(($bi+0.5)*$opt_o,												# nominal depth
 					 defined($water_depth)?$water_depth-($bi+0.5)*$opt_o:nan,		# nominal hab
-					 $DNCAST{MEAN_DEPTH}[$bi],$DNCAST{MEAN_ELAPSED}[$bi],			# dc data
+					 $DNCAST{MEAN_ELAPSED}[$bi],									# dc data consistent w postproc
 					 $DNCAST{N_SAMP}[$bi]>=$opt_k?$DNCAST{MEDIAN_W}[$bi]:nan,
 					 $DNCAST{MAD_W}[$bi],$DNCAST{N_SAMP}[$bi],
-					 $DNCAST{MEDIAN_W12}[$bi],$DNCAST{MEDIAN_W34}[$bi],
-					 $DNCAST{MEDIAN_V12}[$bi],$DNCAST{MEDIAN_V34}[$bi],
-					 $UPCAST{MEAN_DEPTH}[$bi],$UPCAST{MEAN_ELAPSED}[$bi],			# uc data
+					 $UPCAST{MEAN_ELAPSED}[$bi],									# uc data consistent w postproc
 					 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
 					 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
+					 $DNCAST{MEAN_DEPTH}[$bi],										# remaining dc data
+					 $DNCAST{MEDIAN_W12}[$bi],$DNCAST{MEDIAN_W34}[$bi],
+					 $DNCAST{MEDIAN_V12}[$bi],$DNCAST{MEDIAN_V34}[$bi],
+					 $UPCAST{MEAN_DEPTH}[$bi],										# remaining uc data
 					 $UPCAST{MEDIAN_W12}[$bi],$UPCAST{MEDIAN_W34}[$bi],
 					 $UPCAST{MEDIAN_V12}[$bi],$UPCAST{MEDIAN_V34}[$bi],
 					 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,				# BT data

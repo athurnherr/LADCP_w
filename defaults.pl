@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Wed Apr 17 11:30:31 2019
+#                    dlm: Sat May 16 10:53:34 2020
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 343 41 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 90 31 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -87,6 +87,7 @@
 #	Apr 24, 2018: - added $water_depth_db_cmd
 #	May  2, 2018: - added max_hspeed
 #				  - replaced $PPI_seabed_editing_required by &PPI_seabed_editing_required
+#	May 16, 2020: - updated doc
 
 #======================================================================
 # Output Log Files
@@ -104,15 +105,15 @@ $opt_v = 1 unless numberp($opt_v);
 
 #======================================================================
 # Output Plots
-#	- there are 3 plotting levels
+#	- there are 4 plotting levels
 #		0 : suppress all plots
 #		1* : produce default plots; *DEFAULT
 #		2 : produce default and diagnostic plots
-#		>2: produce all plots, including useless ones
+#		3 : produce debugging diagnostic plots
+#		>3: produce all plots, including useless ones
 #======================================================================
 
 $plotting_level = 1;
-
 
 #======================================================================
 # Input Data 

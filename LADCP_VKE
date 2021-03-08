@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Tue Jul 24 17:02:30 2018
+#                    dlm: Thu Sep 12 13:49:04 2019
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 399 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 111 71 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -108,6 +108,7 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #	Dec  9, 2017: - added support for $antsSuppressCommonOptions
 #	Apr 24, 2018: - BUG: output was one field too wide (filled with nans) because antsBufNFields was not reset
 #	Apr 25, 2018: - added -y and removed spectral bins from default output
+#	Sep 12, 2019: - disabled default -l cut-off (used to be 5e-11 W/kg)
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -130,7 +131,7 @@ use IPC::Open2;
 #my($c) = 0.0215;						# Thurnherr et al. (GRL 2015)
 my($c) = 0.026;							# increased by 20% for V1.2beta7
 $opt_q = 3;								# Equatorial band: little more than a guess based on 2015 P16N
-$opt_l = 5e-11;							# [W/kg]; based on DIMES data sets, method works for eps >= 2e-10; 5e-11 allows for scatter in p0
+$opt_l = 0;								# [W/kg]; cutoff disabled Sep 12, 2019
 $opt_a = nan;							# assume background dissipation for samples that pass the tests but have eps below -l
 $opt_z = 1;								# number of w_ocean samples to require
 $opt_o = 0;								# remove mean before calculating spectra
@@ -573,11 +574,11 @@ for (my($r)=0; $r<@ants_; $r++) {														# loop over all windows
 	#		p0fit.r <= -0.4
 	#	- in a plot of rms vs nsamp the limiting value of 0.4 is hit at 50 samples
 	#
-	#	=> FULL SET OF MUTUALLY CONSISTENT CRITERIA
+	#	=> SET OF MUTUALLY CONSISTENT CRITERIA
 	#
 	# Additional Empirical Filters:
 	#	- latitude > 3deg				guess based on Thurnherr et al., 2015, Gregg et al., 2003, 2015 GO-SHIP P16N
-	#   - eps >= 5e-11 W/kg				based on DIMES data, cutting where errors become > factor 2
+	#   - eps >= 5e-11 W/kg				based on DIMES data, cutting where errors become > factor 2; DISABLED SEPTEMBER 2019
 	#-----------------------------------------------------------------------------------------------------
 
 	if ($latM > $opt_q &&													# 	1) not (too) equatorial

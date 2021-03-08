@@ -1,21 +1,9 @@
 #======================================================================
-#                    M A K E F I L E 
+#                    L A D C P _ W _ S O F T W A R E / M A K E F I L E 
 #                    doc: Mon Oct 17 13:29:27 2011
-#                    dlm: Wed Oct 31 10:19:00 2018
+#                    dlm: Wed Jul  1 14:30:06 2020
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 22 33 NIL 0 0 72 0 2 4 NIL ofnI
-#======================================================================
-
-# GO_SHIP archive target
-
-PROGS 	= LADCP_w_CTD LADCP_w_ocean LADCP_w_postproc LADCP_wspec LADCP_VKE
-LIBS  	= *.pl
-ANTSLIB	= ANTSlib/.[ln]* ANTSlib/* 
-A_TOOLS	= ADCP_tools/RDI*pl
-
-LADCP_w_Software.tgz: ${PROGS} ${LIBS} ${ANTSLIB} ${A_TOOLS}
-	tar cvfz $@ $^
-
+#                    uE-Info: 9 0 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 MAKE_DIR = /Data/Makefiles

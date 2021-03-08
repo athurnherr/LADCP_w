@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Tue Mar 20 15:26:21 2018
+#                    dlm: Sat May 23 11:11:42 2020
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 22 53 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 89 108 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -20,6 +20,8 @@
 #	May 26, 2016: - added instrument coord system to plot labels
 #	Mar 20, 2018: - BUG: units of vertical package acceleration were wrong
 #				  - added blue background for likely in-ice package accelerations
+#	May 16, 2020: - added residual profile data to background
+#	May 23, 2020: - BUG: windows without samples made program bomb
 
 # Tweakables:
 #
@@ -70,6 +72,47 @@ sub plotBT($$)
     }
 }
 
+sub plotRes()
+{
+	my($last_depth,$dc_sumsq_res,$dc_n,$uc_sumsq_res,$uc_n);
+	for (my($bi)=0; $bi<=$#{$DNCAST{MEDIAN_W}}; $bi++) {
+		my($depth) = ($bi+0.5) * $opt_o;
+		if ($depth > $last_depth+100 || $bi == $#{$DNCAST{MEDIAN_W}}) {
+			if ($dc_n==0 || sqrt($dc_sumsq_res/$dc_n) > 0.002) {
+				my($green) = $dc_n ? round(100*max(0.01-max(sqrt($dc_sumsq_res/$dc_n)-0.002,0),0) * 255) : 0;
+				GMT_psxy("-Gp300/12:F255/$green/${green}B-");
+				printf(GMT "%g %g\n%g %g\n%g %g\n%g %g\n",
+								-0.1,$last_depth,0,$last_depth,
+								0,$depth,-0.1,$depth);
+			}
+			if ($uc_n==0 || sqrt($uc_sumsq_res/$uc_n) > 0.002) {
+				my($green) = $uc_n ? round(100*max(0.01-max(sqrt($uc_sumsq_res/$uc_n)-0.002,0),0) * 255) : 0;
+				GMT_psxy("-Gp300/9:F255/$green/${green}B-");
+				printf(GMT "%g %g\n%g %g\n%g %g\n%g %g\n",
+								0,$last_depth,0.07,$last_depth,
+								0.07,$depth,0,$depth);
+			}
+			$dc_sumsq_res = $dc_n = $uc_sumsq_res = $uc_n = 0;
+			$last_depth = $depth;
+		}
+		if (numberp($DNCAST{MEAN_RESIDUAL12}[$bi])) {
+			$dc_sumsq_res += $DNCAST{MEAN_RESIDUAL12}[$bi]**2;
+			$dc_n++;
+		}
+		if (numberp($UPCAST{MEAN_RESIDUAL12}[$bi])) {
+			$uc_sumsq_res += $UPCAST{MEAN_RESIDUAL12}[$bi]**2;
+			$uc_n++;
+		}
+		if (numberp($DNCAST{MEAN_RESIDUAL34}[$bi])) {
+			$dc_sumsq_res += $DNCAST{MEAN_RESIDUAL34}[$bi]**2;
+			$dc_n++;
+		}
+		if (numberp($UPCAST{MEAN_RESIDUAL34}[$bi])) {
+			$uc_sumsq_res += $UPCAST{MEAN_RESIDUAL34}[$bi]**2;
+			$uc_n++;
+		}
+	}
+}
 
 sub plot_wprof($)
 {
@@ -93,11 +136,12 @@ sub plot_wprof($)
 
 	if ($P{water_depth} > 0) {															# SEABED
 		GMT_psxy('-G204/153/102');
-		print(GMT "$plot_wprof_xmin $plot_wprof_ymax\n0.35 $plot_wprof_ymax\n0.35 $P{water_depth}\n $plot_wprof_xmin $P{water_depth}\n");
+		print(GMT "$plot_wprof_xmin $plot_wprof_ymax\n0.07 $plot_wprof_ymax\n0.07 $P{water_depth}\n $plot_wprof_xmin $P{water_depth}\n");
 	}
 
-	setR1();																			# FRAME
-	GMT_psxy('-W0.5');
+	setR1();	
+	plotRes();																			# RESIDUAL PROFILES
+	GMT_psxy('-W0.5');																	# FRAME
 		print(GMT "0 0\n 0 $plot_wprof_ymax\n");
 	setR2();
 	GMT_psxy('-W0.5');
@@ -112,37 +156,82 @@ sub plot_wprof($)
 	GMT_psxy('-W1,SeaGreen,1_1:0'); 	plotUC('MEDIAN_W34',$opt_k);
 	GMT_psxy('-W1,black');				plotBT('MEDIAN_W',$opt_k);
 
-	GMT_psxy('-Sc0.1c -Gcoral');		plotDC('MAD_W',0);								# MEAN ABSOLUTE DEVIATIONS
-	GMT_psxy('-Sc0.1c -GSeaGreen');		plotUC('MAD_W',0);	
-	GMT_psxy('-Sc0.1c -Gblack');		plotBT('MAD_W',0);	
+	GMT_psxy('-Sc0.1c -Gcoral');		plotDC('MAD_W',1);								# MEAN ABSOLUTE DEVIATIONS
+	GMT_psxy('-Sc0.1c -GSeaGreen');		plotUC('MAD_W',1);	
+	GMT_psxy('-Sc0.1c -Gblack');		plotBT('MAD_W',1);	
 
 	setR2();																			# SAMPLES
 	GMT_psxy('-W0.7,coral');			plotDC('N_SAMP',1);
 	GMT_psxy('-W0.7,SeaGreen');			plotUC('N_SAMP',1);	
-	GMT_psxy('-W0.7,black');			plotBT('N_SAMP',1);	
+	GMT_psxy('-W0.7,black');			plotBT('N_SAMP',1);
+
+	GMT_unitcoords();																	# QUALITY SEMAPHORE
+	GMT_psxy('-Ggray90');
+	print(GMT "0.895 0.895\n0.985 0.895\n0.985 0.985\n0.895 0.985\n");
+	if ($dc_bres12_rms >= 0.005) { 		GMT_psxy('-Gred -N'); }
+	elsif ($dc_bres12_rms >= 0.003) { 	GMT_psxy('-Gorange -N'); }
+	elsif ($dc_bres12_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N'); }
+	else {								GMT_psxy('-Ggreen -N'); }
+		print(GMT "0.90 0.90\n0.935 0.90\n0.935 0.935\n");							
+	if ($dc_bres34_rms >= 0.005) { 		GMT_psxy('-Gred -N'); }
+	elsif ($dc_bres34_rms >= 0.003) { 	GMT_psxy('-Gorange -N'); }
+	elsif ($dc_bres34_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N'); }
+	else {								GMT_psxy('-Ggreen -N'); }
+		print(GMT "0.945 0.90\n0.98 0.90\n0.945 0.935\n");							
+	if ($uc_bres12_rms >= 0.005) { 		GMT_psxy('-Gred -N'); }
+	elsif ($uc_bres12_rms >= 0.003) { 	GMT_psxy('-Gorange -N'); }
+	elsif ($uc_bres12_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N'); }
+	else {								GMT_psxy('-Ggreen -N'); }
+		print(GMT "0.90 0.98\n0.935 0.98\n0.935 0.945\n");							
+	if ($uc_bres34_rms >= 0.005) { 		GMT_psxy('-Gred -N'); }
+	elsif ($uc_bres34_rms >= 0.003) { 	GMT_psxy('-Gorange -N'); }
+	elsif ($uc_bres34_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N'); }
+	else {								GMT_psxy('-Ggreen -N'); }
+		print(GMT "0.945 0.98\n0.98 0.98\n0.945 0.945\n");							
+if (0) {
+	if ($dc_bres12_rms >= 0.005) { 		GMT_psxy('-Gred -N -Sc0.3'); }
+	elsif ($dc_bres12_rms >= 0.003) { 	GMT_psxy('-Gorange -N -Sc0.3'); }
+	elsif ($dc_bres12_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N -Sc0.3'); }
+	else {								GMT_psxy('-Ggreen -N -Sc0.3'); }
+		print(GMT "0.92 0.96\n");							
+	if ($dc_bres34_rms >= 0.005) { 		GMT_psxy('-Gred -N -Sc0.3'); }
+	elsif ($dc_bres34_rms >= 0.003) { 	GMT_psxy('-Gorange -N -Sc0.3'); }
+	elsif ($dc_bres34_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N -Sc0.3'); }
+	else {								GMT_psxy('-Ggreen -N -Sc0.3'); }
+		print(GMT "0.96 0.96\n");							
+	if ($uc_bres12_rms >= 0.005) { 		GMT_psxy('-Gred -N -Sc0.3'); }
+	elsif ($uc_bres12_rms >= 0.003) { 	GMT_psxy('-Gorange -N -Sc0.3'); }
+	elsif ($uc_bres12_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N -Sc0.3'); }
+	else {								GMT_psxy('-Ggreen -N -Sc0.3'); }
+		print(GMT "0.92 0.92\n");							
+	if ($uc_bres34_rms >= 0.005) { 		GMT_psxy('-Gred -N -Sc0.3'); }
+	elsif ($uc_bres34_rms >= 0.003) { 	GMT_psxy('-Gorange -N -Sc0.3'); }
+	elsif ($uc_bres34_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N -Sc0.3'); }
+	else {								GMT_psxy('-Ggreen -N -Sc0.3'); }
+		print(GMT "0.96 0.92\n");
+} 		
 	
-	GMT_unitcoords();																	# LABELS
-	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
+	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');											# LABELS
 		print(GMT "0.01 -0.06 $P{out_basename} [$P{run_label}]\n");
-	GMT_pstext('-F+f12,Helvetica+jBR');
-		print(GMT "0.6 0.98 m.a.d.\n");
+	GMT_pstext('-F+f12,Helvetica+jTR');
+		print(GMT "0.61 0.02 m.abs.dev.\n");
 	GMT_pstext('-F -N');
 		print(GMT "0.32 1.12 Vertical Velocity [m/s]\n");
-	GMT_pstext('-F+f9,Helvetica,orange+jTR -N -Gwhite');
+	GMT_pstext('-F+f9,Helvetica,LightSkyBlue+jTR -N -Gwhite');
 		print(GMT "0.99 0.01 V$VERSION\n");
 
 	GMT_pstext('-F+f12,Helvetica,coral+jTL -Gwhite');
-		print(GMT "0.02 0.01 dc\n");
+		print(GMT "0.02 0.02 downcast\n");
 	GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gwhite');
-		print(GMT "0.02 0.06 uc\n");
+		print(GMT "0.24 0.02 upcast\n");
 	if ($have_BT) {
-		GMT_pstext('-F+f12,Helvetica,black+jTL -Gwhite');
-			print(GMT "0.02 0.10 BT\n");
+		GMT_pstext('-F+f12,Helvetica,black+jBL -Gwhite');
+			print(GMT "0.02 0.98 b.track\n");
 	}
 
 	GMT_pstext('-F+f9,Helvetica,CornFlowerBlue+jTL -N');
-		printf(GMT "0.64 1.020 $LADCP{BEAM_FREQUENCY}kHz $LADCP{INSTRUMENT_TYPE} $P{ADCP_orientation}\n");
-#		printf(GMT "0.64 1.055 %s\n		0.77 1.055 : %.1fm/%1.fm/%1.fm\n",
+		printf(GMT "0.64 1.020 %d kHz $LADCP{INSTRUMENT_TYPE} $P{ADCP_orientation}\n",
+				round($LADCP{BEAM_FREQUENCY},100));
 		printf(GMT "0.64 1.055 %s [%.1fm/%1.fm/%1.fm]\n",
 			$LADCP{BEAM_COORDINATES} ? 'beam vels' : 'Earth vels',
 			$LADCP{BLANKING_DISTANCE},$LADCP{TRANSMITTED_PULSE_LENGTH},$LADCP{BIN_LENGTH});
