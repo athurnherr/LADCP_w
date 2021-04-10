@@ -1,9 +1,9 @@
 #======================================================================
-#                    / D A T A / S R C / O C E A N O G R A P H Y / L A D C P _ V E R T I C A L _ V E L O C I T Y / E D I T _ D A T A . P L 
+#                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Tue Nov 27 11:07:33 2018
+#                    dlm: Tue Mar 23 05:29:53 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 46 71 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 409 100 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -44,6 +44,8 @@
 #	Oct 13, 2017: - BUG: editPPI() only allowed for nominal transducer frequencies
 #	May  1, 2018: - added editLargeHSpeeds()
 #	Nov 17, 2018: - BUG: spurious letter "z" had crept in at some stage
+#	Mar 23, 2021: - updated PPI doc
+# END OF HISTORY
 
 # NOTES:
 #	- all bins must be edited (not just the ones between $LADCP_firstBin
@@ -310,11 +312,13 @@ sub editSideLobes($$$)
 # ($nvrm,$nerm) = editPPI($fromEns,$toEns,$water_depth)
 #
 # NOTES:
-#	- only velocities in good bin range are removed/counted
-#	- for UL, water_depth == undef; for DL water_depth is always defined,
-#	  or else editPPI is not called
-#	- when this code is executed a suitable UL or DL depth-average-soundspeed
+#	- only velocities in valid-bin-range are edited (and counted)
+#	- 3rd argument (water_depth) determines whether surface or 
+#	  seabed PPI editing is required
+#	- when this code is executed a suitable depth-average-soundspeed
 #	  profile (@DASSprof at 1m resolution) is available
+#		- water_depth defined: DASSprof average is to seabed
+#		- water_depth not defined: DASSprof average is to sea surface
 #	- PPI layer is defined by the shortest and longest acoustic paths
 #	  between transducer and seabed that contribute significantly to the
 #	  backscatter
@@ -400,9 +404,9 @@ sub editPPI($$$)
 		my($dirty) = 0;
 		for (my($bin)=$LADCP_firstBin-1; $bin<$LADCP_lastBin; $bin++) {
 			next unless (defined($LADCP{ENSEMBLE}[$e]->{W}[$bin]));
-			if (defined($wd)) {															# DL
+			if (defined($wd)) {															# surface PPI
 				next unless ($bd[$bin] >= $wd-$dz_max && $bd[$bin] <= $wd-$dz_min);
-			} else {																	# UL
+			} else {																	# seabed PPI
 				next unless ($bd[$bin] <= $dz_max && $bd[$bin] >= $dz_min);
 			}
 			$dirty = 1;

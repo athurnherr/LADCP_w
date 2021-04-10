@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon Jun 29 11:03:22 2020
+#                    dlm: Tue Mar 23 09:16:10 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 306 76 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 308 65 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -304,6 +304,8 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - made bin residuals per beam pair
 #	May 16, 2020: - BUG: write_residual_profs() clobbered layout
 #	Jun 22, 2020: - sscorr_w renamed to remove conflict with [RDI_Coords.pl]
+#	Mar 17, 2021: - turned multi-ping error into warning (for Nortek files)
+#	Mar 23, 3021: - adapted to ADCP_tools V2.4 (Nortek PD0 files)
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -609,12 +611,12 @@ if ($valid_ensemble_range[1] > 0) {					# remove trailing invalid records
 	progress("\t%d invalid trailing ensembles removed\n",@{$LADCP{ENSEMBLE}}-$ens)
 }
 			   
-error("$LADCP_file: cannot process multi-ping ensembles\n")
+warning(2,"$LADCP_file: multi-ping ensembles\n")
 	unless ($LADCP{PINGS_PER_ENSEMBLE} == 1);
 warning(2,"$LADCP_file: wide-bandwidth setting\n")
 	if ($LADCP{WIDE_BANDWIDTH});
 warning(2,"$LADCP_file: low transmit-power setting\n")
-	unless ($LADCP{TRANSMIT_POWER_HIGH});
+	unless ($LADCP{TRANSMIT_POWER_MAX});
 
 error("$LADCP_file: not enough LADCP bins ($LADCP{N_BINS}) for choice of -r\n")
 	unless ($LADCP{N_BINS} >= $refLr_lastBin);
@@ -1339,30 +1341,49 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN}) {						# DOWNLOOKER
 	        &antsAddParams('sidelobe_editing','seabed');
 	    }
 
-		if (&PPI_seabed_editing_required()) {
-			&antsAddParams('PPI_editing','seabed');
+		# Setting $DEBUG_DL_SURFACE_PPI_EDITING to 1 enables sea-surface PPI editing for
+		# downlookers (but disabled seabed editing). This was used on 2021 A20 for testing.
+		
+		if ($DEBUG_DL_SURFACE_PPI_EDITING) {
+			&antsAddParams('PPI_editing','surface');
 			&antsAddParams('PPI_extend_upper_limit',$PPI_extend_upper_limit)
 				if numberp($PPI_extend_upper_limit);
-			progress("Editing data to remove PPI from seabed...\n");
-			progress("\tConstructing depth-average soundspeed profile...\n");
-			die("assertion failed") unless defined($water_depth);
-			my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
-			my($sum) = $dz * $sVelProf[$#sVelProf];
-			if ($dz == 0) {													# water-depth <= max CTD depth
-				warning(1,"inferred water depth very close to max(CTD depth)\n");
-				$DASSprof[$#sVelProf] = $sVelProf[$#sVelProf];
-            } else {
-				die("assertion failed") unless defined($dz > 0);
-				$DASSprof[$#sVelProf] = $sum/$dz;
-            }
-			for (my($d)=$#sVelProf-1; $d>=0; $d--) {
-				die("assertion failed (d=$d, #sVelProf=$#sVelProf)") unless numberp($sVelProf[$d]);
+			progress("Editing data to remove PPI from sea surface...\n");
+			  progress("\tConstructing depth-average soundspeed profile...\n");
+			  $DASSprof[0] = my($sum) = 0;
+			  for (my($d)=1; $d<=$#sVelProf; $d++) {
+				die("assertion failed") unless numberp($sVelProf[$d]);
 				$sum += $sVelProf[$d];
-			  	$dz++;
-				$DASSprof[$d] = $sum/$dz;
-			}
-			($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,$water_depth);
+				$DASSprof[$d] = $sum/$d;
+			  }
+			($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,undef);
 	        progress("\t$nvrm velocities from $nerm ensembles removed\n");
+	    } else {
+			if (&PPI_seabed_editing_required()) {
+				&antsAddParams('PPI_editing','seabed');
+				&antsAddParams('PPI_extend_upper_limit',$PPI_extend_upper_limit)
+					if numberp($PPI_extend_upper_limit);
+				progress("Editing data to remove PPI from seabed...\n");
+				progress("\tConstructing depth-average soundspeed profile...\n");
+				die("assertion failed") unless defined($water_depth);
+				my($dz) = $water_depth - $#sVelProf;							# $#sVelProf = max_depth(profile) in meters
+				my($sum) = $dz * $sVelProf[$#sVelProf];
+				if ($dz == 0) { 												# water-depth <= max CTD depth
+					warning(1,"inferred water depth very close to max(CTD depth)\n");
+					$DASSprof[$#sVelProf] = $sVelProf[$#sVelProf];
+				} else {
+					die("assertion failed") unless defined($dz > 0);
+					$DASSprof[$#sVelProf] = $sum/$dz;
+				}
+				for (my($d)=$#sVelProf-1; $d>=0; $d--) {
+					die("assertion failed (d=$d, #sVelProf=$#sVelProf)") unless numberp($sVelProf[$d]);
+					$sum += $sVelProf[$d];
+					$dz++;
+					$DASSprof[$d] = $sum/$dz;
+				}
+				($nvrm,$nerm) = editPPI($firstGoodEns,$lastGoodEns,$water_depth);
+				progress("\t$nvrm velocities from $nerm ensembles removed\n");
+	        }
 	    }
 	}
 	

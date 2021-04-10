@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Sat May 23 11:11:42 2020
+#                    dlm: Tue Mar 23 08:28:12 2021
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 89 108 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 25 39 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -22,6 +22,7 @@
 #				  - added blue background for likely in-ice package accelerations
 #	May 16, 2020: - added residual profile data to background
 #	May 23, 2020: - BUG: windows without samples made program bomb
+#	Mar 23, 2021: - BUG: instrument frequency was rounded to 100kHz
 
 # Tweakables:
 #
@@ -231,7 +232,7 @@ if (0) {
 
 	GMT_pstext('-F+f9,Helvetica,CornFlowerBlue+jTL -N');
 		printf(GMT "0.64 1.020 %d kHz $LADCP{INSTRUMENT_TYPE} $P{ADCP_orientation}\n",
-				round($LADCP{BEAM_FREQUENCY},100));
+				round($LADCP{BEAM_FREQUENCY},50));
 		printf(GMT "0.64 1.055 %s [%.1fm/%1.fm/%1.fm]\n",
 			$LADCP{BEAM_COORDINATES} ? 'beam vels' : 'Earth vels',
 			$LADCP{BLANKING_DISTANCE},$LADCP{TRANSMITTED_PULSE_LENGTH},$LADCP{BIN_LENGTH});
