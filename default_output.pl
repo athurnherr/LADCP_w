@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T _ O U T P U T . P L 
 #                    doc: Wed Jun  1 19:21:19 2016
-#                    dlm: Sat May 16 12:19:26 2020
+#                    dlm: Wed Jun 30 09:01:13 2021
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 71 0 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 19 69 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # NOTES:
@@ -16,6 +16,7 @@
 #				  - changed semmantics so that pushing to plot adds,
 #				    instead of overwwriting
 #				  - BUG: one of the plots did not repect plotting level
+#	Jun 30, 2021: - renamed plot_mean_residuals to plot_bin_residuals
 
 #----------------------------------------------------------------------
 # Processing log (diagnostic messages) output
@@ -96,7 +97,7 @@ push(@out_timeseries,"$data_dir/$out_basename.tis");
 # Per-bin vertical-velocity residuals (plot only)
 #----------------------------------------------------------------------
 
-push(@out_BR,"plot_mean_residuals($plot_dir/${out_basename}_bin_residuals.ps)")
+push(@out_BR,"plot_bin_residuals($plot_dir/${out_basename}_bin_residuals.ps)")
 	if ($plotting_level > 0);
 
 #----------------------------------------------------------------------

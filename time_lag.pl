@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Tue Oct 16 16:26:06 2018
+#                    dlm: Thu Jul  1 09:39:53 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 80 38 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 81 46 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -78,6 +78,7 @@
 #						 Solution: remove very unpopular lags first
 #	Oct  4, 2018: - added timelagging debug code
 #	Oct 16, 2018: - removed debug code
+#	Jul  1, 2021: - made %PARAMs more standard
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -159,7 +160,7 @@ sub calc_lag($$$$$)
 	my($n_windows,$w_size,$scan_increment,$first_ens,$last_ens) = @_;
 	my($search_radius) = $scan_increment==1 ? 3 : $w_size;
 
-	&antsAddParams('TL_max_allowed_three_lag_spread',$TL_max_allowed_three_lag_spread);
+	&antsAddParams('TL_allowed_three_lag_spread.max',$TL_max_allowed_three_lag_spread);
 
 	my($ctmsg);
 	if ($first_ens==$firstGoodEns && $last_ens==$lastGoodEns) 	{ $ctmsg = "full-cast"; }

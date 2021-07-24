@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Tue Mar 23 05:29:53 2021
+#                    dlm: Fri Jul  9 13:41:36 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 409 100 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 597 63 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -45,6 +45,7 @@
 #	May  1, 2018: - added editLargeHSpeeds()
 #	Nov 17, 2018: - BUG: spurious letter "z" had crept in at some stage
 #	Mar 23, 2021: - updated PPI doc
+#	Jul  9, 2021: - added editHighResidualLayers()
 # END OF HISTORY
 
 # NOTES:
@@ -568,6 +569,35 @@ sub editLargeHSpeeds($$$)
 		$nerm++;
 	}
     return $nerm;
+}
+
+#======================================================================
+# $nbrm = editHighResidualLayers($max_lr_res)
+#	- filter applied after gridding
+#	- filter based on observation that profiles of beam-pair residuals
+#	  are good indicators of bad data, but very noisy
+#	- current version uses estimates in 5-bin-thick layers (200m by
+#	  default) 
+#	- filter cutoff based on 2021 A20 cruise which crossed region with
+#	  very weak backscatter
+#======================================================================
+
+sub editHighResidualLayers($)
+{
+	my($limit) = @_;
+
+	my($nbrm) = 0;
+	for (my($bi)=0; $bi<=$#{$DNCAST{LR_RMS_BP_RESIDUAL}}; $bi++) {
+		next unless ($DNCAST{LR_RMS_BP_RESIDUAL}[$bi] > $limit);
+		$DNCAST{MEDIAN_W}[$bi] = $DNCAST{MEDIAN_W12}[$bi] = $DNCAST{MEDIAN_W34}[$bi] = nan;
+		$nbrm++;
+	}
+	for (my($bi)=0; $bi<=$#{$UPCAST{LR_RMS_BP_RESIDUAL}}; $bi++) {
+		next unless ($UPCAST{LR_RMS_BP_RESIDUAL}[$bi] > $limit);
+		$UPCAST{MEDIAN_W}[$bi] = $UPCAST{MEDIAN_W12}[$bi] = $UPCAST{MEDIAN_W34}[$bi] = nan;
+		$nbrm++;
+	}
+    return $nbrm;
 }
 
 #======================================================================

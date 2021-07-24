@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Fri Jun 26 13:07:13 2020
+#                    dlm: Tue Jul 13 11:33:11 2021
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 144 14 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 226 118 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -93,10 +93,19 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	Aug 30, 2019: - renamed -g to -m)odulo error correction (not)
 #				  - added -f)ill missing data
 #	Jun 26, 2020: - added salinity -b)ias correction
+#	Apr 29, 2021: - improved warning message
+#	Jun 29, 2021: - improved plot labelling
+#	Jun 30, 2021: - ditto
+#	Jul 13, 2021: - improved gaps PARAMs
+#				  - added clock/transmission warnings
+# HISTORY END
 
 # NOTES:
 #	w_CTD is positive during the downcast to make the sign of the apparent
 #		  water velocity consistent with w_ocean
+
+# TODO:
+#	- add transmission warnings to figure?
 
 ($ANTS)  = (`which ANTSlib`   =~ m{^(.*)/[^/]*$});
 ($WCALC) = ($0                =~ m{^(.*)/[^/]*$});
@@ -214,7 +223,7 @@ if ($rec =~ /^\*/) {												# SBE CNV file
 			$fill_gaps = 1;
 		} else {
 			print(STDERR "\n\n") if ($opt_v > 1);
-			print(STDERR "WARNING: timeY and/or modError missing from $CNVfile -- cannot correct for CTD modulo errors\n");
+			print(STDERR "WARNING: timeY and/or modError missing from $CNVfile -- cannot correct for CTD transmission errors\n");
 	    }
 	}
 	
@@ -268,13 +277,14 @@ if ($fill_gaps) {
 	my($scans_filled) = 0;
 	my($scans_replaced) = 0;
 	my($scans_deleted) = 0;
+	my($tot_gaps) = 0;
 
 	for (my($scan)=30; $scan<@ants_; $scan++) {										# start a bit more than 1 second into the cast
 		next if ($ants_[$scan][$systimeF] == $ants_[$scan-1][$systimeF]);			# skip forward to next systime second
 
 		if ($ants_[$scan][$systimeF] > $ants_[$scan-1][$systimeF]+1) {				# gap spans at least one full second
 			print(STDERR "\n\n") if ($opt_v > 1);
-			printf(STDERR "WARNING: %d full seconds of data missing at elapsed %d s\n",
+			printf(STDERR "WARNING: $CNVfile: %d full seconds of data missing at elapsed %d s\n",
 				$ants_[$scan][$systimeF]-$ants_[$scan-1][$systimeF]-1,
 				$ants_[$scan-1][$systimeF]-$ants_[0][$systimeF]);
 			my(@splicescan);														# scan to splice in 
@@ -306,6 +316,7 @@ if ($fill_gaps) {
 		for (my($s)=$second_start; $s<=$scan; $s++) {
 			$ngaps++ if ($ants_[$s][$xmerrF] > $ants_[$s-1][$xmerrF]);
 		}
+		$tot_gaps += $ngaps;
 
 		my(@splicescan);															# scan to splice in 
 		$splicescan[$systimeF] = $ants_[$second_start][$systimeF];
@@ -364,17 +375,29 @@ if ($fill_gaps) {
 #		$sts = 1;
 #	}
 
-	&antsAddParams('gaps_scans_filled',$scans_filled,
-				   'scans_removed',$scans_deleted,
-				   'gap_scans_cleared',$scans_replaced);
+	&antsAddParams('CTD_transmission_errors',$tot_gaps,
+				   'CTD_scans_added',$scans_filled,
+				   'CTD_scans_deleted',$scans_deleted,
+				   'CTD_gap_scans_cleared',$scans_replaced);
 
 	if ($opt_v>1 && $scans_filled) {
-		printf(STDERR "\n\t%d scans removed (clock drift)",$scans_deleted);
-		printf(STDERR "\n\t%d scans added (gaps & clock drift)",$scans_filled);
+		printf(STDERR "\n\t%d scans removed (clock jitter/drift)",$scans_deleted);
+		printf(STDERR "\n\t%d scans added (gaps & clock jitter/drift)",$scans_filled);
 		printf(STDERR "\n\t%d scans cleared (gap clusters)",$scans_replaced);
 	}
 	printf(STDERR "\n") if ($opt_v);
-} # if ($fill_gaps
+
+	if ($tot_gaps) {
+		printf(STDERR "WARNING: $CNVfile: %d transmission errors\n",$tot_gaps);
+		printf(STDERR "WARNING: $CNVfile: CTD clock drift (%d scans removed)\n",$scans_deleted-$scans_filled)
+			if ($scans_deleted-$scans_filled > 2);
+	} else {
+		printf(STDERR "WARNING: $CNVfile: CTD clock drift (%d scans removed)\n",$scans_deleted-$scans_filled)
+			if ($scans_deleted-$scans_filled > 2);
+		printf(STDERR "WARNING: $CNVfile: CTD clock drift (%d scans added)\n",$scans_filled-$scans_deleted)
+			if ($scans_filled-$scans_deleted > 2);
+	}
+} # if ($fill_gaps)
 
 #----------------------------------------------------------------------
 # Redirect STDOUT to %.6Hz & create %_w_CTD.ps,%_sspd.ps if STDOUT is a tty
@@ -906,12 +929,13 @@ if (defined($opt_p)) {
     }
 	GMT_psbasemap('-Bg60a30f5:"Elapsed Time [min]":/g1a1f0.1:"Downward Package Velocity [ms@+-1@+]":WeSn');
 	GMT_unitcoords();
-	GMT_pstext('-F+f14,Helvetica,coral+jBR'); 	 print(GMT "0.98 0.96 dc\n");
-	GMT_pstext('-F+f14,Helvetica,SeaGreen+jBR'); print(GMT "0.98 0.93 uc\n");
-	GMT_pstext('-F+f14,Helvetica,magenta+jBR');  print(GMT "0.98 0.89 winch\n");
+	GMT_pstext('-F+f14,Helvetica,coral+jBR -Gwhite'); 	 print(GMT "0.98 0.96 downcast\n");
+	GMT_pstext('-F+f14,Helvetica,SeaGreen+jBR -Gwhite'); print(GMT "0.98 0.92 upcast\n");
+	GMT_pstext('-F+f14,Helvetica,magenta+jBR -Gwhite');  print(GMT "0.98 0.88 winch\n");
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
 	if (defined($outfile)) { printf(GMT "0.01 1.06 $outfile\n",$id); }
 	else 				   { printf(GMT "0.01 1.06 %03d\n",$id); }
+	GMT_pstext('-F+f9,Helvetica,orange+jBL -N -Gwhite'); print(GMT "0.01 0.01 V$VERSION\n");
 	GMT_end();	                
 
 	my($xmin) = round($min_sspd-3,5);
@@ -928,11 +952,12 @@ if (defined($opt_p)) {
 		GMT_psxy('-W1.5,SeaGreen') if ($r == $atBtm);
 	}
 	GMT_unitcoords();
-	GMT_pstext('-F+f14,Helvetica,coral+jTR'); 	 print(GMT "0.98 0.02 dc\n");
-	GMT_pstext('-F+f14,Helvetica,SeaGreen+jTR'); print(GMT "0.98 0.06 uc\n");
+	GMT_pstext('-F+f14,Helvetica,coral+jTR -Gwhite'); 	 print(GMT "0.98 0.02 downcast\n");
+	GMT_pstext('-F+f14,Helvetica,SeaGreen+jTR -Gwhite'); print(GMT "0.98 0.06 upcast\n");
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
 	if (defined($outfile)) { printf(GMT "0.01 -0.06 $outfile\n",$id); }
 	else 				   { printf(GMT "0.01 -0.06 %03d\n",$id); }
+	GMT_pstext('-F+f9,Helvetica,orange+jBL -N -Gwhite'); print(GMT "0.01 0.99 V$VERSION\n");
 	GMT_end();	                
 }
 

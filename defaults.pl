@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Sat May 16 10:53:34 2020
+#                    dlm: Fri Jul  9 13:30:48 2021
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 90 31 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 360 33 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -88,6 +88,9 @@
 #	May  2, 2018: - added max_hspeed
 #				  - replaced $PPI_seabed_editing_required by &PPI_seabed_editing_required
 #	May 16, 2020: - updated doc
+#	Jun 30, 2021: - ditto
+#	Jul  9, 2021: - added $layer_residuals_rms_max
+# HISTORY END
 
 #======================================================================
 # Output Log Files
@@ -348,6 +351,14 @@ sub max_hspeed()
 	}
 }
 
+
+# After the beam-pair residuals have been binned into profiles, rms
+# values in 5-output-bin-thick layers (200m by default) are calculated.
+# Vertical velocities from bins with values greater than the following 
+# limit are set to nan in the the output. 
+
+$layer_residuals_rms_max = 0.003;
+
 #======================================================================
 # Time Lagging
 #======================================================================
@@ -529,7 +540,7 @@ $BT_max_w_error = 0.03;
 #	- in contrast to -b, the other bins are still used e.g. for BT 
 #	- values recorded in %outgrid_firstbin, %outgrid_lastbin
 #	- values beyond range are:
-#		- greyed out in *_mean_residuals.ps
+#		- greyed out in *_bin_residuals.ps
 #		- not used in *_w.ps, *_residuals.ps
 
 $outGrid_firstBin = '*';			# use $LADCP_firstBin (-b)

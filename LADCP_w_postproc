@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Thu Nov  1 10:55:34 2018
+#                    dlm: Fri Jul 23 14:03:05 2021
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 71 77 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 740 38 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -69,6 +69,19 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #	Dec  9, 2017: - added $antsSuppressCommonOptions = 1;
 #	Oct 31, 2018: - improved label (no longer explained/residual stddev)
 #	Nov  1, 2018: - made layout consistent for dual- and single-head profiles
+#	Jul  1, 2021: - made %PARAMs more standard
+#				  - added -z to remove biases
+#				  - added %?c_w_diff.rms to output
+#				  - BUG: dc_corr returned strange rms
+#	Jul  7, 2021: - reversed logic of -z (enables bias correction by default)
+#				  - BUG: plot had label in wrong location for single-head profiles
+#	Jul  9, 2021: - added window correlation stats
+#				  - updated %PARAM names
+#	Jul 13, 2021: - BUG: dc_sig, dc_rms confusion
+#	Jul 23, 2021: - added summary info to plot
+#				  - added seabed to plot
+#				  - added annotations to plot
+# HISTORY END
 
 
 ($ANTS)  = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -85,8 +98,9 @@ require "$ANTS/libGMT.pl";
 &antsAddParams('LADCP_w_postproc::version',$VERSION);
 
 $antsSuppressCommonOptions = 1;
-&antsUsage('b:d:i:k:l:o:p:v:w:',1,
+&antsUsage('b:d:i:k:l:o:p:v:w:z',1,
 	'[profile -i)d <id>]',
+	'[disable -z)eroing of <w> (disable bias correction)]',
 	'[-o)utput bin <resolution>] [-k) require <min> samples]',
 	'[-v)alid bins <DL first>,<DL last>[,<UL first>,<UL_last>]',
 	'[-w) <DL_dc_field>,<DL_uc_field>[,<UL_dc_field>,<UL_uc_field>]',
@@ -156,9 +170,6 @@ if (defined($opt_k)) {													# minimum number of required samples
 #----------------------------------------------------------------------
 
 if (-t STDOUT) {
-#	$opt_p = defined($opt_d) ? "$opt_d/%03d_wprof.ps,$opt_d/%03d_wcorr.ps"
-#							 : '%03d_wprof.ps,%03d_wcorr.ps'
-#		unless defined($opt_p);
 	$opt_p = defined($opt_d) ? "$opt_d/%03d_wprof.ps" : '%03d_wprof.ps'
 		unless defined($opt_p);
 	$outfile = defined($opt_d) ? sprintf('%s/%03d.wprof',$opt_d,$id)
@@ -235,26 +246,36 @@ sub isBad()
 }
 
 #----------------------------------------------------------------------
-# Main Program
+# Correlation Statistics
+#
+#	return values:
+#		   R	correlation coefficient w_DL,w_UL
+#	     var	variance of avg(w_DL,w_UL)
+#	  DL_var	variance of w_DL
+#	  UL_var	variance of w_DL
+#	rms_diff	rms of w_DL-w_UL
 #----------------------------------------------------------------------
 
-sub dc_corr()
+sub dc_corr($$)
 {
+	my($fi,$li) = @_;
 	my($n) = 0;
 	my($ax,$ay) = (0,0);
+	my($ssq_diff) = 0;
 
-	for (my($bi)=int($opt_s/$opt_o); $bi<@DL_dc_median; $bi++) {
+	for (my($bi)=$fi; $bi<=$li; $bi++) {
 		next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
 		$n++;
 		$ax += $DL_dc_median[$bi];
 		$ay += $UL_dc_median[$bi];
+		$ssq_diff += ($DL_dc_median[$bi] - $UL_dc_median[$bi])**2;
 	}
-	return (nan,nan,nan) unless ($n > 2);
+	return (nan,nan,nan,nan,nan) unless ($n > 2);
 	$ax /= $n;
 	$ay /= $n;
 
 	my($syy,$sxy,$sxx) = (0,0,0);
-	for (my($bi)=int($opt_s/$opt_o); $bi<@DL_dc_median; $bi++) {
+	for (my($bi)=$fi; $bi<=$li; $bi++) {
 		next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
 		my($xt) = $DL_dc_median[$bi] - $ax;
 		my($yt) = $UL_dc_median[$bi] - $ay;
@@ -263,27 +284,33 @@ sub dc_corr()
 		$sxy += $xt * $yt;
 	}
 	my($R) = $sxy/(sqrt($sxx * $syy) + 1e-16);
-	my($rms) = sqrt($sxx/$n);
-	return ($R,$rms);
+	my($var) = ($sxx + $syy) / (2*$n);			# variance of avg(w_DL,w_UL)
+	my($var_DL) = $sxx/$n;
+	my($var_UL) = $syy/$n;
+	my($rms_diff) = sqrt($ssq_diff/$n);
+	return ($R,$var,$var_DL,$var_UL,$rms_diff);
 }
 
-sub uc_corr(@)
+sub uc_corr($$)
 {
+	my($fi,$li) = @_;
 	my($n) = 0;
 	my($ax,$ay) = (0,0);
+	my($ssq_diff) = 0;
 
-	for (my($bi)=int($opt_s/$opt_o); $bi<@DL_dc_median; $bi++) {
+	for (my($bi)=$fi; $bi<=$li; $bi++) {
 		next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
 		$n++;
 		$ax += $DL_uc_median[$bi];
 		$ay += $UL_uc_median[$bi];
+		$ssq_diff += ($DL_uc_median[$bi] - $UL_uc_median[$bi])**2;
 	}
-	return (nan,nan,nan) unless ($n > 2);
+	return (nan,nan,nan,nan,nan) unless ($n > 2);
 	$ax /= $n;
 	$ay /= $n;
 
 	my($syy,$sxy,$sxx) = (0,0,0);
-	for (my($bi)=int($opt_s/$opt_o); $bi<@DL_dc_median; $bi++) {
+	for (my($bi)=$fi; $bi<=$li; $bi++) {
 		next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
 		my($xt) = $DL_uc_median[$bi] - $ax;
 		my($yt) = $UL_uc_median[$bi] - $ay;
@@ -292,10 +319,15 @@ sub uc_corr(@)
 		$sxy += $xt * $yt;
 	}
 	my($R) = $sxy/(sqrt($sxx * $syy) + 1e-16);
-	my($sig) = sqrt(($sxx+$syy)/(2*$n));			# stddev of average w signal from DL & UL
-	return ($R,$sig);
+	my($var) = ($sxx + $syy) / (2*$n);			# variance of avg(w_DL,w_UL)
+	my($var_DL) = $sxx/$n;
+	my($var_UL) = $syy/$n;
+	my($rms_diff) = sqrt($ssq_diff/$n);
+	return ($R,$var,$var_DL,$var_UL,$rms_diff);
 }
 
+#----------------------------------------------------------------------
+# Main Program
 #----------------------------------------------------------------------
 
 $dcwF = &fnr($Ddwf); $ucwF = &fnr($Duwf);
@@ -304,10 +336,18 @@ $dF = &fnr('depth');
 $bF = &fnr('bin');
 $dcF = &fnr('downcast');
 
-$first_label 	= &antsRequireParam('run_label');
-$bin_length 	= &antsRequireParam('ADCP_bin_length');
-$pulse_length   = &antsRequireParam('ADCP_pulse_length');
-$blanking_dist  = &antsRequireParam('ADCP_blanking_distance');
+$first_label 	 	= &antsRequireParam('run_label');
+
+$bin_length 	 	= &antsRequireParam('ADCP_bin_length');
+$pulse_length    	= &antsRequireParam('ADCP_pulse_length');
+$blanking_dist   	= &antsRequireParam('ADCP_blanking_distance');
+$instrument_type 	= &antsRequireParam('ADCP_type');
+$xducer_frequency	= &antsRequireParam('ADCP_frequency');
+$orientation		= &antsRequireParam('ADCP_orientation');
+
+$dc_var				= &antsRequireParam('dc_w.var');				# for dual-head LADCPs, variables will be 
+$uc_var				= &antsRequireParam('uc_w.var');				# overwritten by [du]c_corr()
+
 ($dayNoP,$dn) = &antsFindParam('dn\d\d');
 croak("$0: cannot determine day number\n")
 	unless defined($dayNoP);
@@ -404,27 +444,31 @@ for ($r=0; &antsIn(); $r++) {
 		#	blanking distance:	use smaller value, which is conservative e.g. for filters for ringing
 		#
 		my($warned);
-		unless (round($bin_length) == round($P{ADCP_bin_length})) {
+		unless (round($bin_length) == round(&antsRequireParam('ADCP_bin_length'))) {
 			unless ($warned) {
 				&antsInfo("WARNING: inconsistent ADCP sampling parameters in profile #$id --- using conservative values");
 				$warned = 1;
 			}
 			$bin_length = min($bin_length,$P{ADCP_bin_length});
 		}
-		unless (round($pulse_length) == round($P{ADCP_pulse_length})) {
+		unless (round($pulse_length) == round(&antsRequireParam('ADCP_pulse_length'))) {
 			unless ($warned) {
 				&antsInfo("WARNING: inconsistent ADCP sampling parameters in profile #$id --- using conservative values");
 				$warned = 1;
 			}
 			$pulse_length = min($pulse_length,$P{ADCP_pulse_length});
 		}
-		unless (round($blanking_dist) == round($P{ADCP_blanking_distance})) {
+		unless (round($blanking_dist) == round(&antsRequireParam('ADCP_blanking_distance'))) {
 			unless ($warned) {
 				&antsInfo("WARNING: inconsistent ADCP sampling parameters in profile #$id --- using conservative values");
 				$warned = 1;
 			}
 			$blanking_dist = min($blanking_dist,$P{ADCP_blanking_distance});
 		}
+
+		$instrument_type2 	= &antsRequireParam('ADCP_type');					# for summary info
+		$xducer_frequency2	= &antsRequireParam('ADCP_frequency');
+		$orientation2		= &antsRequireParam('ADCP_orientation');
 
 		$PROF = $STN = $ID = $id; $RUN = antsRequireParam('run_label');			# set variables for editing
 		undef(@rngMin); undef(@rngMax); undef(@bins);
@@ -460,13 +504,15 @@ for ($r=0; &antsIn(); $r++) {
 	
 	my($bi) = $ants_[0][$dF]/$opt_o;
 	if ($ants_[0][$dcF]) {														# downcast
-		push(@{$dcw[$bi]},$ants_[0][$dcwF]);									# 	vertical velocity
-		push(@{$dcw1[$bi]},$ants_[0][$dcwF]) if ($dual_head);					# 	single-instrument w
-		push(@{$dce[$bi]},$ants_[0][$eF]);	 									# 	elapsed time
+		push(@{$dcw[$bi]}, $ants_[0][$dcwF] - (!$opt_z ? $P{'dc_w.mu'} : 0));	# 	vertical velocity
+		push(@{$dcw1[$bi]},$ants_[0][$dcwF] - (!$opt_z ? $P{'dc_w.mu'} : 0))	# 	single-instrument w
+			if ($dual_head);					
+		push(@{$dce[$bi]}, $ants_[0][$eF]);	 									# 	elapsed time
 	} else {								 									# upcast
-		push(@{$ucw[$bi]},$ants_[0][$ucwF]);
-		push(@{$ucw1[$bi]},$ants_[0][$ucwF]) if ($dual_head);
-		push(@{$uce[$bi]},$ants_[0][$eF]);
+		push(@{$ucw[$bi]}, $ants_[0][$ucwF] - (!$opt_z ? $P{'uc_w.mu'} : 0));
+		push(@{$ucw1[$bi]},$ants_[0][$ucwF] - (!$opt_z ? $P{'uc_w.mu'} : 0))
+			if ($dual_head);
+		push(@{$uce[$bi]}, $ants_[0][$eF]);
 	}
 } # file-read loop
 
@@ -480,9 +526,35 @@ if ($dual_head) {
 					  ? $DL_uc_median[$bi] - $UL_uc_median[$bi] : nan;
 	}
 
-	($dc_R,$dc_sig) = &dc_corr();												# correlation statistics
-	($uc_R,$uc_sig) = &uc_corr();
-	&antsAddParams('dc_R',$dc_R,'uc_R',$uc_R,'dc_w.sig',$dc_sig,'uc_w.sig',$uc_sig);
+	($dc_R,$dc_var,$dc_var_DL,$dc_var_UL,$dc_rms_wdiff) = &dc_corr(int($opt_s/$opt_o),$#dcw1);		# correlation statistics
+	($uc_R,$uc_var,$uc_var_DL,$uc_var_UL,$uc_rms_wdiff) = &uc_corr(int($opt_s/$opt_o),$#ucw1);
+	&antsAddParams('dc_w.R',$dc_R,'uc_w.R',$uc_R,
+				   'DL_dc_w.var',$dc_var_DL,'UL_dc_w.var',$dc_var_UL,
+				   'DL_uc_w.var',$uc_var_DL,'UL_uc_w.var',$uc_var_UL,
+				   'dc_w.var',$dc_var,'uc_w.var',$uc_var,
+				   'dc_wdiff.rms',$dc_rms_wdiff,'uc_wdiff.rms',$uc_rms_wdiff);
+
+	my($last_depth,$last_bi,$dc_sumsq_res,$dc_n,$uc_sumsq_res,$uc_n);			# window correlation
+	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
+		($dc_R[$bi],$dc_var[$bi],$dummy,$dummy,$dc_rms_wdiff[$bi]) =
+			&dc_corr(max(0,$bi-int(250/$opt_o)),min($#dcw1,$bi+int(250/$opt_o)));
+		($uc_R[$bi],$uc_var[$bi],$dummy,$dummy,$uc_rms_wdiff[$bi]) =
+			&uc_corr(max(0,$bi-int(250/$opt_o)),min($#dcw1,$bi+int(250/$opt_o)));
+	}
+		
+#		my($depth) = ($bi+0.5) * $opt_o;
+#		unless (defined($last_bi)) {
+#			$last_bi = $bi;
+#			$last_depth = $depth;
+#			next;
+#		}
+#		if ($depth >= $last_depth+500 || $bi == $#dcw1) {
+#			($dc_R[$bi],$dc_rms[$bi],$dc_rms_wdiff[$bi]) = &dc_corr($last_bi,$bi);
+#			($uc_R[$bi],$uc_rms[$bi],$uc_rms_wdiff[$bi]) = &uc_corr($last_bi,$bi);
+#			undef($last_bi);
+#			next;
+#		}
+#	}
 
 	if (defined($opt_p)) {														# plot 2nd-instrument profiles
 		GMT_psxy('-W1,coral,.');
@@ -501,18 +573,21 @@ if ($dual_head) {
 
 #----------------------------------------------------------------------
 # Average and Output Profiles, Add to Summary Plot
+#	- same output file layout for single- and dual-head systems
 #----------------------------------------------------------------------
 
 @antsNewLayout = ('depth','hab',
 				  'dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp',
                   'uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp',
-				  'dc_w.diff','uc_w.diff');										# DL-UL differences
+				  'dc_w.diff','uc_w.diff',										# DL-UL differences
+				  'dc_w.R','dc_w.var','dc_wdiff.rms',
+				  'uc_w.R','uc_w.var','uc_wdiff.rms');
 
 if ($dual_head) {																# dual-head output
 	&antsAddParams('profile_id',$id,'lat',$P{lat},'lon',$P{lon});				# selected %PARAMs
 	&antsAddParams($dayNoP,$dn,'run_label',"$first_label & $P{run_label}");
 	&antsAddParams('outgrid_dz',$opt_o,'outgrid_minsamp',$opt_k);
-	&antsAddParams('min_depth',round($min_depth),'max_depth',round($max_depth));
+	&antsAddParams('depth.min',round($min_depth),'depth.max',round($max_depth));
 	&antsAddParams('water_depth',$P{water_depth},'water_depth.sig',$P{water_depth.sig});
 	&antsAddParams('ADCP_bin_length',$bin_length,'ADCP_pulse_length',$pulse_length);
 	&antsAddParams('ADCP_blanking_distance',$blanking_dist);
@@ -540,15 +615,22 @@ for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
 			 (($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),(($ucns[$bi]>=$opt_k)?$ucwmad[$bi]:nan),
 			 scalar(@{$ucw[$bi]}));
 	if ($dual_head) {
-		push(@{$out[$bi]},$dc_diff[$bi],$uc_diff[$bi]);
+		push(@{$out[$bi]},$dc_diff[$bi],$uc_diff[$bi],
+						  $dc_R[$bi],$dc_var[$bi],$dc_rms_wdiff[$bi],
+						  $uc_R[$bi],$uc_var[$bi],$uc_rms_wdiff[$bi]);
 	} else {
-		push(@{$out[$bi]},nan,nan);
+		push(@{$out[$bi]},nan,nan,nan,nan,nan,nan);
 	}
 	&antsOut(@{$out[$bi]});				 
 }
 
 if (defined($opt_p)) {																# complete summary plot
 	GMT_setR($R);
+
+	if ($P{water_depth} > 0) {															# SEABED
+		GMT_psxy('-G204/153/102');
+		print(GMT "$xmin $ymax\n0.07 $ymax\n0.07 $P{water_depth}\n $xmin $P{water_depth}\n");
+	}
 
 	GMT_psxy('-W1.5,coral');														# median profiles
 	for (my($bi)=0; $bi<=$#dcw; $bi++) {
@@ -592,32 +674,78 @@ if (defined($opt_p)) {																# complete summary plot
 	if ($dual_head) {
 		GMT_psxy('-W1,100/100/255');												# surface layer limit
 			print(GMT "-0.1 $opt_s\n0.07 $opt_s\n");
-		GMT_unitcoords();
-		if ($dc_R < 0.3 || !numberp($dc_R)) {										# correlation statistics
-			&antsInfo("WARNING: low dc correlation (r = %.1f) between UL and DL data in profile #$id",$dc_R);
-									GMT_pstext('-F+f12,Helvetica,coral+jTL -Gred');
-		} elsif ($dc_R < 0.5) { 	GMT_pstext('-F+f12,Helvetica,coral+jTL -Gyellow'); }
-		else {						GMT_pstext('-F+f12,Helvetica,coral+jTL -Gwhite'); }
-	        printf(GMT "%f %f r = %.1f\n",0.62,0.01,$dc_R);
-		GMT_pstext('-F+f12,Helvetica,coral+jTR -Gwhite');
-			printf(GMT "%f %f [%.1f cm/s stddev]\n",0.99,0.01,100*$dc_sig);
-		if ($uc_R < 0.3 || !numberp($uc_R)) {
-			&antsInfo("WARNING: low uc correlation (r = %.1f) between UL and DL data in profile #$id",$uc_R);
-									GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gred');
-		} elsif ($uc_R < 0.5) { 	GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gyellow'); }
-		else {						GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gwhite'); }
-	        printf(GMT "%f %f r = %.1f\n",0.62,0.05,$uc_R);
-		GMT_pstext('-F+f12,Helvetica,SeaGreen+jTR -Gwhite');
-			printf(GMT "%f %f [%.1f cm/s stddev]\n",0.99,0.05,100*$uc_sig);
+	}
+	
+	GMT_unitcoords();
+	my(@y) = (1.018,1.052,1.076,1.109);
+	
+	GMT_pstext('-F+f9,Helvetica,CornFlowerBlue+jTL -N');							# summary information
+	if ($dual_head) {
+		printf(GMT "0.64 $y[0] Dual-Head (%d / %d kHz)\n",
+					round($xducer_frequency,50),round($xducer_frequency2,50));
+	} else {
+		printf(GMT "0.64 $y[0] %d kHz $instrument_type $orientation\n",
+					round($xducer_frequency,50));
+	}
+	print( GMT "0.64 $y[1] rms <w>\n		0.77 $y[1] :\n");
+	if ($dual_head) {
+		printf(GMT "0.64 $y[2] rms @~D@~w\n		0.77 %f :\n",$y[2]+0.007);
+		printf(GMT "0.64 %f correl. (r)\n		0.77 $y[3] :\n",$y[3]-0.005);
 	}
 
-	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
+	if ($dual_head) {
+		if ($dc_rms_wdiff > sqrt($dc_var)) {
+			GMT_pstext('-F+f9,Helvetica,coral+jTR -N -Gyellow');
+		} else {
+			GMT_pstext('-F+f9,Helvetica,coral+jTR -N');
+		}
+		if (numberp($dc_R)) {
+			&antsInfo("WARNING: low dc correlation (r = %.1f) between UL and DL data in profile #$id",$dc_R)
+				if ($dc_R < 0.3);
+			printf(GMT "0.88 %f %.1fmm/s\n",$y[1]-0.005,round(sqrt($dc_var)*1000,.1));
+			printf(GMT "0.88 %f %.1fmm/s\n",$y[2]+0.001,round($dc_rms_wdiff*1000,.1));
+            printf(GMT "0.88 %f %.1f",$y[3]-0.005,$dc_R);
+        } else {
+			&antsInfo("WARNING: no overlap between UL and DL dc data below the surface layer in profile #$id");
+        }
+	} else {
+		GMT_pstext('-F+f9,Helvetica,coral+jTR -N');
+		printf(GMT "0.88 %f %.1fmm/s\n",$y[1]-0.005,round(sqrt($dc_var)*1000,.1));
+	}
+
+	if ($dual_head) {
+		if ($uc_rms_wdiff > sqrt($uc_var)) {
+			GMT_pstext('-F+f9,Helvetica,SeaGreen+jTR -N -Gyellow');
+		} else {
+			GMT_pstext('-F+f9,Helvetica,SeaGreen+jTR -N');
+		}
+		if (numberp($uc_R)) {
+			&antsInfo("WARNING: low uc correlation (r = %.1f) between UL and DL data in profile #$id",$uc_R)
+				if ($uc_R < 0.3);
+			printf(GMT "0.99 %f %.1fmm/s\n",$y[1]-0.005,round(sqrt($uc_var)*1000,.1));
+			printf(GMT "0.99 %f %.1fmm/s\n",$y[2]+0.001,round($uc_rms_wdiff*1000,.1));
+            printf(GMT "0.99 %f %.1f",$y[3]-0.005,$uc_R);
+        } else {
+			&antsInfo("WARNING: no overlap between UL and DL uc data below the surface layer in profile #$id");
+        }
+	} else {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTR -N');
+		printf(GMT "0.99 %f %.1fmm/s\n",$y[1]-0.005,round(sqrt($uc_var)*1000,.1));
+	}
+
+	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');											# annotations
 	if (defined($outfile)) { print(GMT "0.01 -0.06 $outfile [$P{run_label}]\n"); }
 	else { 					printf(GMT "0.01 -0.06 %03d\n [$P{run_label}]",$id); }
 	GMT_pstext('-F+f12,Helvetica+jMR');
-		print(GMT '0.62 0.98 m.a.d.');
+		print(GMT '0.62 0.98 m.abs.dev.');
 	GMT_pstext('-F+f9,Helvetica,orange+jBR -N -Gwhite');
 		print(GMT "0.99 0.99 V$VERSION\n");
+	GMT_pstext('-F+f12,Helvetica,coral+jTL -Gwhite');
+		print(GMT "0.02 0.02 downcast\n");
+	GMT_pstext('-F+f12,Helvetica,SeaGreen+jTL -Gwhite');
+		print(GMT "0.24 0.02 upcast\n");
+	GMT_pstext('-F+f12,Helvetica+jBL -Gwhite');
+		print(GMT "0.02 0.98 b.track\n");
         
 	GMT_end();
 

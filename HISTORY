@@ -1,374 +1,456 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Tue Nov 27 17:00:26 2018
+                    dlm: Sat Jul 24 10:35:19 2021
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 373 28 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 327 25 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 ----------------------------------------------------------------------
-First Released Version (howto does not cover VKE parameterization)
-----------------------------------------------------------------------
-
 V1.0:
-	Oct 12, 2015:
-		- finalized HowTo V1.0 (antsLibVer V6.2, ADCP_tools V1.3)
-		- uploaded to Mercurial server
-
-----------------------------------------------------------------------		
-First Version with Full HowTo (including VKE parameterization)
+	- First Released Version (howto does not cover VKE parameterization)
 ----------------------------------------------------------------------
 
+Oct 12, 2015: - finalized HowTo V1.0 (antsLibVer V6.2, ADCP_tools V1.3)
+			  - uploaded to Mercurial server
+
+----------------------------------------------------------------------		
 V1.1:
-	Oct 12, 2015: V1.1beta1
-		- added [version.pl]
-		- adapted to version.pl: [LADCP_w_ocean] [LADCP_w_CTD]
-			[LADCP_VKE] [LADCP_w_postproc]
-		- modified [LADCP_w_CTD] to allow processing ASCII CNV files with
-		  wrong number of scans in header
-	Nov 25-27, 2015:
-		- minor mods to [LADCP_w_ocean] to try to get it to work on
-		  Windows (R. Robertson)
-	Dec 22, 2015:
-		- removed Plots/ Documentation/ Dec_17_2010/ Dec_24_2010/
-				  Dec_30_2010/ Oct_11_2011/ Jul_04_2011/ from repo
-		- moved PostProces.sh to Utilities/ and modified README
-	Jan  4, 2016:
-		- decreased default vertical resolution to 20m [defaults.pl] [LADCP_w_ocean]
-		- removed beta from version [version.pl] [.hg/hgrc]
-
-----------------------------------------------------------------------
-First Widely Released Version (many significant improvements)
+	- First Version with Full HowTo (including VKE parameterization)
 ----------------------------------------------------------------------
 
+Oct 12, 2015: - V1.1beta1
+			  - added [version.pl]
+			  - adapted to version.pl: [LADCP_w_ocean] [LADCP_w_CTD]
+				  [LADCP_VKE] [LADCP_w_postproc]
+			  - modified [LADCP_w_CTD] to allow processing ASCII CNV files with
+                wrong number of scans in header
+
+Nov 25-27, 2015:
+			  - minor mods to [LADCP_w_ocean] to try to get it to work on
+                Windows (R. Robertson)
+
+Dec 22, 2015: - removed Plots/ Documentation/ Dec_17_2010/ Dec_24_2010/
+						Dec_30_2010/ Oct_11_2011/ Jul_04_2011/ from repo
+              - moved PostProces.sh to Utilities/ and modified README
+
+Jan  4, 2016: - decreased default vertical resolution to 20m [defaults.pl] [LADCP_w_ocean]
+			  - removed beta from version [version.pl] [.hg/hgrc]
+
+----------------------------------------------------------------------
 V1.2:
-	Jan  5, 2016: V1.2beta
-		- updated [version.pl]
-		- added support for [ADCP_tools_lib.pl]: [version.pl] [LADCP_w_ocean]
-	Jan 24, 2016:
-		- added QC for mean residuals
-		- added QC for dual-head wprofs
-		- added automatic editing of bad time lagged data
-	Jan 25 -- Mar 8:
-		- many bug fixes and small improvements
-	Mar 8, 2016:
-		- added updated howto pdf
-		- updated [version.pl] with new ANTSlib prerequisite version
-		- published as V1.2beta
-
-	Mar 9, 2016: V1.2beta2
-		- added hab field to .wprof output [LADCP_w_ocean]
-	Mar 10, 2016:
-		- published
-
-	Mar 13, 2016: V1.2beta3
-		- updated [version.pl] [.hg/hgrc]
-		- added simple ASCII CTD format [LADCP_w_CTD]
-		- added auto directory creation to [defaults.pl]
-		- updated howto
-		- published V1.2beta3
-		- updated [version.pl] [.hg/hgrc] to V1.2beta4
-		- added ADCP-file checks in [LADCP_w_ocean]
-		- updated howto
-
-	Mar 16, 2016: V1.2beta4
-		- published on server		
-		- updated [version.pl] to beta5 (gmt5)
-		- adapted to GMT5
-
-	Mar 17, 2016: V1.2beta5
-		- updated [.hg/hgrc]
-		- various plot improvements
-		- updated howto
-		- published
-		- V1.2beta6 [version.pl] [.hg/hgrc]
-		- changed surface-wave stat in [LADCP_w_ocean]
-
-	Mar 18-29, 2016: V1.2beta6
-		- [LADCP_VKE]:
-			- added -k to supply external eps
-			- re-designed QC checks (slope estimates)
-			- several other minor improvements
-			- [LADCP_wspec]:
-				- added median # of samples to output
-		- [LADCP_w_CTD]:
-			- added support for $ENV{VERB}
-		- [LADCP_w_ocean]
-			- added -r)ms residual filter with 4cm/s default cutoff
-			- fixed a couple of minor bugs (Sv correction had been disabled)
-			- replaced CTD w with CTD acceleration in wprof plots
-	Mar 29, 2016: V1.2beta6
-		- update antsMinLib to 6.6, perl-tools to 1.5 [version.pl]
-		- updated howto
-		- exported [default_paths.pl] from [defaults.pl]
-
-
-	Mar 30, 2016: V1.2beta7
-		- updated [version.pl] [.hg/hgrc]
- 		- [LADCP_w_CTD]: added station as optional 3rd header field in
-		   				 ASCII format
-	Mar 31, 2016:
-		- improved version %PARAMs in all utilities
-		- [LADCP_VKE]
-			- added averaging of spectra (inc. setting PARAMs)
-			- improved %PARAMs (also in [LADCP_wspec])
-			- fixed slight bug in [LADCP_wspec]
-			- removed code to generate different output names on -d/-u
-			- added -q
-
-	Apr 3, 2016:
-		- reduced low-p0 cutoff from 1e-7 to 5e-8 in [LADCP_VKE]
-		- similarly reduced equatorial band from 5 to 3 degrees
-
-	Apr  6, 2016:
-		- fixed GMT-5 related bug in [LADCP_w_ocean]
-		- increased calibration constant by 20% in [LADCP_VKE]
-		- updated howto
-		- published V1.2beta7
-
-	Apr 14, 2016: V1.2beta8
-		- [LADCP_w_postproc] improved warning messages
-
-	Apr 16, 2016:
-		- [LADCP_VKE] allow for nans in LADCP_wspec output
-		- updated [version.pl]
-
-	May 12, 2016:
-		- updated version to 1.2
-		- updated HowTo
-		- published
-
-----------------------------------------------------------------------		
-Adding Corrections For Beam-Pointing Errors
+	- First Widely Released Version (many significant improvements)
 ----------------------------------------------------------------------
 
-V1.3:
-	May 12, 2016:
-		- updated [version.pl]
-		- [LADCP_w_ocean] added fields to wsamp output
+Jan  5, 2016: - V1.2beta
+			  - updated [version.pl]
+              - added support for [ADCP_tools_lib.pl]: [version.pl] [LADCP_w_ocean]
 
-	May 17-18, 2015:
-		- [LADCP_w_ocean] added fields to wsamp output
-		- modified _wprof fig (mean instead of rms tilts)
-		- minor mods elsewhere (e.g. version info in all plots)
-		- added new plots [defaults.pl] requiring mods to [LADCP_w_ocean]:
-			- [plot_acceleration_residuals.pl]
-			- [plot_attitude_biases_w.pl]
-			- [plot_attitude_residuals.pl]
-			- [plot_residual_profs.pl]
-		- removed assumption of 1500m/s ADCP soundspeed setting (various files)
-		- added correct w12, w34 for earth velocity data
+Jan 24, 2016: - added QC for mean residuals
+			  - added QC for dual-head wprofs
+              - added automatic editing of bad time lagged data
 
-	May 19, 2016:
-		- updated to ADCP_tools V1.6 (coord trans interface change)
+Jan 25 -- Mar 8:
+			  - many bug fixes and small improvements
 
-	May 24: 2016:
-		- implemented bin-depth caching
-		- improved LADCP_w_postproc plot
-		- improved various plots (esp. for partial-depth casts)
+Mar  8, 2016: - added updated howto pdf
+			  - updated [version.pl] with new ANTSlib prerequisite version
+              - published as V1.2beta
 
-	May 25, 2016:
-		- updated version to V1.3beta1 [version.pl] [.hg/hgrc]
-		- published
+Mar  9, 2016: - V1.2beta2
+		      - added hab field to .wprof output [LADCP_w_ocean]
+			 
+Mar 10, 2016: - published
 
-	May 26, 2016: V1.3beta2
-		- updated version to V1.3beta2 [version.pl] [.hg/hgrc]
-		- udated ANTS_tools lib to V1.7 (beam interpolation)
-		- adapted [LADCP_w_ocean] to beam interpolation
-		- minor improvement to [LADCP_w_postproc]
-		- improved [plot_wprof.pl]
+Mar 13, 2016: - V1.2beta3
+			  - updated [version.pl] [.hg/hgrc]
+			  - added simple ASCII CTD format [LADCP_w_CTD]
+			  - added auto directory creation to [defaults.pl]
+			  - updated howto
+			  - published V1.2beta3
+			  - updated [version.pl] [.hg/hgrc] to V1.2beta4
+			  - added ADCP-file checks in [LADCP_w_ocean]
+              - updated howto
 
-	Jun  1, 2016
-		- improvements to [LADCP_w_ocean]
-		- added [default_output.pl]
-		- added [plot_residuals12.pl] [plot_residuals34.pl]
+Mar 16, 2016: - V1.2beta4
+			  - published on server 	  
+			  - updated [version.pl] to beta5 (gmt5)
+              - adapted to GMT5
 
-	Jun  2, 2016:
-		- minor improvement and bug fix in [LADCP_w_ocean]
+Mar 17, 2016: - V1.2beta5
+			  - updated [.hg/hgrc]
+			  - various plot improvements
+			  - updated howto
+			  - published
+			  - V1.2beta6 [version.pl] [.hg/hgrc]
+              - changed surface-wave stat in [LADCP_w_ocean]
 
-	Jun  3, 2016:
-		- minor bug fix in [LADCP_w_ocean]
+Mar 18-29, 2016: V1.2beta6
+			  - [LADCP_VKE]:
+				  - added -k to supply external eps
+				  - re-designed QC checks (slope estimates)
+				  - several other minor improvements
+				  - [LADCP_wspec]:
+					  - added median # of samples to output
+			  - [LADCP_w_CTD]:
+				  - added support for $ENV{VERB}
+			  - [LADCP_w_ocean]
+				  - added -r)ms residual filter with 4cm/s default cutoff
+				  - fixed a couple of minor bugs (Sv correction had been disabled)
+                  - replaced CTD w with CTD acceleration in wprof plots
 
-	Jun  6, 2016:
-		- minor improvement in [LADCP_w_ocean] [defaults.pl] [edit_data.pl]
+Mar 29, 2016: - V1.2beta6
+			  - update antsMinLib to 6.6, perl-tools to 1.5 [version.pl]
+			  - updated howto
+              - exported [default_paths.pl] from [defaults.pl]
 
-	Jun  8, 2016:
-		- removed plot_attitude_biases_w.pl
-		- slight improvement to [plot_attitude_residuals.pl]
+Mar 30, 2016: - V1.2beta7
+			  - updated [version.pl] [.hg/hgrc]
+			  - [LADCP_w_CTD]: added station as optional 3rd header field in
+                               ASCII format
 
-	Jun 11, 2016:
-		- began debugging w12 & w34 for Earth-coord data [LADCP_w_ocean]
+Mar 31, 2016: - improved version %PARAMs in all utilities
+			  - [LADCP_VKE]
+				  - added averaging of spectra (inc. setting PARAMs)
+				  - improved %PARAMs (also in [LADCP_wspec])
+				  - fixed slight bug in [LADCP_wspec]
+				  - removed code to generate different output names on -d/-u
+                  - added -q
 
-	Jul  7, 2016:
-		- major BUG in [LADCP_w_ocean] (beam-pair velocities for Earth
-		  coord data)
+Apr  3, 2016: - reduced low-p0 cutoff from 1e-7 to 5e-8 in [LADCP_VKE]
+              - similarly reduced equatorial band from 5 to 3 degrees
 
-	Jul 12, 2016:
-		- docu in [defaults.pl]		  
+Apr  6, 2016: - fixed GMT-5 related bug in [LADCP_w_ocean]
+			  - increased calibration constant by 20% in [LADCP_VKE]
+			  - updated howto
+              - published V1.2beta7
 
-	Jul 29, 2016:
-		- minor plotting bug in [LADCP_w_CTD]
+Apr 14, 2016: - V1.2beta8
+			  - [LADCP_w_postproc] improved warning messages
 
-	Jul 31, 2016:
-		- minor bug in [LADCP_w_ocean] [defaults.pl]		  
+Apr 16, 2016: - [LADCP_VKE] allow for nans in LADCP_wspec output
+              - updated [version.pl]
 
-	Aug  5, 2016:
-		- committed version found on whoosher after repair
-		- manually uploaded from ECOGIG cruise laptop:
-			- [LADCP_w_ocean] 	changes since Jun 11, 2016
-			- [defaults.pl]		changes since Jun  2, 2016
-			- [LADCP_w_CTD]		changes since May 26, 2016
-        - updated [version.pl] to require ANTSlib V6.7
-        - updated HISTORY
-
-	Aug 16, 2016:
-		- [LADCP_VKE] increased -l default 1.2e-7 based on UK2.5 SR1
-		  			  repeat section
-
-	Dec 22, 2016:
-		- [LADCP_w_ocean] moved $opt_p to [defaults.pl]		  			  
-
-	Dec 23, 2016:
-		- [LADCP_w_ocean] minor bug
-
-	Sep  1, 2016:
-		- [LADCP_VKE] changed -l to mean epsilon, and increased value to
-					  1e-10
-
-	Mar  6, 2017:
-		- [LADCP_w_ocean] minor bug
-		- [time_lag.pl] minor bug
-
-	Mar  7, 2017:
-		- added time lines to [plot_time_lags.pl]
-
-	Mar  9, 2017:
-		- tightened timelag editing condition in [time_lag.pl]
-		- updated [HISTORY]
-
-	Mar 12, 2017:
-		- adapted to antslib V6.8 [version.pl]
-		- adapted ADCP_tools to V1.9
-		- increased -o default from 20 to 40m
-		- updated to V1.3
-
-	Mar 15, 2017:
-		- added [loadANTS.pl] for V1.3
-		- updated howto
-
-	Mar 16, 2017:
-		- published
+May 12, 2016: - updated version to 1.2
+			  - updated HowTo
+              - published
 
 ----------------------------------------------------------------------		
+V1.3:
+	- Adding Corrections For Beam-Pointing Errors
+----------------------------------------------------------------------
 
-	Oct 3, 2017:
-		- added -q option to LADCP_w_CTD for reprocessing as 1Hz files
+May 12, 2016: - updated [version.pl]
+			  - [LADCP_w_ocean] added fields to wsamp output
 
-	Oct 12, 2017:
-		- re-wrote code in [LADCP_w_ocean] to deal with earth coordinates
-		  (MAJOR BUG FIX)
+May 17, 2015:
+May 18, 2015: - [LADCP_w_ocean] added fields to wsamp output
+			  - modified _wprof fig (mean instead of rms tilts)
+			  - minor mods elsewhere (e.g. version info in all plots)
+			  - added new plots [defaults.pl] requiring mods to [LADCP_w_ocean]:
+				  - [plot_acceleration_residuals.pl]
+				  - [plot_attitude_biases_w.pl]
+				  - [plot_attitude_residuals.pl]
+				  - [plot_residual_profs.pl]
+			  - removed assumption of 1500m/s ADCP soundspeed setting (various files)
+              - added correct w12, w34 for earth velocity data
 
-	Oct 13, 2017:
-		- bugfix in [edit_data.pl]
+May 19, 2016: - updated to ADCP_tools V1.6 (coord trans interface change)
 
-	Oct 17, 2017:
-		- improvements and bugfix in [LADCP_VKE]
+May 24: 2016: - implemented bin-depth caching
+			  - improved LADCP_w_postproc plot
+              - improved various plots (esp. for partial-depth casts)
 
-	Nov 26, 2017:
-		- significant bug fixes in [LADCP_w_ocean] related to
-			- ping-coherent residual removal
-			- bad beam
+May 25, 2016: - updated version to V1.3beta1 [version.pl] [.hg/hgrc]
+		  	  - published
 
-	Nov 27, 2017:
-		- improved gap heuristics in [time_series.pl]
-		- added @valid_ensmeble_range [defaults.pl]
+May 26, 2016: - V1.3beta2
+			  - updated version to V1.3beta2 [version.pl] [.hg/hgrc]
+			  - udated ANTS_tools lib to V1.7 (beam interpolation)
+			  - adapted [LADCP_w_ocean] to beam interpolation
+			  - minor improvement to [LADCP_w_postproc]
+              - improved [plot_wprof.pl]
 
-	Nov 28, 2017:
-		- increased version to V1.4 [version.pl] [.hg/hgrc]
-		- worked on updating howto
-		- improvements to [LADCP_w_ocean]
-		- removed wcorr plot from [LADCP_w_postproc]
+Jun  1, 2016: - improvements to [LADCP_w_ocean]
+			  - added [default_output.pl]
+              - added [plot_residuals12.pl] [plot_residuals34.pl]
 
-	Nov 29, 2017:
-		- replaced opt_i by initial_time_lag in [defaults.pl]
+Jun  2, 2016: - minor improvement and bug fix in [LADCP_w_ocean]
 
-	Dec  9, 2017:		
-		- removed common options from [LADCP_w_ocean] [LADCP_w_postproc]
-		  [LADCP_wspec] [LADCP_w_CTD] [LADCP_VKE]
+Jun  3, 2016: - minor bug fix in [LADCP_w_ocean]
 
-	Dec 14, 2017:		
-		- improvements to [LADCP_wspec]
+Jun  6, 2016: - minor improvement in [LADCP_w_ocean] [defaults.pl] [edit_data.pl]
 
-	Dec 17, 2017:
-		- added dependencies to [LADCP_w_ocean] [LADCP_w_CTD]
+Jun  8, 2016: - removed plot_attitude_biases_w.pl
+              - slight improvement to [plot_attitude_residuals.pl]
 
-	Mar  8, 2018:
-		- improvements to [LADCP_w_CTD]
+Jun 11, 2016: - began debugging w12 & w34 for Earth-coord data [LADCP_w_ocean]
 
-	Mar  9, 2018:
-		- improvements to [LADCP_w_CTD]
+Jul  7, 2016: - major BUG in [LADCP_w_ocean] (beam-pair velocities for Earth
+				  coord data)
 
-	Mar 20, 2018:
-		- added blue background color for in-ice profiles in [plot_wprof.pl]
-		- fixed acceleration unit error in [plot_wprof.pl]
+Jul 12, 2016: - docu in [defaults.pl] 	  
 
-	Mar 22, 2018:
-		- adapted howto
-		- massively improved time-lagging heuristic [time_lag.pl]
-		- improved [plot_time_lags.pl]
+Jul 29, 2016: - minor plotting bug in [LADCP_w_CTD]
 
-	Mar 27, 2018:
-		- bugfix to new time lagging heuristic in [time_lag.pl]
+Jul 31, 2016: - minor bug in [LADCP_w_ocean] [defaults.pl]		  
 
-	Apr 24, 2018:
-		- improvements to [LADCP_w_ocean] [LADCP_VKE] [defaults.pl]
+Aug  5, 2016: - committed version found on whoosher after repair
+			  - manually uploaded from ECOGIG cruise laptop:
+				  - [LADCP_w_ocean]   changes since Jun 11, 2016
+				  - [defaults.pl]	  changes since Jun  2, 2016
+				  - [LADCP_w_CTD]	  changes since May 26, 2016
+			  - updated [version.pl] to require ANTSlib V6.7
+              - updated HISTORY
 
-	Apr 25, 2018:
-		- improvement to [LADCP_VKE]
+Aug 16, 2016: - [LADCP_VKE] increased -l default 1.2e-7 based on UK2.5 SR1
+				  repeat section
 
-	May  1, 2018:
-		- added reflr_u filter in [LADCP_w_ocean] [edit_data.pl] [time_series.pl]
-		- added ambiguity velocity check in [LADCP_w_ocean]
+Dec 22, 2016: - [LADCP_w_ocean] moved $opt_p to [defaults.pl] 				  
 
-	May  2, 2018:
-	 	- bug fixes in [LADCP_w_ocean], related to
-	 		- reflr threshold
-	 		- PPI
-	 	- adapted [defaults.pl] to reflr_u filter
+Dec 23, 2016: - [LADCP_w_ocean] minor bug
 
-	May 13, 2018:
-		- fixed bug in [LADCP_wspec]
+Sep  1, 2016: - [LADCP_VKE] changed -l to mean epsilon, and increased value to 1e-10
 
-	May 16, 2018:
-		- improvement to [LADCP_wspec]
+Mar  6, 2017: - [LADCP_w_ocean] minor bug
+              - [time_lag.pl] minor bug
 
-	May 22, 2018:
-		- improvement to [LADCP_w_CTD]
+Mar  7, 2017: - added time lines to [plot_time_lags.pl]
 
-	Jul 24, 2018:
-		- improvement to [LADCP_w_CTD]
+Mar  9, 2017: - tightened timelag editing condition in [time_lag.pl]
+              - updated [HISTORY]
 
-	Sep 13, 2018:
-		- added '.' to library path in [version.pl]
+Mar 12, 2017: - adapted to antslib V6.8 [version.pl]
+			  - adapted ADCP_tools to V1.9
+			  - increased -o default from 20 to 40m
+              - updated to V1.3
 
-	Oct  4, 2018:
-		- improvements to [LADCP_w_CTD]
+Mar 15, 2017: - added [loadANTS.pl] for V1.3
+              - updated howto
 
-	Oct  5, 2018:
-		- improvements and bugfix in [LADCP_w_CTD]
+Mar 16, 2017: - published
 
-	Oct 31, 2018:
-		- improvements to [LADCP_w_postproc]
+----------------------------------------------------------------------
+V 1.4
+----------------------------------------------------------------------
 
-	Nov  1, 2018:
-		- improvements to [LADCP_w_postproc]
+Oct  3, 2017: - added -q option to LADCP_w_CTD for reprocessing as 1Hz files
 
-	Nov  2, 2018:
-		- 2-beam residuals bug fix in [LADCP_w_ocean]
+Oct 12, 2017: - re-wrote code in [LADCP_w_ocean] to deal with earth coordinates
+		   	    (MAJOR BUG FIX)
 
-	Nov 17, 2018:
-		- updated [HISTORY]
-		- updated prerequisites in [version.pl]
-		- updated [LADCP_w_howto.pdf]
-		- updated [.hg/hgrc]
+Oct 13, 2017: - bugfix in [edit_data.pl]
+
+Oct 17, 2017: - improvements and bugfix in [LADCP_VKE]
+
+Nov 26, 2017: - significant bug fixes in [LADCP_w_ocean] related to
+				  - ping-coherent residual removal
+                  - bad beam
+
+Nov 27, 2017: - improved gap heuristics in [time_series.pl]
+              - added @valid_ensmeble_range [defaults.pl]
+
+Nov 28, 2017: - increased version to V1.4 [version.pl] [.hg/hgrc]
+			  - worked on updating howto
+			  - improvements to [LADCP_w_ocean]
+              - removed wcorr plot from [LADCP_w_postproc]
+
+Nov 29, 2017: - replaced opt_i by initial_time_lag in [defaults.pl]
+
+Dec  9, 2017: - removed common options from [LADCP_w_ocean] [LADCP_w_postproc]
+                [LADCP_wspec] [LADCP_w_CTD] [LADCP_VKE]
+
+Dec 14, 2017: - improvements to [LADCP_wspec]
+
+Dec 17, 2017: - added dependencies to [LADCP_w_ocean] [LADCP_w_CTD]
+
+Mar  8, 2018: - improvements to [LADCP_w_CTD]
+
+Mar  9, 2018: - improvements to [LADCP_w_CTD]
+
+Mar 20, 2018: - added blue background color for in-ice profiles in [plot_wprof.pl]
+              - fixed acceleration unit error in [plot_wprof.pl]
+
+Mar 22, 2018: - adapted howto
+			  - massively improved time-lagging heuristic [time_lag.pl]
+              - improved [plot_time_lags.pl]
+
+Mar 27, 2018: - bugfix to new time lagging heuristic in [time_lag.pl]
+
+Apr 24, 2018: - improvements to [LADCP_w_ocean] [LADCP_VKE] [defaults.pl]
+
+Apr 25, 2018: - improvement to [LADCP_VKE]
+
+May  1, 2018: - added reflr_u filter in [LADCP_w_ocean] [edit_data.pl] [time_series.pl]
+              - added ambiguity velocity check in [LADCP_w_ocean]
+
+May  2, 2018: - bug fixes in [LADCP_w_ocean], related to
+				  - reflr threshold
+				  - PPI
+              - adapted [defaults.pl] to reflr_u filter
+
+May 13, 2018: - fixed bug in [LADCP_wspec]
+
+May 16, 2018: - improvement to [LADCP_wspec]
+
+May 22, 2018: - improvement to [LADCP_w_CTD]
+
+Jul 24, 2018: - improvement to [LADCP_w_CTD]
+
+Sep 13, 2018: - added '.' to library path in [version.pl]
+
+Oct  4, 2018: - improvements to [LADCP_w_CTD]
+
+Oct  5, 2018: - improvements and bugfix in [LADCP_w_CTD]
+
+Oct 31, 2018: - improvements to [LADCP_w_postproc]
+
+Nov  1, 2018: - improvements to [LADCP_w_postproc]
+
+Nov  2, 2018: - 2-beam residuals bug fix in [LADCP_w_ocean]
+
+Nov 17, 2018: - updated [HISTORY]
+			  - updated prerequisites in [version.pl]
+			  - updated [LADCP_w_howto.pdf]
+			  - updated [.hg/hgrc]
+              - published V1.4
+
+----------------------------------------------------------------------
+V2.0
+	- lots of bug fixes 
+	- major new features:
+		- dropped CTD scans handled correctly (no more apparent clock drifts)
+		- support for data files collected with Nortek Signature instruments
+		- much improved data editing 
+	- significant changes:
+		- no minimum limit for eps_VKE
+		- updated for GMT6
+		- much better data quality information in summary plots
+----------------------------------------------------------------------
+
+Mar 25, 2019: - [LADCP_w_CTD] changed error message to allow creating 1Hz from 4Hz file (SBE19)
+              - [LADCP_w_CTD] BUG: ITS was not set. How is this possible?????
+
+Apr 12, 2019: - [LADCP_w_ocean] added logfile error message for non-existing file
+
+Apr 18, 2019: - [LADCP_w_ocean] added addtional RDI coordinate transformation %PARAMs
+
+Apr 21, 2019: - [LADCP_w_CTD] modified code to allow production of 24Hz files (previous code required
+							  min 2 samples per bin, allowing for max 12Hz sampling rate)
+              - [LADCP_w_ocean] BUG: removed duplicate warning about lacking water-depth info
+
+Aug 27, 2019: - [LADCP_w_CTD] began adding correction for dropped CTD scans
+
+Aug 28, 2019: - [LADCP_w_CTD] made it work
+			  - [LADCP_w_CTD] added -g
+
+Aug 30, 2019: - [LADCP_w_CTD] renamed -g to -m)odulo error correction (not)
+			  - [LADCP_w_CTD] added -f)ill missing data
+
+Sep 10, 2019: - [LADCP_w_ocean] BUG: -i was erroneously listed as the initial CTD time offset
+
+Sep 12, 2019: - [LADCP_VKE] disabled default -l cut-off (used to be 5e-11 W/kg)
+			  - [LADCP_w_ocean] modified .prof output layout to be consistent with [LADCP_w_postproc]
+	
+Oct 29, 2019: - [plot_*.pl] updated psscale -B to gmt5 syntax
+	
+May 15, 2020: - [LADCP_w_ocean] BUG: re-binning on -r did not work for v12 and v34
+			  - [LADCP_w_ocean] BUG: before re-binning, upcast v12 and v34 were actuall from DC data
+			  - [LADCP_w_ocean] BUG: all beam-pair velocity stats were contaminated by missing values
+			  - [LADCP_w_ocean] made bin residuals per beam pair
+			  - [default_output.pl] removed a couple of time-depth plots from level 1
+			  - [default_output.pl] changed semmantics so that pushing to plot adds,
+									instead of overwwriting
+			  - [default_output.pl] BUG: one of the plots did not repect plotting level
+			  - [plot_mean_residuals.pl] adapted to bin-residuals separate per beam pair
+			  - [plot_mean_residuals.pl] added orange range
+              - [plot_mean_residuals.pl] slightly relaxed green range
+
+May 16, 2020: - [LADCP_w_ocean] BUG: write_residual_profs() clobbered layout
+			  - [plot_wprof.pl] added residual profile data to background
+
+May 23, 2020: - [plot_wprof.pl] BUG: windows without samples made program bomb
+
+May 25, 2020: - added [write_residual_profs.pl]
+
+Jun 22, 2020: - [LADCP_w_ocean] sscorr_w renamed to remove conflict with [RDI_Coords.pl]
+
+Jun 26, 2020: - [LADCP_w_CTD] added salinity -b)ias correction
+
+Jun 29, 2020: - [svel_corrections.pl] renamed sscorr_w to remove conflict with RDI_Coords.pl
+
+Mar 17, 2021: - [LADCP_w_ocean] turned multi-ping error into warning (for Nortek files)
+
+Mar 23, 3021: - [LADCP_w_ocean] adapted to ADCP_tools V2.4 (Nortek PD0 files)
+			  - [plot_wprof.pl] BUG: instrument frequency was rounded to 100kHz
+
+Apr 29, 2021: - [LADCP_w_CTD] improved warning message
+	
+Jun 29, 2021: - [LADCP_w_CTD] improved plot labelling
+
+Jun 30, 2021: - [LADCP_w_CTD] improved plot labelling
+			  - [LADCP_w_ocean]
+					- BUG: rms instead of mean tilt was reported in fig
+			        - added pitch/roll/tilt to output profile
+			  - [default_output.pl] renamed plot_mean_residuals to plot_bin_residuals
+		  	  - [plot_bin_residuals.pl]  renamed from plot_mean_residuals.pl
+			  - [plot_wprof.pl] improved quality semaphore
+
+Jul  1, 2021: - [LADCP_w_ocean] made %PARAMs more standard
+			  - [LADCP_w_ocean] added %dc_w.mu, %uc_w.mu
+			  - [plot_bin_residuals.pl] adapted to more standard %PARAMs
+			  - [plot_wprof.pl] replaced bin setup by <w> in legend
+			  - [LADCP_VKE] made %PARAMs more standard
+              - [LADCP_w_postproc] made %PARAMs more standard
+			  - [LADCP_w_postproc] added -z to remove biases
+			  - [LADCP_w_postproc] added %?c_w_diff.rms to output
+			  - [LADCP_w_postproc] BUG: dc_corr returned strange rms
+			  - [acoustic_backscatter.pl] [bottom_tracking.pl]
+			    [find_seabed.pl] [plot_backscatter.pl]
+				[plot_correlation.pl] [plot_residuals12.pl]
+				[plot_residuals34.pl] [plot_wsamp.pl] [time_lag.pl] made %PARAMs more standard
+
+Jul  6, 2021: - [LADCP_w_ocean] BUG: %uc_w.mu was off by factor 2
+
+Jul  7, 2021: - [plot_wprof.pl] added colored background to <w>
+              - [LADCP_w_postproc] reversed logic of -z (enables bias correction by default)
+			  - [LADCP_w_postproc] BUG: plot had label in wrong location for single-head profiles
+
+Jul  9, 2021: - [LADCP_w_ocean] added LR_RMS_BP_RESIDUAL, dc_lr_bp_res.rms, uc_lr_bp_res.rms
+			  - [LADCP_w_ocean] added residuals profile filter
+			  - [defaults.pl] - added $layer_residuals_rms_max
+			  - [plot_wprof.pl] adapted to new residual editing (calculation in LADCP_w_ocean)
+              - [LADCP_w_postproc] added window correlation stats
+			  - [LADCP_w_postproc] updated %PARAM names
+			  - [edit_data.pl] added editHighResidualLayers()
+			  
+Jul 11, 2021: - [LADCP_w_ocean] added %dc_w.var, %uc_w.var
+			  - [LADCP_w_ocean] reduced warning associated with residuals profile filter
+			  - [LADCP_w_ocean] disable time-lag filtering for transmission-error corrected CTD files
+			  
+Jul 13, 2021: - [LADCP_w_ocean] set dc_w.mu, dc_w.var to nan on insufficient data
+			  - [LADCP_w_ocean] BUG: residuals profile filter bombed when no data were removed
+			  - [LADCP_w_ocean] BUG: rms BT discrepancy was broken (residuals profile filter)
+			  - [LADCP_w_ocean] BUG: *_w.var did not respect -k
+			  - [LADCP_w_CTD] improved gaps PARAMs
+			  - [LADCP_w_CTD] added clock/transmission warnings
+              - [LADCP_w_postproc] BUG: dc_sig, dc_rms confusion
+			  
+Jul 23, 2021: - [LADCP_w_ocean] added %ADCP_type
+			  - [LADCP_VKE] returned to published empirical calibration constant (20% difference is not significant)
+			  - [LADCP_VKE] added calibration constant to output metadata
+			  - [LADCP_VKE] changed opt_a default from nan to 0 (ambient mixing)
+			  - [LADCP_VKE] BUG: -z default was only 1, which means that -k20 from LADCP_w_ocean applies; in
+					 practice I found with A20 that there are the effective value is >60; which means
+					 that this bug did not matter much in practice
+			  - [LADCP_VKE] changed calibration constant back, because it makes sense, and because it is now
+				recorded in the meta-data
+			  - [LADCP_w_postproc] added summary info to plot
+			  - [LADCP_w_postproc] added seabed to plot
+			  - [LADCP_w_postproc] added annotations to plot
+
+Jul 24, 2021: - [HISTORY] updated
+			  - V2.0 released			  
+				
+
 

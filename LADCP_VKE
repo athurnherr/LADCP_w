@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Thu Sep 12 13:49:04 2019
+#                    dlm: Sat Jul 24 09:44:26 2021
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 111 71 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 120 45 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -109,6 +109,16 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #	Apr 24, 2018: - BUG: output was one field too wide (filled with nans) because antsBufNFields was not reset
 #	Apr 25, 2018: - added -y and removed spectral bins from default output
 #	Sep 12, 2019: - disabled default -l cut-off (used to be 5e-11 W/kg)
+#	Jul  1, 2021: - made %PARAMs more standard
+#	Jul 23, 2021: - returned to published empirical calibration constant (20% difference is not significant)
+#				  - added calibration constant to output metadata
+#				  - changed opt_a default from nan to 0 (ambient mixing)
+#				  - BUG: -z default was only 1, which means that -k20 from LADCP_w_ocean applies; in 
+#						 practice I found with A20 that there are the effective value is >60; which means
+#						 that this bug did not matter much in practice
+#				  - changed calibration constant back, because it makes sense, and because it is now
+#				    recorded in the meta-data
+# HISTORY END
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -129,11 +139,11 @@ use IPC::Open2;
 #----------------------------------------------------------------------
 
 #my($c) = 0.0215;						# Thurnherr et al. (GRL 2015)
-my($c) = 0.026;							# increased by 20% for V1.2beta7
+my($c) = 0.026;							# increased by 21% for V1.2beta7
 $opt_q = 3;								# Equatorial band: little more than a guess based on 2015 P16N
 $opt_l = 0;								# [W/kg]; cutoff disabled Sep 12, 2019
-$opt_a = nan;							# assume background dissipation for samples that pass the tests but have eps below -l
-$opt_z = 1;								# number of w_ocean samples to require
+$opt_a = 0;								# assume background dissipation for samples that pass the tests but have eps below -l
+$opt_z = 50;							# number of w_ocean samples to require (note that the .wprof inputs may have harsher limits)
 $opt_o = 0;								# remove mean before calculating spectra
 $opt_s = 150;							# surface layer to exclude from spectra
 $opt_g = 40;							# max gap to interpolate over
@@ -196,17 +206,17 @@ if (defined(fnrNoErr('dc_w'))) {													# pre-process with LADCP_wspec when
 		if ($bufi == 0) {															# do once for mulitple files
 			&antsAddParams('ADCP_bin_length','','ADCP_blanking_distance','',		# delete most %PARAMs, leaving
 						   'ADCP_frequency','','ADCP_orientation','',				# 	only potentially useful ones (from last file):
-						   'ADCP_pulse_length','','BT_max_bin_range_diff','',		#		%profile_id
-						   'BT_max_range','','BT_max_w_error','',					#		%water_depth
-						   'BT_rms_w_discrepancy','','CTD_time_lags','',			#		%lat
+						   'ADCP_pulse_length','','BT_bin_range_diff.max','',		#		%profile_id
+						   'BT_range.max','','BT_w_error.max','',					#		%water_depth
+						   'BT_w_discrepancy.rms','','CTD_time_lags','',			#		%lat
 						   'LADCP_firstBin','','LADCP_lastBin','',					#		%lon
-						   'LADCP_w_ocean::version','','SS_min_samp','',			#		%dnXX
-						   'SS_max_allowed_depth_range','','SS_min_signal','',
-						   'Sv_ref_bin','','TL_max_allowed_three_lag_spread','',
-						   'dc_rms_accel_pkg','','dc_rms_tilt','',
-						   'uc_rms_accel_pkg','','uc_rms_tilt','',
-						   'max_depth','','max_elapsed','','max_ens','',
-						   'min_depth','','min_elapsed','','min_ens','',
+						   'LADCP_w_ocean::version','','SS_samp.min','',			#		%dnXX
+						   'SS_allowed_depth_range.max','','SS_signal.min','',
+						   'Sv_ref_bin','','TL_allowed_three_lag_spread.max','',
+						   'dc_pkg_accel.rms','','dc_tilt.rms','',
+						   'uc_pkg_accel.rms','','uc_tilt.rms','',
+						   'depth.max','','elapsed.max','','ens.max','',
+						   'depth.min','','elapsed.min','','ens.min','',
 						   'out_basename','','outgrid_dz','','run_label','',
 						   'outgrid_firstbin','','outgrid_lastbin','',
 						   'outgrid_minsamp','','per_bin_valid_frac_lim','',
@@ -214,7 +224,7 @@ if (defined(fnrNoErr('dc_w'))) {													# pre-process with LADCP_wspec when
 						   'refLr_lastBin','','rms_w_reflr_err','',
 						   'rms_w_reflr_err_interior','',
 						   'sidelobe_editing','','surface_layer_depth','',
-						   'vessel_draft','','w_max_lim','',
+						   'vessel_draft','','w_lim.max','',
 						   'water_depth.sig','','water_depth_from','',
 			);
 		}
@@ -267,12 +277,13 @@ if (defined(fnrNoErr('dc_w'))) {													# pre-process with LADCP_wspec when
 
 $n_input_files = 1 + @specbuf;									# number of input files provided
 
-&antsAddParams('LADCP_VKE::input_files.n',$n_input_files,
-			   'LADCP_VKE::wsamp.min',$opt_z,
-			   'LADCP_VKE::eps.minlim',$opt_l);
-
 &antsFloatOpt(\$opt_e,$c);										# default parameterization
 &antsFloatOpt(\$opt_x,1);										# spectral fit stddev scale factor
+
+&antsAddParams('LADCP_VKE::input_files.n',$n_input_files,
+			   'LADCP_VKE::wsamp.min',$opt_z,
+			   'LADCP_VKE::eps.minlim',$opt_l,
+			   'LADCP_VKE::calibration_constant',$opt_e);
 
 if (defined($opt_c)) {											# shortwave cutoff supplied
 	$lmin = ($opt_c < 1) ? 2*$PI/$opt_c : $opt_c;
@@ -363,15 +374,14 @@ sub average_spectra($)
 		for (my($bi)=0; $bi<@specbuf; $bi++) {									# loop over all buffered files
 			next unless @{$specbuf[$bi][$wi]};									# skip input files w/o valid spectra
 			if (abs($specbuf[$bi][$wi][$df] - $ants_[$r][$df]) > 0) {			# depth mismatch
-				die("assertion failed") unless ($wi == 0);						# only allowed in bottom window
+#				die("assertion failed ($specbuf[$bi][$wi][$df] - $ants_[$r][$df] @ wi=$wi)") unless ($wi == 0);						# only allowed in bottom window
 				if (abs($specbuf[$bi][$wi][$df] - $ants_[$r][$df]) >
 					abs($ants_[$r][$maxdf] - $ants_[$r][$mindf])) {
-						printf(STDERR "WARNING: ignoring bottom window from input file #%d because of depth mismatch\n",$bi+1)
+						printf(STDERR "WARNING: ignoring window #$wi from input file #%d because of depth mismatch\n",$bi+1)
 							if ($f == $fs_fmin);
 						next;
 				}
 			}
-#			print(STDERR "specbuf[$bi][$wi][$f] = $specbuf[$bi][$wi][$f]\n");
 			if (numberp($specbuf[$bi][$wi][$f])) {
 				$sum += $specbuf[$bi][$wi][$f]; $ns++;
             }
@@ -562,7 +572,7 @@ for (my($r)=0; $r<@ants_; $r++) {														# loop over all windows
 	}
 
 	#-----------------------------------------------------------------------------------------------------
-	# QC Tests:
+	# eps.VKE QC Tests:
 	#	- the following limits were independently derived 
 	#		p0fit.rms <= 0.4			primary filter used in Thurnherr et al. (GRL 2015)
 	#		-3 <= p0fit.slope <= -1		based largely on 2016 I08S data with sufficient/insufficient range

@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Tue May 24 16:34:24 2016
+#                    dlm: Thu Jul  1 09:37:40 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 212 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 32 46 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -29,6 +29,9 @@
 #	Mar 26, 2016: - BUG: nSv was declared local to this scope even though it is used outside
 #	May 18, 2016: - improved logging
 #   May 24, 2016: - calc_binDepths() -> binDepths()
+#	Jul  1, 2021: - made %PARAMs more standard
+# HISTORY END
+
 
 #----------------------------------------------------------------------
 # Volume Scattering Coefficient, following Deines (IEEE 1999)
@@ -227,8 +230,8 @@ sub find_backscatter_seabed($)
 	my($search_below) = int($_[0]);										# grid index to begin search
 	my(@wdepth,@Sv_rng);												# list of water_depth indices
 
-	&antsAddParams('SS_min_signal',$SS_min_signal,'SS_min_samp',$SS_min_samp,
-				   'SS_max_allowed_depth_range',$SS_max_allowed_depth_range);
+	&antsAddParams('SS_signal.min',$SS_min_signal,'SS_samp.min',$SS_min_samp,
+				   'SS_allowed_depth_range.max',$SS_max_allowed_depth_range);
 				   
 	for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) { 	# find backscatter min/max below $search_below in each bin
 		my($minSv,$maxSv,$depthmaxSv,$lastvalid) = (1e99,-1e99,-1,-1);

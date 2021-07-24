@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ R E S I D U A L _ P R O F S . P L 
 #                    doc: Wed May 18 18:43:33 2016
-#                    dlm: Tue May 24 22:02:28 2016
+#                    dlm: Thu Jul  1 13:25:20 2021
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 77 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 54 42 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -51,10 +51,10 @@ sub plot_residual_profs($)
 
 	my($xmin) = -0.05;
 	my($xmax) =  0.05;
-	my($ymin) = round(antsParam('min_depth')-25,50);
+	my($ymin) = round(antsParam('depth.min')-25,50);
 	my($ymax) = ($P{water_depth} > 0) ?
 				round($P{water_depth}+25,50) :
-				round($P{max_depth}+$P{ADCP_bin_length}+25,50);
+				round($P{'depth.max'}+$P{ADCP_bin_length}+25,50);
 	                                              
 	my($R) = "-R$xmin/$xmax/$ymin/$ymax";
 	my($depth_tics) = ($ymax < 1000 ) ? 'f10a100g100' : 'f100a500g500';
@@ -75,17 +75,23 @@ sub plot_residual_profs($)
 		print(GMT "0.0 -0.03 $P{out_basename} $P{run_label}\n");
 
 	GMT_pstext('-F+f12,Helvetica-Bold,black+jBL -Gwhite'); 							# rms residuals
-		print(GMT "0.01 0.89 beams <1,2>\n");
+		print(GMT "0.1 0.89 beams <1,2>\n");
+	GMT_pstext('-F+f12,Helvetica-Bold,black+jBR -Gwhite');
+		print(GMT "0.99 0.89 beams <3,4>\n");
+	GMT_pstext('-F+f12,Helvetica,coral+jBL -Gwhite');								# rms residuals
+		print(GMT "0.01 0.93 dc\n");
+	GMT_pstext('-F+f12,Helvetica,SeaGreen+jBL -Gwhite');
+		print(GMT "0.01 0.98 uc\n");
+
 	if ($r12DC >= $red_light) { 		GMT_pstext('-F+f12,Helvetica-Bold,coral+jBL -Gred'); }	
 	elsif ($r12DC >= $yellow_light) { 	GMT_pstext('-F+f12,Helvetica-Bold,coral+jBL -Gyellow'); }
 	else {								GMT_pstext('-F+f12,Helvetica-Bold,coral+jBL -Gwhite'); }
-		printf(GMT "0.01 0.935 %.1f mm/s rms\n",1000*$r12DC);
+		printf(GMT "0.1 0.935 %.1f mm/s rms\n",1000*$r12DC);
 	if ($r12UC >= $red_light) { 		GMT_pstext('-F+f12,Helvetica-Bold,SeaGreen+jBL -Gred'); }
 	elsif ($r12UC >= $yellow_light) { 	GMT_pstext('-F+f12,Helvetica-Bold,SeaGreen+jBL -Gyellow'); }
 	else {								GMT_pstext('-F+f12,Helvetica-Bold,SeaGreen+jBL -Gwhite'); }
-		printf(GMT "0.01 0.98 %.1f mm/s rms\n",1000*$r12UC);
-	GMT_pstext('-F+f12,Helvetica-Bold,black+jBR -Gwhite');
-		print(GMT "0.99 0.89 beams <3,4>\n");
+		printf(GMT "0.1 0.98 %.1f mm/s rms\n",1000*$r12UC);
+
 	if ($r34DC >= $red_light) { 		GMT_pstext('-F+f12,Helvetica-Bold,coral+jBR -Gred'); }
 	elsif ($r34DC >= $yellow_light) { 	GMT_pstext('-F+f12,Helvetica-Bold,coral+jBR -Gyellow'); }
 	else {								GMT_pstext('-F+f12,Helvetica-Bold,coral+jBR -Gwhite'); }

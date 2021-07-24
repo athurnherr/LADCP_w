@@ -1,9 +1,9 @@
 #======================================================================
 #                    B O T T O M _ T R A C K I N G . P L 
 #                    doc: Wed Oct 20 21:05:37 2010
-#                    dlm: Tue May  1 21:48:54 2018
+#                    dlm: Thu Jul  1 09:38:25 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 21 14 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 20 13 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -16,6 +16,8 @@
 #	Jan 26, 2016: - added %PARAMs
 #   May 24, 2016: - calc_binDepths() -> binDepths()
 #	May  1, 2018: - log-file cosmetics
+#	Jul  1, 2021: - made %PARAMs more standard
+# HISTORY END
 
 # This code is derived from the one used in LADCPproc, with the following
 # differences:
@@ -119,9 +121,9 @@ sub calc_BTprof($$$$)
 {
 	my($LADCP_start,$LADCP_end,$wd,$sig_wd) = @_;
 
-	&antsAddParams('BT_max_range',$BT_max_range,
-				   'BT_max_bin_range_diff',$BT_max_bin_range_diff,
-				   'BT_max_w_error',$BT_max_w_error);
+	&antsAddParams('BT_range.max',$BT_max_range,
+				   'BT_bin_range_diff.max',$BT_max_bin_range_diff,
+				   'BT_w_error.max',$BT_max_w_error);
 
 	for (my($ens)=$LADCP_start; $ens<=$LADCP_end; $ens++) {
 		next unless ($wd-$LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH} < $BT_max_range);
