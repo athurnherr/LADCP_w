@@ -1,14 +1,15 @@
 #======================================================================
 #                    P L O T _ R E S I D U A L _ P R O F S . P L 
 #                    doc: Wed May 18 18:43:33 2016
-#                    dlm: Tue May 24 22:02:28 2016
+#                    dlm: Sun Apr 11 06:52:26 2021
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 77 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 62 52 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
 #   May 18, 2016: - created from [plot_mean_residuals.pl]
 #	May 24, 2016: - improved
+#	Apr 11, 2021: - halved x-axis range
 
 require "$ANTS/libGMT.pl";
 
@@ -49,8 +50,8 @@ sub plot_residual_profs($)
 	my($yellow_light) = 0.004;
 	my($red_light)	  = 0.01;
 
-	my($xmin) = -0.05;
-	my($xmax) =  0.05;
+	my($xmin) = -0.01;
+	my($xmax) =  0.01;
 	my($ymin) = round(antsParam('min_depth')-25,50);
 	my($ymax) = ($P{water_depth} > 0) ?
 				round($P{water_depth}+25,50) :
@@ -58,7 +59,7 @@ sub plot_residual_profs($)
 	                                              
 	my($R) = "-R$xmin/$xmax/$ymin/$ymax";
 	my($depth_tics) = ($ymax < 1000 ) ? 'f10a100g100' : 'f100a500g500';
-	GMT_begin($pfn,'-JX10/-10',$R,"-P -Bf0.005a0.02g0.01:'Residual Vertical Velocity [m/s]':/$depth_tics:'Depth [m]':WeSn");
+	GMT_begin($pfn,'-JX10/-10',$R,"-P -Bf0.001a0.005g0.005:'Residual Vertical Velocity [m/s]':/$depth_tics:'Depth [m]':WeSn");
 
 	GMT_psxy('-W2,CornflowerBlue');													# zero line
 		printf(GMT "0 $ymin\n0 $ymax\n");

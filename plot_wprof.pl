@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ W P R O F . P L 
 #                    doc: Sun Jul 26 11:08:50 2015
-#                    dlm: Tue Mar 23 08:28:12 2021
+#                    dlm: Mon Apr 12 08:44:01 2021
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 25 39 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 26 61 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -23,6 +23,7 @@
 #	May 16, 2020: - added residual profile data to background
 #	May 23, 2020: - BUG: windows without samples made program bomb
 #	Mar 23, 2021: - BUG: instrument frequency was rounded to 100kHz
+#	Apr 12, 2021: - added documentation on background shading
 
 # Tweakables:
 #
@@ -73,6 +74,12 @@ sub plotBT($$)
     }
 }
 
+# plot red \\\\ //// patterns (for dc and uc) in background 
+#	- based on rms residual (like residual profiles)
+#	- 100-m-thick layers
+#	- white (no pattern) for rms residual <= 0.002
+#	- red (max saturation) for rms residual >= 0.012
+
 sub plotRes()
 {
 	my($last_depth,$dc_sumsq_res,$dc_n,$uc_sumsq_res,$uc_n);
@@ -80,15 +87,15 @@ sub plotRes()
 		my($depth) = ($bi+0.5) * $opt_o;
 		if ($depth > $last_depth+100 || $bi == $#{$DNCAST{MEDIAN_W}}) {
 			if ($dc_n==0 || sqrt($dc_sumsq_res/$dc_n) > 0.002) {
-				my($green) = $dc_n ? round(100*max(0.01-max(sqrt($dc_sumsq_res/$dc_n)-0.002,0),0) * 255) : 0;
-				GMT_psxy("-Gp300/12:F255/$green/${green}B-");
+				my($lightness) = $dc_n ? round(100*max(0.01-max(sqrt($dc_sumsq_res/$dc_n)-0.002,0),0) * 255) : 0;
+				GMT_psxy("-Gp300/12:F255/$lightness/${lightness}B-");
 				printf(GMT "%g %g\n%g %g\n%g %g\n%g %g\n",
 								-0.1,$last_depth,0,$last_depth,
 								0,$depth,-0.1,$depth);
 			}
 			if ($uc_n==0 || sqrt($uc_sumsq_res/$uc_n) > 0.002) {
-				my($green) = $uc_n ? round(100*max(0.01-max(sqrt($uc_sumsq_res/$uc_n)-0.002,0),0) * 255) : 0;
-				GMT_psxy("-Gp300/9:F255/$green/${green}B-");
+				my($lightness) = $uc_n ? round(100*max(0.01-max(sqrt($uc_sumsq_res/$uc_n)-0.002,0),0) * 255) : 0;
+				GMT_psxy("-Gp300/9:F255/$lightness/${lightness}B-");
 				printf(GMT "%g %g\n%g %g\n%g %g\n%g %g\n",
 								0,$last_depth,0.07,$last_depth,
 								0.07,$depth,0,$depth);
