@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Tue Oct 16 16:26:06 2018
+#                    dlm: Sun Aug  8 11:06:48 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 80 38 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 82 60 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -78,6 +78,9 @@
 #						 Solution: remove very unpopular lags first
 #	Oct  4, 2018: - added timelagging debug code
 #	Oct 16, 2018: - removed debug code
+#	Jul  1, 2021: - made %PARAMs more standard
+#	Aug  8, 2021: - BUG: empty upcast made time-lagging bomb
+# HISTORY END
 
 # DIFFICULT STATIONS:
 #	NBP0901#131		this requires the search-radius doubling heuristic
@@ -159,7 +162,7 @@ sub calc_lag($$$$$)
 	my($n_windows,$w_size,$scan_increment,$first_ens,$last_ens) = @_;
 	my($search_radius) = $scan_increment==1 ? 3 : $w_size;
 
-	&antsAddParams('TL_max_allowed_three_lag_spread',$TL_max_allowed_three_lag_spread);
+	&antsAddParams('TL_allowed_three_lag_spread.max',$TL_max_allowed_three_lag_spread);
 
 	my($ctmsg);
 	if ($first_ens==$firstGoodEns && $last_ens==$lastGoodEns) 	{ $ctmsg = "full-cast"; }
@@ -204,6 +207,12 @@ RETRY:
 		$n_valid_windows++;
 		$nBest{$so}++; $madBest{$so} += $mad;
 	}
+
+	unless ($n_valid_windows) {
+		$failed = 1;
+		goto CONTINUE;
+    }
+
 	my($maxN) = 0;
 	foreach my $i (keys(%nBest)) {
 		$maxN = $nBest{$i} if ($nBest{$i} > $maxN);
@@ -216,14 +225,6 @@ RETRY:
 		$nBest{$lag} = 0; $madBest{$lag} = 9e99;
 	}
 	
-##	my($med_mad) = median(values(%madBest));								# remove lags with large mads
-##	my($mad_mad) = mad2($med_mad,values(%madBest));
-##	foreach my $lag (keys(%nBest)) {
-##		next if ($madBest{$lag} <= $med_mad+$mad_mad);
-##		$n_valid_windows -= $nBest{$lag};
-##		$nBest{$lag} = 0;
-##  }
-
 	my($min_mad) = min(values(%madBest));									# remove lags with large mads
 	foreach my $lag (keys(%nBest)) {
 		next if ($madBest{$lag} <= 3*$min_mad);
@@ -300,6 +301,8 @@ RETRY:
 	#----------------------------------------------------
 	# Here, either $failed is set, or we have a valid lag.
 	#----------------------------------------------------
+
+CONTINUE:
 
 #	if ($failed) {
 #		for (my($wi)=0; $wi<$n_windows; $wi++) {

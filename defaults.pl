@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Sat May 16 10:53:34 2020
+#                    dlm: Tue Oct 26 12:12:27 2021
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 90 31 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 183 72 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -88,6 +88,10 @@
 #	May  2, 2018: - added max_hspeed
 #				  - replaced $PPI_seabed_editing_required by &PPI_seabed_editing_required
 #	May 16, 2020: - updated doc
+#	Jun 30, 2021: - ditto
+#	Jul  9, 2021: - added $layer_residuals_rms_max
+#	Sep  1, 2021: - added $seabed_contamination_Sv_grad_limit
+# HISTORY END
 
 #======================================================================
 # Output Log Files
@@ -175,7 +179,8 @@ $opt_b = '2,*' unless defined($opt_b);
 &antsFloatOpt(\$opt_r,'0.06,0.06');
 
 
-# By default, ensembles with uncertain time-lagging are discarded.
+# By default, ensembles with uncertain time-lagging are discarded,
+# unless the CTD time series data have been corrected for dropped scans.
 # This allows profiles with dropped CTD scans to be processed without
 # manual intervention. For profiles collected in very calm conditions
 # (e.g. near the ice off Antarctica) time lagging is highly uncertain
@@ -325,6 +330,16 @@ $sidelobe_editing_UL_seabed		= 1;
 $vessel_draft					= 6;		# in meters
 
 
+# Based on SR1b/2004 data, there are sidelobe editing does not remove
+# all seabed contamination in all profiles. This could be due to rough
+# and/or sloping seabed or instrument tilt measurement errors. The 
+# contamination can easily be detected from vertical Sv gradients. 
+# Based on the SR1b/2004 data, a limiting dSv/dz value of 0.1db/m 
+# is suitable for WH300 instruments.
+
+$seabed_contamination_Sv_grad_limit = 0.1;
+
+
 # The following function, which is called after the LADCP data have been 
 # read, must return the maximum horizontal reference-layer
 # speed that is allowed. The following values are based on 2018 GO-SHIP
@@ -347,6 +362,14 @@ sub max_hspeed()
 		$max_hspeed = 9e99;
 	}
 }
+
+
+# After the beam-pair residuals have been binned into profiles, rms
+# values in 5-output-bin-thick layers (200m by default) are calculated.
+# Vertical velocities from bins with values greater than the following 
+# limit are set to nan in the the output. 
+
+$layer_residuals_rms_max = 0.003;
 
 #======================================================================
 # Time Lagging
@@ -529,7 +552,7 @@ $BT_max_w_error = 0.03;
 #	- in contrast to -b, the other bins are still used e.g. for BT 
 #	- values recorded in %outgrid_firstbin, %outgrid_lastbin
 #	- values beyond range are:
-#		- greyed out in *_mean_residuals.ps
+#		- greyed out in *_bin_residuals.ps
 #		- not used in *_w.ps, *_residuals.ps
 
 $outGrid_firstBin = '*';			# use $LADCP_firstBin (-b)

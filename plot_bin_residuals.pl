@@ -1,9 +1,9 @@
 #======================================================================
-#                    P L O T _ M E A N _ R E S I D U A L S . P L 
+#                    P L O T _ B I N _ R E S I D U A L S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Fri May 15 19:06:51 2020
+#                    dlm: Thu Jul  1 13:23:10 2021
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 122 47 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 23 52 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -19,19 +19,21 @@
 #	May 15, 2020: - adapted to bin-residuals separate per beam pair
 #				  - added orange range
 #				  - slightly relaxed green range
+#	Jun 30, 2021: - renamed from plot_mean_residuals.pl
+#	Jul  1, 2021: - adapted to more standard %PARAMs
 
 require "$ANTS/libGMT.pl";
 
-sub plot_mean_residuals($)
+sub plot_bin_residuals($)
 {
 	my($pfn) = @_;
 
-	return unless ($P{BR_max_bin});
+	return unless ($P{'BR_bin.max'});
 
 	my($xmin) = -0.05;
 	my($xmax) =  0.05;
 	my($ymin) =  0.5;
-	my($ymax) = $P{BR_max_bin} + 0.5;
+	my($ymax) = $P{'BR_bin.max'} + 0.5;
 
 	my($R) = "-R$xmin/$xmax/$ymin/$ymax";
 	GMT_begin($pfn,'-JX10/-10',$R,'-P');
@@ -117,7 +119,7 @@ sub plot_mean_residuals($)
 	GMT_pstext('-F+f14,Helvetica,blue+jBL -N');											# profile id
 		print(GMT "0.0 -0.03 $P{out_basename} $P{run_label}\n");
 
-	GMT_pstext('-F+f12,Helvetica-Bold,black+jBL -Gwhite'); 							# rms residuals
+	GMT_pstext('-F+f12,Helvetica-Bold,black+jBL -Gwhite'); 								# rms residuals
 		print(GMT "0.1 0.88 beams <1,2>\n");
 	GMT_pstext('-F+f12,Helvetica-Bold,black+jBL -Gwhite');
 		print(GMT "0.7 0.88 beams <3,4>\n");

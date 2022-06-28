@@ -24,6 +24,11 @@
 #	May 23, 2020: - BUG: windows without samples made program bomb
 #	Mar 23, 2021: - BUG: instrument frequency was rounded to 100kHz
 #	Apr 12, 2021: - added documentation on background shading
+#	Jun 30, 2021: - improved quality semaphore
+#	Jul  1, 2021: - replaced bin setup by <w> in legend
+#	Jul  7, 2021: - added colored background to <w>
+#	Jul  9, 2021: - adapted to new residual editing (calculation in LADCP_w_ocean)
+# HISTORY END
 
 # Tweakables:
 #
@@ -122,17 +127,37 @@ sub plotRes()
 	}
 }
 
+sub plotRes()
+{
+	for (my($bi)=0; $bi<=$#{$DNCAST{MEDIAN_W}}; $bi++) {
+		if ($DNCAST{LR_RMS_BP_RESIDUAL}[$bi] > 0.002) {
+			my($sat) = round(100*max(0.01-max($DNCAST{LR_RMS_BP_RESIDUAL}[$bi]-0.002,0),0) * 255);
+			GMT_psxy("-Gp300/12:F255/$sat/${sat}B-");
+			printf(GMT "%g %g\n%g %g\n%g %g\n%g %g\n",
+							-0.1,$bi*$opt_o,0,$bi*$opt_o,
+							0,($bi+1)*$opt_o,-0.1,($bi+1)*$opt_o);
+		}
+		if ($UPCAST{LR_RMS_BP_RESIDUAL}[$bi] > 0.002) {
+			my($sat) = round(100*max(0.01-max($UPCAST{LR_RMS_BP_RESIDUAL}[$bi]-0.002,0),0) * 255);
+			GMT_psxy("-Gp300/9:F255/$sat/${sat}B-");
+			printf(GMT "%g %g\n%g %g\n%g %g\n%g %g\n",
+							0,$bi*$opt_o,0.07,$bi*$opt_o,
+							0.07,($bi+1)*$opt_o,0,($bi+1)*$opt_o);
+		}
+	}
+}
+
 sub plot_wprof($)
 {
 	my($pfn) = @_;
 
 	$plot_wprof_xmin = -0.1
 		unless defined($plot_wprof_xmin);		
-	$plot_wprof_ymin = round(antsParam('min_depth')-25,50)
+	$plot_wprof_ymin = round(antsParam('depth.min')-25,50)
 		unless defined($plot_wprof_ymin);		
 	$plot_wprof_ymax = ($P{water_depth} > 0) ?
 					   round($P{water_depth}+25,50) :
-					   round($P{max_depth}+25,50)
+					   round($P{'depth.max'}+25,50)
 		unless defined($plot_wprof_ymax);					  	
 	$plot_wprof_xtics = "-0.05 0.05 0.15"
 		unless defined($plot_wprof_xtics);
@@ -176,48 +201,30 @@ sub plot_wprof($)
 	GMT_unitcoords();																	# QUALITY SEMAPHORE
 	GMT_psxy('-Ggray90');
 	print(GMT "0.895 0.895\n0.985 0.895\n0.985 0.985\n0.895 0.985\n");
-	if ($dc_bres12_rms >= 0.005) { 		GMT_psxy('-Gred -N'); }
-	elsif ($dc_bres12_rms >= 0.003) { 	GMT_psxy('-Gorange -N'); }
-	elsif ($dc_bres12_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N'); }
-	else {								GMT_psxy('-Ggreen -N'); }
-		print(GMT "0.90 0.90\n0.935 0.90\n0.935 0.935\n");							
-	if ($dc_bres34_rms >= 0.005) { 		GMT_psxy('-Gred -N'); }
-	elsif ($dc_bres34_rms >= 0.003) { 	GMT_psxy('-Gorange -N'); }
-	elsif ($dc_bres34_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N'); }
-	else {								GMT_psxy('-Ggreen -N'); }
-		print(GMT "0.945 0.90\n0.98 0.90\n0.945 0.935\n");							
-	if ($uc_bres12_rms >= 0.005) { 		GMT_psxy('-Gred -N'); }
-	elsif ($uc_bres12_rms >= 0.003) { 	GMT_psxy('-Gorange -N'); }
-	elsif ($uc_bres12_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N'); }
-	else {								GMT_psxy('-Ggreen -N'); }
-		print(GMT "0.90 0.98\n0.935 0.98\n0.935 0.945\n");							
-	if ($uc_bres34_rms >= 0.005) { 		GMT_psxy('-Gred -N'); }
-	elsif ($uc_bres34_rms >= 0.003) { 	GMT_psxy('-Gorange -N'); }
-	elsif ($uc_bres34_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N'); }
-	else {								GMT_psxy('-Ggreen -N'); }
-		print(GMT "0.945 0.98\n0.98 0.98\n0.945 0.945\n");							
-if (0) {
-	if ($dc_bres12_rms >= 0.005) { 		GMT_psxy('-Gred -N -Sc0.3'); }
-	elsif ($dc_bres12_rms >= 0.003) { 	GMT_psxy('-Gorange -N -Sc0.3'); }
-	elsif ($dc_bres12_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N -Sc0.3'); }
-	else {								GMT_psxy('-Ggreen -N -Sc0.3'); }
-		print(GMT "0.92 0.96\n");							
-	if ($dc_bres34_rms >= 0.005) { 		GMT_psxy('-Gred -N -Sc0.3'); }
-	elsif ($dc_bres34_rms >= 0.003) { 	GMT_psxy('-Gorange -N -Sc0.3'); }
-	elsif ($dc_bres34_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N -Sc0.3'); }
-	else {								GMT_psxy('-Ggreen -N -Sc0.3'); }
-		print(GMT "0.96 0.96\n");							
-	if ($uc_bres12_rms >= 0.005) { 		GMT_psxy('-Gred -N -Sc0.3'); }
-	elsif ($uc_bres12_rms >= 0.003) { 	GMT_psxy('-Gorange -N -Sc0.3'); }
-	elsif ($uc_bres12_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N -Sc0.3'); }
-	else {								GMT_psxy('-Ggreen -N -Sc0.3'); }
-		print(GMT "0.92 0.92\n");							
-	if ($uc_bres34_rms >= 0.005) { 		GMT_psxy('-Gred -N -Sc0.3'); }
-	elsif ($uc_bres34_rms >= 0.003) { 	GMT_psxy('-Gorange -N -Sc0.3'); }
-	elsif ($uc_bres34_rms >= 0.0015) { 	GMT_psxy('-Gyellow -N -Sc0.3'); }
-	else {								GMT_psxy('-Ggreen -N -Sc0.3'); }
-		print(GMT "0.96 0.92\n");
-} 		
+	if ($dc_bres12_rms >= 0.005) { 		GMT_psxy('-W1,coral,8_2:0 -Gred -N'); }
+	elsif ($dc_bres12_rms >= 0.003) { 	GMT_psxy('-W1,coral,8_2:0 -Gorange -N'); }
+	elsif ($dc_bres12_rms >= 0.0015) { 	GMT_psxy('-W1,coral,8_2:0 -Gyellow -N'); }
+	else {								GMT_psxy('-W1,coral,8_2:0 -Ggreen -N'); }
+#		print(GMT "0.90 0.90\n0.935 0.90\n0.935 0.935\n");							
+		print(GMT "0.90 0.90\n0.935 0.90\n0.935 0.935\n0.90 0.935\n");							
+	if ($dc_bres34_rms >= 0.005) { 		GMT_psxy('-W1,coral,1_1:0 -Gred -N'); }
+	elsif ($dc_bres34_rms >= 0.003) { 	GMT_psxy('-W1,coral,1_1:0 -Gorange -N'); }
+	elsif ($dc_bres34_rms >= 0.0015) { 	GMT_psxy('-W1,coral,1_1:0 -Gyellow -N'); }
+	else {								GMT_psxy('-W1,coral,1_1:0 -Ggreen -N'); }
+#		print(GMT "0.945 0.90\n0.98 0.90\n0.945 0.935\n");							
+		print(GMT "0.945 0.90\n0.98 0.90\n0.98  0.935\n0.945 0.935\n");							
+	if ($uc_bres12_rms >= 0.005) { 		GMT_psxy('-W1,SeaGreen,8_2:0 -Gred -N'); }
+	elsif ($uc_bres12_rms >= 0.003) { 	GMT_psxy('-W1,SeaGreen,8_2:0 -Gorange -N'); }
+	elsif ($uc_bres12_rms >= 0.0015) { 	GMT_psxy('-W1,SeaGreen,8_2:0 -Gyellow -N'); }
+	else {								GMT_psxy('-W1,SeaGreen,8_2:0 -Ggreen -N'); }
+#		print(GMT "0.90 0.98\n0.935 0.98\n0.935 0.945\n");							
+		print(GMT "0.90 0.98\n0.935 0.98\n0.935 0.945\n0.90 0.945\n");							
+	if ($uc_bres34_rms >= 0.005) { 		GMT_psxy('-W1,SeaGreen,1_1:0 -Gred -N'); }
+	elsif ($uc_bres34_rms >= 0.003) { 	GMT_psxy('-W1,SeaGreen,1_1:0 -Gorange -N'); }
+	elsif ($uc_bres34_rms >= 0.0015) { 	GMT_psxy('-W1,SeaGreen,1_1:0 -Gyellow -N'); }
+	else {								GMT_psxy('-W1,SeaGreen,1_1:0 -Ggreen -N'); }
+#		print(GMT "0.945 0.98\n0.98 0.98\n0.945 0.945\n");							
+		print(GMT "0.945 0.98\n0.98 0.98\n0.98 0.945\n0.945 0.945\n");							
 	
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');											# LABELS
 		print(GMT "0.01 -0.06 $P{out_basename} [$P{run_label}]\n");
@@ -237,49 +244,79 @@ if (0) {
 			print(GMT "0.02 0.98 b.track\n");
 	}
 
-	GMT_pstext('-F+f9,Helvetica,CornFlowerBlue+jTL -N');
-		printf(GMT "0.64 1.020 %d kHz $LADCP{INSTRUMENT_TYPE} $P{ADCP_orientation}\n",
-				round($LADCP{BEAM_FREQUENCY},50));
-		printf(GMT "0.64 1.055 %s [%.1fm/%1.fm/%1.fm]\n",
-			$LADCP{BEAM_COORDINATES} ? 'beam vels' : 'Earth vels',
-			$LADCP{BLANKING_DISTANCE},$LADCP{TRANSMITTED_PULSE_LENGTH},$LADCP{BIN_LENGTH});
-		print(GMT "0.64 1.090 mean tilt\n 		0.77 1.096 :\n");
-		print(GMT "0.64 1.130 rms a\@-pkg\@-\n	0.77 1.1315 :\n");
+# The following values were established manually in July 2021 with
+# a GMT version that does not seem to respect y, maybe because of
+# super-/subscripts.
+#	my(@y) = (1.020,1.056,1.090,1.135);	# 0.036, 0.034, 0.035
+#	my(@y) = (1.020,1.056,1.088,1.131);
+	my(@y) = (1.020,1.060,1.088,1.127);
 
-	if ($P{dc_mean_tilt} < 4) {
+	GMT_pstext('-F+f9,Helvetica,CornFlowerBlue+jTL -N');
+		printf(GMT "0.64 $y[0] %d kHz $LADCP{INSTRUMENT_TYPE} $P{ADCP_orientation}\n",
+					round($LADCP{BEAM_FREQUENCY},50));
+
+#		printf(GMT "0.64 1.055 %s [%.1fm/%1.fm/%1.fm]\n",
+#			$LADCP{BEAM_COORDINATES} ? 'beam vels' : 'Earth vels',
+#			$LADCP{BLANKING_DISTANCE},$LADCP{TRANSMITTED_PULSE_LENGTH},$LADCP{BIN_LENGTH});
+
+		print( GMT "0.64 $y[1] mean w\n			0.77 $y[1] :\n");
+		printf(GMT "0.64 $y[2] mean tilt\n 		0.77 %f :\n",$y[2]+0.007);
+		print( GMT "0.64 $y[3] rms a\@-pkg\@-\n	0.77 $y[3] :\n");
+
+	if (abs($P{'dc_w.mu'} - $P{'uc_w.mu'}) < 0.005) {
 		GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
-	} elsif ($P{dc_mean_tilt} < 8) {
+	} elsif (abs($P{'dc_w.mu'} - $P{'uc_w.mu'}) < 0.01) {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gyellow -N');
+    } else {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gred -N');
+    }
+	printf(GMT "0.78 %f %dmm/s\n",$y[1]-0.006,round($P{'dc_w.mu'}*1000));
+
+	if (abs($P{'dc_w.mu'} - $P{'uc_w.mu'}) < 0.005) {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
+	} elsif (abs($P{'dc_w.mu'} - $P{'uc_w.mu'}) < 0.01) {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gyellow -N');
+    } else {
+		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gred -N');
+    }
+	printf(GMT "0.89 %f %dmm/s\n",$y[1]-0.006,round($P{'uc_w.mu'}*1000));
+
+
+	if ($P{'dc_tilt.mu'} < 4) {
+		GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
+	} elsif ($P{'dc_tilt.mu'} < 8) {
 		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gyellow -N');
 	} else {
 		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gred -N');
 	}
-			printf(GMT "0.808 1.090 %.1f\\260\n",$P{dc_mean_tilt});
-	if ($P{uc_mean_tilt} < 4) {
+	printf(GMT "0.808 $y[2] %.1f\\260\n",$P{'dc_tilt.mu'});
+
+	if ($P{'uc_tilt.mu'} < 4) {
 		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
-	} elsif ($P{uc_mean_tilt} < 8) {
+	} elsif ($P{'uc_tilt.mu'} < 8) {
 		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gyellow -N');
 	} else {
 		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gred -N');
 	}
-			printf(GMT "0.91 1.090 %.1f\\260\n",$P{uc_mean_tilt});
+	printf(GMT "0.91 $y[2] %.1f\\260\n",$P{'uc_tilt.mu'});
 
-	if ($P{dc_rms_accel_pkg} < 0.1) {
+	if ($P{'dc_accel_pkg.rms'} < 0.1) {
 		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gblue -N');
-	} elsif ($P{dc_rms_accel_pkg} < 0.7) {
+	} elsif ($P{'dc_accel_pkg.rms'} < 0.7) {
 		GMT_pstext('-F+f9,Helvetica,coral+jTL -N');
 	} else {
 		GMT_pstext('-F+f9,Helvetica,coral+jTL -Gyellow -N');
 	}
-		printf(GMT "0.78 1.125 %.1fm/s\@+2\@+\n",$P{dc_rms_accel_pkg});
+	printf(GMT "0.78 %f %.1fm/s\@+2\@+\n",$y[3]-0.01,$P{'dc_accel_pkg.rms'});
 		
-	if ($P{uc_rms_accel_pkg} < 0.1) {
+	if ($P{'uc_accel_pkg.rms'} < 0.1) {
 		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gblue -N');
-	} elsif ($P{uc_rms_accel_pkg} < 0.7) {
+	} elsif ($P{'uc_accel_pkg.rms'} < 0.7) {
 		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -N');
 	} else {
 		GMT_pstext('-F+f9,Helvetica,SeaGreen+jTL -Gyellow -N');
 	}
-		printf(GMT "0.89 1.125 %.1fm/s\@+2\@+\n",$P{uc_rms_accel_pkg});
+	printf(GMT "0.89 %f %.1fm/s\@+2\@+\n",$y[3]-0.01,$P{'uc_accel_pkg.rms'});
 		
 	my($depth_tics) = ($plot_wprof_ymax-$plot_prof_ymin < 1000 ) ? 'f10a100' : 'f100a500';				# AXES
 	setR1();

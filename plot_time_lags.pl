@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ T I M E _ L A G S . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Thu Mar 22 10:56:17 2018
+#                    dlm: Wed Jun 30 09:51:13 2021
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 40 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 64 77 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -61,6 +61,9 @@ sub plot_time_lags($)
         print(GMT "0.99 0.99 V$VERSION\n");
 	GMT_pstext('-F+f14,Helvetica,blue+jTL -N');
 		print(GMT "0.01 1.06 $P{out_basename} $P{run_label}\n");
+    GMT_pstext('-F+f14,Helvetica,coral+jBR -Gwhite');    print(GMT "0.98 0.07 downcast\n");
+    GMT_pstext('-F+f14,Helvetica,SeaGreen+jBR -Gwhite'); print(GMT "0.98 0.02 upcast\n");
+        
 
 	GMT_setR($R);
 	my($elapsed_tics) = ($xmax-$xmin < 45) ? 'f1a5' : 'f1a30';

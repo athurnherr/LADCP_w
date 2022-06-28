@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Tue Mar 23 05:29:53 2021
+#                    dlm: Mon Oct 18 21:39:56 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 409 100 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 55 60 NIL 0 0 72 72 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -16,7 +16,7 @@
 #	Dec 25, 2010: - adapted to changes in [LADCP_w]
 #	Aug  3, 2011: - added editTruncRange()
 #	Oct 10, 2011: - added editFalsePositives()
-#				  - BUG: when earth velocities were edited, all were
+#				  - BUG: when Earth velocities were edited, all were
 #						 counted, not just those between first and lastBin
 #	Oct 11, 2011: - moved defaults to [defaults.pl]
 #	Oct 12, 2011: - added &editSurfLayer()
@@ -45,6 +45,14 @@
 #	May  1, 2018: - added editLargeHSpeeds()
 #	Nov 17, 2018: - BUG: spurious letter "z" had crept in at some stage
 #	Mar 23, 2021: - updated PPI doc
+#	Jul  9, 2021: - added editHighResidualLayers()
+#	Sep  1, 2021: - added Sv editing to editHighResidualLayers()
+#				  - modified sidelobe editing to include instrument tilt
+#	Oct 15, 2021: - BUG: new sidelobe editing was stupid, because sidelobe
+#					contamination works in the time domain and is, therefore,
+#					independent of tilt
+#	Oct 18, 2021: - BUG: seabed contamination was missing abs() and did not
+#						 work correctly with missing Sv data
 # END OF HISTORY
 
 # NOTES:
@@ -267,17 +275,20 @@ sub editFarBins($$)
 	return $nrm;
 }
 
-#======================================================================
+#===========================================================================================
 # ($nvrm,$nerm) = editSideLobes($fromEns,$toEns,$water_depth)
 #
 # NOTES:
-#	1) When this code is executed the sound speed is known. No attempt is made to correct for
-#	   along-beam soundspeed variation, but the soundspeed at the transducer is accounted for.
-#	2) for surface sidelobes, water_depth == undef; surface sidelobes include the
-#	   vessel draft
+#	- When this code is executed the sound speed is known. No attempt is made to correct for
+#	  along-beam soundspeed variation, but the soundspeed at the transducer is accounted for.
+#	- for surface sidelobes, water_depth == undef; surface sidelobes include the
+#	  vessel draft
 #	- all velocities are counted, even those outside valid bin range,
 #	  because the %age is not reported
-#======================================================================
+#	- while this filter removes the sidelobe contamination in most profiles
+#	  there are still profiles with Sv.diff anomalies near the seabed
+#     (based on SR1b/2004 data); for these editSeabedContamination has been implemented
+#==========================================================================================
 
 sub editSideLobes($$$)
 {
@@ -289,17 +300,20 @@ sub editSideLobes($$$)
 		my($range) = defined($wd) ? $wd - $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH} 
 								  : $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH} - $vessel_draft;
 		$range = 0 if ($range < 0);								  
+		
+#		from UH code 
 		my($sscorr) = $CTD{SVEL}[$LADCP{ENSEMBLE}[$e]->{CTD_SCAN}] / $LADCP{ENSEMBLE}[$e]->{SPEED_OF_SOUND};
-		my($goodBins) =   ($range - $sscorr*$LADCP{DISTANCE_TO_BIN1_CENTER}) * cos(rad($LADCP{BEAM_ANGLE}))
+		my($firstBadBin) =   ($range - $sscorr*$LADCP{DISTANCE_TO_BIN1_CENTER}) * cos(rad($LADCP{BEAM_ANGLE}))
 						/ ($sscorr*$LADCP{BIN_LENGTH})
 						- 1.5;
 
 		my($dirty) = 0;
-		for (my($bin)=int($goodBins); $bin<$LADCP{N_BINS}; $bin++) { 	# NB: 2 good bins implies that bin 2 is bad
+		for (my($bin)=int($firstBadBin); $bin<$LADCP{N_BINS}; $bin++) { 	
 			next unless ($bin>=0 && defined($LADCP{ENSEMBLE}[$e]->{W}[$bin]));
 			$dirty = 1;
 			$nvrm++;
 			undef($LADCP{ENSEMBLE}[$e]->{W}[$bin]);
+			debugmsg("sidelobe at range=$range firstBadBin=$firstBadBin ens=$e bin=$bin at CTD depth = $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}\n");
 		}
 
 		$nerm += $dirty;
@@ -568,6 +582,75 @@ sub editLargeHSpeeds($$$)
 		$nerm++;
 	}
     return $nerm;
+}
+
+#======================================================================
+# $nbrm = editHighResidualLayers($max_lr_res)
+#	- filter applied after depth binning
+#	- while filter only removes values from profiles, the corresponding
+#	  samples are not output to .wsamp, because MEDIAN_W is not defined
+#	- filter based on observation that profiles of beam-pair residuals
+#	  are good indicators of bad data, but very noisy
+#	- current version uses estimates in 5-bin-thick layers (200m by
+#	  default) 
+#	- filter cutoff based on 2021 A20 cruise which crossed region with
+#	  very weak backscatter
+#======================================================================
+
+sub editHighResidualLayers($)
+{
+	my($limit) = @_;
+
+	my($nbrm) = 0;
+	for (my($bi)=0; $bi<=$#{$DNCAST{LR_RMS_BP_RESIDUAL}}; $bi++) {
+		next unless ($DNCAST{LR_RMS_BP_RESIDUAL}[$bi] > $limit);
+		$DNCAST{MEDIAN_W}[$bi] = $DNCAST{MEDIAN_W12}[$bi] = $DNCAST{MEDIAN_W34}[$bi] = nan;
+#		$DNCAST{SV}[$bi] = nan;
+		$nbrm++;
+	}
+	for (my($bi)=0; $bi<=$#{$UPCAST{LR_RMS_BP_RESIDUAL}}; $bi++) {
+		next unless ($UPCAST{LR_RMS_BP_RESIDUAL}[$bi] > $limit);
+		$UPCAST{MEDIAN_W}[$bi] = $UPCAST{MEDIAN_W12}[$bi] = $UPCAST{MEDIAN_W34}[$bi] = nan;
+#		$UPCAST{SV}[$bi] = nan;
+		$nbrm++;
+	}
+    return $nbrm;
+}
+
+#======================================================================
+# $nbrm = editSeabedContamination($max_lr_res)
+#	- filter applied after depth binning
+#	- while filter only removes values from profiles, the corresponding
+#	  samples are not output to .wsamp, because MEDIAN_W is not defined
+#	- filter based on SR1b/2004 observation that some profiles of Sv
+#	  show clear anomalies near the seabed
+#	- anomalies are easily detected in dSv/dz plots, with
+#	  $seabed_contamination_Sv_grad_limit = 0.1 being a suitable limiting 
+#	  value for WH300 ADCPs
+#======================================================================
+
+sub editSeabedContamination($)
+{
+	my($limit) = @_;
+	my($nbrm) = 0;
+
+	for (my($bi)=$#{$DNCAST{SV}}; $bi>0; $bi--) {
+		next unless numberp($DNCAST{SV}[$bi]) && numberp($DNCAST{SV}[$bi-1]);
+		last if (abs($DNCAST{SV}[$bi]-$DNCAST{SV}[$bi-1])/$opt_o < $limit);
+		$DNCAST{MEDIAN_W}[$bi] = $DNCAST{MEDIAN_W12}[$bi] = $DNCAST{MEDIAN_W34}[$bi] = nan;
+		$DNCAST{SV}[$bi] = nan;
+		$nbrm++;
+    }
+
+	for (my($bi)=$#{$UPCAST{SV}}; $bi>0; $bi--) {
+		next unless numberp($UPCAST{SV}[$bi]) && numberp($UPCAST{SV}[$bi-1]);
+		last if (abs($UPCAST{SV}[$bi]-$UPCAST{SV}[$bi-1])/$opt_o < $limit);
+		$UPCAST{MEDIAN_W}[$bi] = $UPCAST{MEDIAN_W12}[$bi] = $UPCAST{MEDIAN_W34}[$bi] = nan;
+		$UPCAST{SV}[$bi] = nan;
+		$nbrm++;
+    }
+
+    return $nbrm;
 }
 
 #======================================================================

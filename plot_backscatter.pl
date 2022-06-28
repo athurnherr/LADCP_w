@@ -1,9 +1,9 @@
 #======================================================================
 #                    P L O T _ B A C K S C A T T E R . P L 
 #                    doc: Tue Jul 28 13:21:09 2015
-#                    dlm: Tue Oct 29 13:13:02 2019
+#                    dlm: Thu Jul  1 13:32:33 2021
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 73 54 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 30 42 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -15,6 +15,7 @@
 #   May 24, 2016: - calc_binDepths() -> binDepths()
 #				  - fixed for partial-depth casts
 #	Oct 29, 2019: - updated psscale -B to gmt5 syntax
+#	Jul  1, 2021: - adapted to more standard %PARAMs
 
 require "$ANTS/libGMT.pl";
 
@@ -22,18 +23,18 @@ sub plot_backscatter($)
 {
 	my($pfn) = @_;
 
-	return unless ($P{max_depth});
+	return unless ($P{'depth.max'});
 
-	my($xmin) = $P{min_ens}-0.5;
-	my($xmax) = $P{max_ens}+0.5;
-	my($ymin) = round(antsParam('min_depth')-25,50);
+	my($xmin) = $P{'ens.min'}-0.5;
+	my($xmax) = $P{'ens.max'}+0.5;
+	my($ymin) = round(antsParam('depth.min')-25,50);
 	my($ymax) = ($P{water_depth} > 0) ?
 				round($P{water_depth}+25,50) :
-				round($P{max_depth}+$P{ADCP_bin_length}+25,50);
+				round($P{'depth.max'}+$P{ADCP_bin_length}+25,50);
 
-	my($ens_width) = 10 / ($P{max_ens} - $P{min_ens} + 1);
+	my($ens_width) = 10 / ($P{'ens.max'} - $P{'ens.min'} + 1);
 	my($bin_length) = 10 * $P{ADCP_bin_length} / 
-						($P{max_depth}-$P{min_depth}+$P{ADCP_bin_length});
+						($P{'depth.max'}-$P{'depth.min'}+$P{ADCP_bin_length});
 
 	my($R) = "-R$xmin/$xmax/$ymin/$ymax";
 	GMT_begin($pfn,'-JX10/-10',$R,'-P');

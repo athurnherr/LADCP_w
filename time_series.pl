@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ S E R I E S . P L 
 #                    doc: Sun May 23 16:40:53 2010
-#                    dlm: Sun Apr 21 14:13:05 2019
+#                    dlm: Sat Apr 24 11:19:07 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 25 56 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 26 27 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -23,6 +23,7 @@
 #	May  1, 2018: - added reflr u and v calculations
 #				  - BUG: reflr u and v calcs did not work
 #	Apr 21, 2019: - improved surface gap warning message
+#	Apr 24, 2021: - output cosmetics
 
 # NOTES:
 #	- resulting DEPTH field based on integrated w without any sound speed correction
@@ -110,7 +111,7 @@ sub calcLADCPts($$$$)
             		 ($depth == $max_depth)) {										# biased in-air data
             		 	my($md) = defined($max_depth) ? sprintf('%d',$max_depth) : 'undefined';
 						warning(1,"long surface gap (%ds) --- restarting at ens#$dta->{ENSEMBLE}[$e]->{NUMBER} " .
-								  "[depth = %d m; max_depth = $md]\n",$dt,$depth);
+								  "[depth = %d m; max_depth = $md m]\n",$dt,$depth);
 						$firstgood = $lastgood = $e;
 						undef($atbottom); undef($max_depth);
 						$depth = 0;

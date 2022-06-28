@@ -1,9 +1,9 @@
 #======================================================================
 #                    F I N D _ S E A B E D . P L 
 #                    doc: Sun May 23 20:26:11 2010
-#                    dlm: Thu May 19 10:40:55 2016
+#                    dlm: Thu Jul  1 09:39:12 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 18 46 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 19 46 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -16,6 +16,7 @@
 #	Jan 26, 2016: - added %PARAMs
 #	May 18, 2016: - removed assumption of 1500m/s soundspeed setting
 #	May 19, 2016: - updated to ADCP_tools V1.6
+#	Jul  1, 2021: - made %PARAMs more standard
 
 # NOTES:
 #	1) BT range is corrected for sound speed at the transducer. This is not
@@ -38,10 +39,10 @@ sub find_seabed($$$)
 	my($i,$dd,$sd,$nd);
 	my(@guesses);
 
-	&antsAddParams('SS_min_allowed_range',$SS_min_allowed_range,
-				   'SS_max_allowed_range',$SS_max_allowed_range,
+	&antsAddParams('SS_allowed_range.min',$SS_min_allowed_range,
+				   'SS_allowed_range.max',$SS_max_allowed_range,
 				   'SS_search_window_halfwidth',$SS_search_window_halfwidth,
-				   'SS_max_allowed_depth_range',$SS_max_allowed_depth_range);
+				   'SS_allowed_depth_range.max',$SS_max_allowed_depth_range);
 
 	return undef unless ($be-$SS_search_window_halfwidth >= 0 &&
 						 $be+$SS_search_window_halfwidth <= $#{$d->{ENSEMBLE}});
