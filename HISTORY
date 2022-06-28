@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Sat Jul 24 10:35:19 2021
+                    dlm: Sun Aug  8 10:35:31 2021
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 327 25 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 239 67 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 ----------------------------------------------------------------------
@@ -153,7 +153,7 @@ May 18, 2015: - [LADCP_w_ocean] added fields to wsamp output
 				  - [plot_attitude_residuals.pl]
 				  - [plot_residual_profs.pl]
 			  - removed assumption of 1500m/s ADCP soundspeed setting (various files)
-              - added correct w12, w34 for earth velocity data
+              - added correct w12, w34 for Earth velocity data
 
 May 19, 2016: - updated to ADCP_tools V1.6 (coord trans interface change)
 
@@ -236,7 +236,7 @@ V 1.4
 
 Oct  3, 2017: - added -q option to LADCP_w_CTD for reprocessing as 1Hz files
 
-Oct 12, 2017: - re-wrote code in [LADCP_w_ocean] to deal with earth coordinates
+Oct 12, 2017: - re-wrote code in [LADCP_w_ocean] to deal with Earth coordinates
 		   	    (MAJOR BUG FIX)
 
 Oct 13, 2017: - bugfix in [edit_data.pl]

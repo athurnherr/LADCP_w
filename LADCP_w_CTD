@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Tue Jul 13 11:33:11 2021
+#                    dlm: Tue May 17 15:39:24 2022
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 226 118 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 158 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -98,6 +98,10 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	Jun 30, 2021: - ditto
 #	Jul 13, 2021: - improved gaps PARAMs
 #				  - added clock/transmission warnings
+#	Apr  6, 2022: - added %profile_id (not tested)
+#	May 10, 2022: - BUG: non-numeric ids no longer worked
+#				  - added -d to allow for station and cast numbering
+#	May 17, 2022: - made station cast numbering work based on input file name
 # HISTORY END
 
 # NOTES:
@@ -124,7 +128,7 @@ require "$ANTS/libEOS83.pl";
 $antsParseHeader = 0;											# usage
 $antsSuppressCommonOptions = 1;
 $IS = &antsLoadModel('`','.nminterp','linear');
-&antsUsage("ab:c:fgi:l:morp:qs:v:w:$IS_opts",1,
+&antsUsage("ab:c:d:fgi:l:morp:qs:v:w:$IS_opts",1,
 	'[-v)erbosity <level[0]>]',
 	'[use -a)lternate sensor pair]',
 	'[correct -S)alinity <bias>]',
@@ -132,7 +136,7 @@ $IS = &antsLoadModel('`','.nminterp','linear');
 	'[suppress CTD -m)odulo error correction]',
 	'[-s)ampling <rate[6Hz]>]',
 	'[lowpass w_CTD -c)utoff <limit[2s]>] [-w)inch-speed <granularity[10s]>]',
-	'[profile -i)d <id>] [station -l)ocation <lat/lon>]',
+	'[profile -i)d <id>] [id -d)igits <#[3]>] [station -l)ocation <lat/lon>]',
 	'[-p)lot_basenames <[%03d_w_CTD.ps],[%03d_sspd.ps]>]',
 	'[-q)uiet (no plots)]',
 	'[-f)ill gaps with linear interpolation]',
@@ -145,8 +149,14 @@ $IS = &antsLoadModel('`','.nminterp','linear');
 &antsFloatOpt(\$opt_b,0);										# salinity bias
 &antsCardOpt(\$opt_v,$ENV{VERB});								# support VERB env variable
 
-$CNVfile = $ARGV[0];											# open CNV file
-open(F,&antsFileArg());
+$CNVfile = $ARGV[0];											# input file
+
+($basename) = ($CNVfile =~ m{([^/]*)\.[^\.]*$});					# determine number of digits to use in profile id
+$opt_d = length($basename)										# 	- default is 3
+	if length($basename)>3 && !defined($opt_d);					#	- use length of input basename if it is longer than 3
+&antsCardOpt(\$opt_d,3);										# 	- explicit -d overrides 
+	
+open(F,&antsFileArg());											# open CNV file
 &antsAddDeps($CNVfile);
 &antsActivateOut();												# activate ANTS file
 
@@ -406,14 +416,16 @@ if ($fill_gaps) {
 $id = defined($opt_i) ? $opt_i : &antsParam('station');
 _croak("$CNVfile: no station information in header => -i required\n")
 	unless defined($id);
-_croak("$CNVfile: non-numeric station information <$id> in header => -i required\n")
-	unless numberp($id);
+#_croak("$CNVfile: non-numeric station information <$id> in header => -i required\n")
+#	unless numberp($id);
+&antsAddParams('profile_id',$id);	
 	
 if (-t STDOUT) {
 	if (numberp($id)) {
-		$opt_p = '%03d_w_CTD.ps,%03d_sspd.ps'
+		my($numfmt) = "%0${opt_d}d";
+		$opt_p = "${numfmt}_w_CTD.ps,${numfmt}_sspd.ps"
 			unless defined($opt_p);
-		$outfile = sprintf('%03d.%dHz',$id,$opt_s);
+		$outfile = sprintf("$numfmt.%dHz",$id,$opt_s);
 	} else {
 		$opt_p = '%s_w_CTD.ps,%s_sspd.ps'
 			unless defined($opt_p);

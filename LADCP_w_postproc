@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Fri Jul 23 14:03:05 2021
+#                    dlm: Wed May 18 08:52:28 2022
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 740 38 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 193 67 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -81,6 +81,13 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #	Jul 23, 2021: - added summary info to plot
 #				  - added seabed to plot
 #				  - added annotations to plot
+#	Aug  7, 2021: - BUG: some wsamp params were wrong
+#	Oct 12, 2021: - reduced window thickness for correlations from 500m to 320m
+#	Oct 13, 2021: - add filter to include correlation results only if there are
+#				    less than 20% gaps
+#	May 10, 2022: - added -f
+#	May 17, 2022: - changed semantics to take output file name from input file names
+#	May 18, 2022: - BUG: new semantics did not work (oops)
 # HISTORY END
 
 
@@ -98,18 +105,29 @@ require "$ANTS/libGMT.pl";
 &antsAddParams('LADCP_w_postproc::version',$VERSION);
 
 $antsSuppressCommonOptions = 1;
-&antsUsage('b:d:i:k:l:o:p:v:w:z',1,
+&antsUsage('b:c:d:f:i:k:l:o:p:v:w:z',1,
 	'[profile -i)d <id>]',
 	'[disable -z)eroing of <w> (disable bias correction)]',
 	'[-o)utput bin <resolution>] [-k) require <min> samples]',
 	'[-v)alid bins <DL first>,<DL last>[,<UL first>,<UL_last>]',
 	'[-w) <DL_dc_field>,<DL_uc_field>[,<UL_dc_field>,<UL_uc_field>]',
 	'[-s)urface-layer <limit[300m]>]',
-	'[ouptput -d)ir <name>]',
+	'[-c)orrelation <window size[320m]>]',
+	'[ouptput -d)ir <name> -f)ile <fmt[%03d.wprof]>]',
 	'[-p)lot <[%03d_wprof.eps]> [-b)t <wprof>]]',
 	'<DL.wsamp file> [UL.wsamp file] (or only <UL.wsamp file>)');
 
+($basename) = ($ARGV =~ m{([^/]*)\.[^\.]*$});						# determine output file name
+
+$opt_f = '%03d.wprof'													# output file name
+	unless defined($opt_f);
+
 $dual_head = (@ARGV==1);												# single or dual head
+
+if ($dual_head) {
+	my($basename2) = ($ARGV[0] =~ m{([^/]*)\.[^\.]*$});
+	undef($basename) unless ($basename2 eq $basename);
+}
 
 $id = defined($opt_i) ? $opt_i : &antsParam('profile_id');				# ensure profile id exists
 croak("$0: no profile_id in first file => -i required\n")
@@ -126,6 +144,7 @@ if (defined($opt_d)) {													# select output directory
 }
 
 &antsCardOpt(\$opt_s,300);												# surface layer depth limit
+&antsCardOpt(\$opc_c,320);												# window thickness for correlation estimates
 
 if (defined($opt_v)) {													# bin ranges with valid data to use
 	($fvBin,$lvBin,$UL_fvBin,$UL_lvBin) = split(/,/,$opt_v);
@@ -170,10 +189,16 @@ if (defined($opt_k)) {													# minimum number of required samples
 #----------------------------------------------------------------------
 
 if (-t STDOUT) {
-	$opt_p = defined($opt_d) ? "$opt_d/%03d_wprof.ps" : '%03d_wprof.ps'
-		unless defined($opt_p);
-	$outfile = defined($opt_d) ? sprintf('%s/%03d.wprof',$opt_d,$id)
-							   : sprintf('%03d.wprof',$id);
+	if (defined($basename)) {
+		$outfile = defined($opt_d) ? "$opt_d/$basename.wprof" 	   : "$basename.wprof";
+		$opt_p 	 = defined($opt_d) ? "$opt_d/${basename}_wprof.ps" : "${basename}_wprof.ps"
+			unless defined($opt_p);
+	} else {
+		$opt_p = defined($opt_d) ? "$opt_d/%03d_wprof.ps" : '%03d_wprof.ps'
+			unless defined($opt_p);
+		$outfile = defined($opt_d) ? sprintf("%s/$opt_f",$opt_d,$id)
+								   : sprintf($opt_f,$id);
+	}
 	open(STDOUT,">$outfile") || die("$outfile: $!\n");
 }
 
@@ -263,6 +288,8 @@ sub dc_corr($$)
 	my($ax,$ay) = (0,0);
 	my($ssq_diff) = 0;
 
+	return (nan,nan,nan,nan,nan) unless ($li > $fi);				# for shallow profiles this fails
+
 	for (my($bi)=$fi; $bi<=$li; $bi++) {
 		next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
 		$n++;
@@ -270,7 +297,8 @@ sub dc_corr($$)
 		$ay += $UL_dc_median[$bi];
 		$ssq_diff += ($DL_dc_median[$bi] - $UL_dc_median[$bi])**2;
 	}
-	return (nan,nan,nan,nan,nan) unless ($n > 2);
+	return (nan,nan,nan,nan,nan) unless ($n > 0.8*($li-$fi+1));
+	die("$n,$li,$fi [$n > 0.8*($li-$fi+1)]\n") unless ($n > 0);
 	$ax /= $n;
 	$ay /= $n;
 
@@ -362,10 +390,10 @@ my($R,$R2);
 if (defined($opt_p)) {												# begin summary plot
 	$xmin = -0.1; $x2min = -700;
 	$xmax = 0.35; $x2max =	500;
-	$ymin = antsParam('min_depth');
+	$ymin = antsParam('depth.min');
 	$ymin = round($ymin-25,50);
 	$ymax = antsParam('water_depth');
-	$ymax = antsRequireParam('max_depth') unless numberp($ymax);
+	$ymax = antsRequireParam('depth.max') unless numberp($ymax);
 	$ymax = round($ymax+25,50);
 	$plotsize = 13;
 	$R	= "-R$xmin/$xmax/$ymin/$ymax";
@@ -535,27 +563,14 @@ if ($dual_head) {
 				   'dc_wdiff.rms',$dc_rms_wdiff,'uc_wdiff.rms',$uc_rms_wdiff);
 
 	my($last_depth,$last_bi,$dc_sumsq_res,$dc_n,$uc_sumsq_res,$uc_n);			# window correlation
+	my($window_size) = 320;
 	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
 		($dc_R[$bi],$dc_var[$bi],$dummy,$dummy,$dc_rms_wdiff[$bi]) =
-			&dc_corr(max(0,$bi-int(250/$opt_o)),min($#dcw1,$bi+int(250/$opt_o)));
+			&dc_corr(max(0,$bi-int($window_size/2/$opt_o)),min($#dcw1,$bi+int($window_size/2/$opt_o)));
 		($uc_R[$bi],$uc_var[$bi],$dummy,$dummy,$uc_rms_wdiff[$bi]) =
-			&uc_corr(max(0,$bi-int(250/$opt_o)),min($#dcw1,$bi+int(250/$opt_o)));
+			&uc_corr(max(0,$bi-int($window_size/2/$opt_o)),min($#dcw1,$bi+int($window_size/2/$opt_o)));
 	}
 		
-#		my($depth) = ($bi+0.5) * $opt_o;
-#		unless (defined($last_bi)) {
-#			$last_bi = $bi;
-#			$last_depth = $depth;
-#			next;
-#		}
-#		if ($depth >= $last_depth+500 || $bi == $#dcw1) {
-#			($dc_R[$bi],$dc_rms[$bi],$dc_rms_wdiff[$bi]) = &dc_corr($last_bi,$bi);
-#			($uc_R[$bi],$uc_rms[$bi],$uc_rms_wdiff[$bi]) = &uc_corr($last_bi,$bi);
-#			undef($last_bi);
-#			next;
-#		}
-#	}
-
 	if (defined($opt_p)) {														# plot 2nd-instrument profiles
 		GMT_psxy('-W1,coral,.');
 		for (my($bi)=0; $bi<=$#dcw1; $bi++) {
@@ -634,11 +649,18 @@ if (defined($opt_p)) {																# complete summary plot
 
 	GMT_psxy('-W1.5,coral');														# median profiles
 	for (my($bi)=0; $bi<=$#dcw; $bi++) {
-		printf(GMT "%f %f\n",(($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),($bi+0.5)*$opt_o);
+#		printf(GMT "%f %f\n",(($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),($bi+0.5)*$opt_o);
+		printf(GMT "%f %f\n",(numberp($DL_dc_median[$bi]) &&
+							  numberp($UL_dc_median[$bi]) &&
+							  ($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan)
+							,($bi+0.5)*$opt_o);
 	}
 	GMT_psxy('-W1.5,SeaGreen');
 	for (my($bi)=0; $bi<=$#ucw; $bi++) {
-		printf(GMT "%f %f\n",(($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),($bi+0.5)*$opt_o);
+		printf(GMT "%f %f\n",(numberp($DL_uc_median[$bi]) &&
+							  numberp($UL_uc_median[$bi]) &&
+							  ($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan)
+							,($bi+0.5)*$opt_o);
 	}
 
 	GMT_psxy('-Sc0.1 -Gcoral');														# m.a.d. profiles

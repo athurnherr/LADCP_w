@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Thu Jul  1 09:37:40 2021
+#                    dlm: Mon Oct 18 19:28:18 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 32 46 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 33 56 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -30,6 +30,7 @@
 #	May 18, 2016: - improved logging
 #   May 24, 2016: - calc_binDepths() -> binDepths()
 #	Jul  1, 2021: - made %PARAMs more standard
+#	Oct 18, 2021: - made edit high-residuals not edit Sv
 # HISTORY END
 
 

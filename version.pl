@@ -1,9 +1,9 @@
 #======================================================================
 #                    V E R S I O N . P L 
 #                    doc: Tue Oct 13 10:40:57 2015
-#                    dlm: Sat Jul 24 09:55:02 2021
+#                    dlm: Wed Sep  1 13:32:23 2021
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 32 68 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 34 68 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -30,12 +30,16 @@
 #	Jun 29, 2021: - updated ANTSlib to V7.2
 #	Jul  1, 2021: - updated ANTSlib to V7.3
 #	Jul 24, 2021: - updated to V2.0 (major improvements) for release
+#	Aug  6, 2021: - ARGH! never actually updated version :(
+#	Sep  1, 2021: - updated to V2.1 (Sv profiles & better sidelobes)
 
 #$VERSION = '1.1';				# Jan  4, 2016
 #$VERSION = '1.2';				# May 12, 2016
 #$VERSION = '1.3';				# Mar 15, 2017
 #$VERSION = '1.4';				# Nov 28, 2017
-$VERSION = '1.5';				# Sep 12, 2018
+#$VERSION = '1.5';				# Sep 12, 2018
+#$VERSION = '2.0';				# Aug  6, 2021
+$VERSION = '2.1';				# Sep  1, 2021
 
 $antsMinLibVersion 		= 7.3;
 $ADCP_tools_minVersion 	= 2.4;

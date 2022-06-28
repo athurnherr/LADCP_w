@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Fri Jul  9 13:30:48 2021
+#                    dlm: Tue Oct 26 12:12:27 2021
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 360 33 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 183 72 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -90,6 +90,7 @@
 #	May 16, 2020: - updated doc
 #	Jun 30, 2021: - ditto
 #	Jul  9, 2021: - added $layer_residuals_rms_max
+#	Sep  1, 2021: - added $seabed_contamination_Sv_grad_limit
 # HISTORY END
 
 #======================================================================
@@ -178,7 +179,8 @@ $opt_b = '2,*' unless defined($opt_b);
 &antsFloatOpt(\$opt_r,'0.06,0.06');
 
 
-# By default, ensembles with uncertain time-lagging are discarded.
+# By default, ensembles with uncertain time-lagging are discarded,
+# unless the CTD time series data have been corrected for dropped scans.
 # This allows profiles with dropped CTD scans to be processed without
 # manual intervention. For profiles collected in very calm conditions
 # (e.g. near the ice off Antarctica) time lagging is highly uncertain
@@ -326,6 +328,16 @@ $sidelobe_editing_UL_seabed		= 1;
 # from the surface. 
 
 $vessel_draft					= 6;		# in meters
+
+
+# Based on SR1b/2004 data, there are sidelobe editing does not remove
+# all seabed contamination in all profiles. This could be due to rough
+# and/or sloping seabed or instrument tilt measurement errors. The 
+# contamination can easily be detected from vertical Sv gradients. 
+# Based on the SR1b/2004 data, a limiting dSv/dz value of 0.1db/m 
+# is suitable for WH300 instruments.
+
+$seabed_contamination_Sv_grad_limit = 0.1;
 
 
 # The following function, which is called after the LADCP data have been 

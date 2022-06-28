@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Sat Jul 24 09:44:26 2021
+#                    dlm: Tue May 17 16:46:00 2022
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 120 45 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 126 87 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -118,6 +118,12 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #						 that this bug did not matter much in practice
 #				  - changed calibration constant back, because it makes sense, and because it is now
 #				    recorded in the meta-data
+#	Oct 19, 2021: - added -h) (min samples)
+#				  - disabled spectral tests based on data editing implemented for GO-SHIP A20 
+#				  - this allowed return to original $c value for VKE parameterization
+#				  - doubled default surface layer from 150 to 300m
+#	May 17. 2022: - BUG: -h was wrong (used # of files instead of # of spectra)
+#				  - changed semantics to make output file name based on input file name
 # HISTORY END
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -138,26 +144,28 @@ use IPC::Open2;
 # Empirical constants & defaults
 #----------------------------------------------------------------------
 
-#my($c) = 0.0215;						# Thurnherr et al. (GRL 2015)
-my($c) = 0.026;							# increased by 21% for V1.2beta7
+my($c) = 0.0215;						# Thurnherr et al. (GRL 2015)
+#my($c) = 0.026;						# increased by 21% for V1.2beta7 when spectral filters were introduced; disabled Oct 2021 when filters were disabled vor V2.1
 $opt_q = 3;								# Equatorial band: little more than a guess based on 2015 P16N
 $opt_l = 0;								# [W/kg]; cutoff disabled Sep 12, 2019
 $opt_a = 0;								# assume background dissipation for samples that pass the tests but have eps below -l
 $opt_z = 50;							# number of w_ocean samples to require (note that the .wprof inputs may have harsher limits)
 $opt_o = 0;								# remove mean before calculating spectra
-$opt_s = 150;							# surface layer to exclude from spectra
+$opt_s = 300;							# surface layer to exclude from spectra
 $opt_g = 40;							# max gap to interpolate over
 $opt_c_default = 100;					# short-wavelength cutoff
+$opt_h = 2;								# require 2 spectra for estimate
 
 #----------------------------------------------------------------------
 # Usage
 #----------------------------------------------------------------------
 
 $antsSuppressCommonOptions = 1;
-&antsUsage('a:bc:de:f:g:i:k:l:mno:p:q:r:s:tuw:x:yz:',0,
+&antsUsage('a:bc:de:f:g:h:i:k:l:mno:p:q:r:S:s:tuw:x:yz:',0,
 		    "[poly-o)rder <n[$opt_o]> to de-mean data; -1 to disable>] [apply cosine-t)aper]",
 		    '[-d)own/-u)pcast-only] [exclude -b)ottom window]',								# LADCP_wspec options
-			"[-s)urface <layer depth to exclude[${opt_s}m]>",
+			"[require spectral -s)amples <min[${opt_h}]>",
+			"[-S)urface <layer depth to exclude[${opt_s}m]>",
             "[-g)ap <max depth layer to fill with interpolation[${opt_g}m]>]",
             '[-w)indow <power-of-two input-records[32]>]',
 			"[shortwave -c)utoff <kz or lambda[${opt_c_default}m]>]",						# LADCP_VKE options
@@ -172,6 +180,20 @@ $antsSuppressCommonOptions = 1;
 			'[write output filed with -i)ndividual spectra <basename>]',
 			'[output -p)lot <ps-file[#_VKE.ps]>]',
 			'[file...]');
+
+#----------------------------------------------------------------------
+# Determine Output File Name From Input File Names
+#----------------------------------------------------------------------
+
+unless ($ARGV eq '-') {
+	($basename) = ($ARGV =~ m{([^/]*)\.[^\.]*$});
+	for (my($i)=0; $i<@ARGV; $i++) {
+		my($basename2) = ($ARGV[$i] =~ m{([^/]*)\.[^\.]*$});
+		next if ($basename2 eq $basename);
+		undef($basename);
+		last;
+    }
+}
 
 #----------------------------------------------------------------------------
 # Calculate VKE spectra with [LADCP_wspec] if input is a set of w_ocean files
@@ -342,16 +364,13 @@ if (-t STDOUT) {
 
 	my($id) = &antsRequireParam('profile_id');
 
-#	if ($opt_d) {
-#		$opt_p = sprintf('%s/%03d_dc_VKE.ps',$opt_f,$id) unless defined($opt_p);
-#		$outfile = sprintf('%s/%03d_dc.VKE',$opt_f,$id);
-#	} elsif ($opt_u) {
-#		$opt_p = sprintf('%s/%03d_uc_VKE.ps',$opt_f,$id) unless defined($opt_p);
-#		$outfile = sprintf('%s/%03d_uc.VKE',$opt_f,$id);
-#	} else {
+	if (defined($basename)) {
+		$opt_p = sprintf('%s/%s_VKE.ps',$opt_f,$basename) unless defined($opt_p);
+		$outfile = sprintf('%s/%s.VKE',$opt_f,$basename);
+	} else {
 		$opt_p = sprintf('%s/%03d_VKE.ps',$opt_f,$id) unless defined($opt_p);
 		$outfile = sprintf('%s/%03d.VKE',$opt_f,$id);
-#	}
+	}
 	$outfile =~ s@^./@@;
 	open(STDOUT,">$outfile") || die("$outfile: $!\n");
 } elsif (defined($opt_f)) {
@@ -388,7 +407,7 @@ sub average_spectra($)
 			$ants_[$r][$doff] += $specbuf[$bi][$wi][$doff]						# update nspec once per input record
 				if ($f == $fs_fmax);											#	... but for all files
 		}
-		$ants_[$r][$f] = ($ns > 0) ? $sum/$ns : nan;							# update averaged spectral density
+		$ants_[$r][$f] = ($ants_[$r][$doff] >= $opt_h) ? $sum/$ns : nan;		# update averaged spectral density
 	}
 }	
 
@@ -572,6 +591,16 @@ for (my($r)=0; $r<@ants_; $r++) {														# loop over all windows
 	}
 
 	#-----------------------------------------------------------------------------------------------------
+	# Except for -z and the low-latitude test, all others were disabled in October 2021 for version 2.1.
+	# This decision was based on two main reasons: 1) The checks were not used for the estimates
+	# in the Lele paper, which is the first major publiction involving the parameterization. 
+	# 2) While working on the 2021 QC of the GO-SHIP A20 section, which passes through a region
+	# of extremlely weakbackscatter, I found that regional mean profiles of the filtered
+	# eps.VKE estimates agree very well with (p0/0.022)**2, but the latter are less noisy
+	# because there are signficantly more smaples. Importantly, the filtered eps.VKE were
+	# derived with c=0.026, so as an imporant side effect of disabling the filters I returned
+	# to the c value from the original publication. 
+	#
 	# eps.VKE QC Tests:
 	#	- the following limits were independently derived 
 	#		p0fit.rms <= 0.4			primary filter used in Thurnherr et al. (GRL 2015)
@@ -592,9 +621,9 @@ for (my($r)=0; $r<@ants_; $r++) {														# loop over all windows
 	#-----------------------------------------------------------------------------------------------------
 
 	if ($latM > $opt_q &&													# 	1) not (too) equatorial
-		$ants_[$r][$rmsf] <= 0.4 &&											#	2) rms spectra misfit <= 0.4 (as in Thurnherr et al., GRL 2015)
-		$ants_[$r][$slpf]>=-3 && $ants_[$r][$slpf]<=-1 &&					#	3) slope consistent with -2 power law
-		$ants_[$r][$rf] <= -0.4 &&											#	4) p and k_z are well correlated
+#		$ants_[$r][$rmsf] <= 0.4 &&											#	2) rms spectra misfit <= 0.4 (as in Thurnherr et al., GRL 2015)
+#		$ants_[$r][$slpf]>=-3 && $ants_[$r][$slpf]<=-1 &&					#	3) slope consistent with -2 power law
+#		$ants_[$r][$rf] <= -0.4 &&											#	4) p and k_z are well correlated
 		$ants_[$r][$wsf] >= $opt_z) {										# 	5) minimum # of samples
 			if (($ants_[$r][$p0f]/$opt_e)**2 >= $opt_l) {					# level is above eps.minlim (-l) 
 				$ants_[$r][$wepsf] = ($ants_[$r][$p0f] / $opt_e)**2;		# 	=> Thurnherr et al. (GRL 2015)

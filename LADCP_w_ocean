@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Fri Jul 23 08:50:23 2021
+#                    dlm: Mon Oct 18 21:27:57 2021
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 323 36 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 2040 92 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -321,6 +321,13 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - BUG: rms BT discrepancy was broken (residuals profile filter)
 #				  - BUG: *_w.var did not respect -k
 #	Jul 23, 2021: - added %ADCP_type
+#	Aug  8, 2021: - cosmetics
+#				  - added -p to $processing_options
+#	Sep  1, 2021: - added Sv to .wprof output (dc_Sv, uc_Sv, Sv.diff)
+#				  - made .wprof Layout more logical
+#				  - added {dc,uc}_exposure_time to .wprof output
+#	Oct 18, 2021: - BUG: Sv profiles included bins without valid w
+#				  - moved Sv profile code after additional filters; 
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -341,7 +348,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	   list dc_w='$dc_w-%dc_w.mu' UL/042.wprof | avg -Qm dc_w
 
 # 2-BEAM SOLUTIONS
-#	- both for beam- and earth-coordinate data, two separate two-beam
+#	- both for beam- and Earth-coordinate data, two separate two-beam
 #	  solutions (w12 & w34) are calculated:
 #		- w12 corresponds to ROLL axis (plotted with dashed lines)
 #		- w34 corresponds to PITCH axis (plotted with dotted lines)
@@ -375,6 +382,8 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	- residuals are calculated with respect to down-/upcast medians
 #	- w12 and w34 2-beam solutions are reported without considering
 #	  -k (min samples)
+#	- elapsed times:
+#		- {dc,uc}_elapsed are averages estimated BEFORE 
 #	- equivalence, assuming -o 10:
 #		1) 004DL.prof dc_w depth
 #		2) bindata -Sdowncast:1 -Fw.median,depth -n 20 depth 10 004DL.w
@@ -454,7 +463,6 @@ if ($opt_V) {
 &antsUsageError() unless (@ARGV==1 || @ARGV==2);
 
 &antsCardOpt(\$opt_s,0);												# skip # initial ensembles
-#$opt_p = '+' unless defined($opt_p);									# separate uc/dc time lagging
 
 &antsFloatOpt(\$opt_a,1);												# pressure acceleration correction
 
@@ -485,7 +493,7 @@ if (!defined($retval) && $@ ne '') {
 }
 require "$WCALC/default_output.pl";										# set default output plots and files
 
-$processing_options = "-k $opt_k -o $opt_o -c $opt_c -t $opt_t -e $opt_e -g $opt_g -3 $opt_3";
+$processing_options = "-c $opt_c -e $opt_e -g $opt_g -k $opt_k -o $opt_o -p $opt_p -t $opt_t -3 $opt_3";
 $processing_options .= ' -l' if defined($opt_l);
 
 if (defined($opt_q)) {													# quick-and-dirty
@@ -734,7 +742,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 	progress("\tcorrelation threshold (-c %d counts): %d velocites removed (%d%% of total)\n",$opt_c,$cte,round(100*$cte/$nvv));
 } else { # if BEAM_COORDINATES
 	progress("Editing velocity data...\n");
-	error("$LADCP_file: cannot apply beamvel-mask $opt_m to earth-coordinate data\n")
+	error("$LADCP_file: cannot apply beamvel-mask $opt_m to Earth-coordinate data\n")
 		if defined($opt_m);
 	$nvv = $cte = 0;
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
@@ -754,7 +762,7 @@ if ($LADCP{BEAM_COORDINATES}) {
 #------------------------------------------------------------
 
 unless ($LADCP{BEAM_COORDINATES}) {
-	progress("Replacing earth- with beam-velocities...\n");
+	progress("Replacing Earth- with beam-velocities...\n");
 	for ($ens=0; $ens<=$#{$LADCP{ENSEMBLE}}; $ens++) {
 		for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			@{$LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin]} = 
@@ -770,7 +778,7 @@ unless ($LADCP{BEAM_COORDINATES}) {
 
 
 #-------------------------------------------------------------------
-# Calculate earth velocities
+# Calculate Earth velocities
 #	- this is done for all bins (not just valid ones), to allow
 #	  useless possibility that invalid bins are used for reflr calcs
 #	- also calculate separate beam-pair velocities
@@ -780,7 +788,7 @@ unless ($LADCP{BEAM_COORDINATES}) {
 #-------------------------------------------------------------------
 
 my($dummy);
-progress("Calculating earth-coordinate velocities...\n");
+progress("Calculating Earth-coordinate velocities...\n");
 if ($bad_beam) {
 	progress("\tdiscarding velocities from beam $bad_beam\n");
 	&antsAddParams('bad_beam_discarded',$bad_beam);
@@ -836,13 +844,13 @@ progress("\t3-beam solutions : $RDI_Coords::threeBeam_1 " .
 error("$LADCP_file: insufficient valid velocities\n") unless ($nvw >= $min_valid_vels);
 
 #----------------------------------------------
-# STEP: Edit earth-coordinate -velocity data
+# STEP: Edit Earth-coordinate -velocity data
 #	1) error-velocity threshold
 #	2) vertical-velocity outliers
 #	3) truncate range by deleting farthest valid velocities (disbled by default)
 #----------------------------------------------
 
-progress("Editing earth-coordinate velocity data...\n");
+progress("Editing Earth-coordinate velocity data...\n");
 
 &antsAddParams('per_ens_outliers_mad_limit',$per_ens_outliers_mad_limit)
 &antsAddParams('farthest_valid_bins_truncated',$truncate_farthest_valid_bins)
@@ -942,7 +950,7 @@ error("deepest depth is at end of cast (no upcast data)\n")
 #	- TILT field is set as a side-effect
 #----------------------------------------------------------------------
 
-progress("Editing additional earth-coordinate velocity data...\n");
+progress("Editing additional Earth-coordinate velocity data...\n");
 &antsAddParams('per_bin_valid_frac_lim',$per_bin_valid_frac_lim);
 
 my($first_bad_bin);
@@ -1786,6 +1794,43 @@ unless ($opt_q) {
 
 } # unless ($opt_q);
 
+#--------------------------------
+# Add Sv to depth-binned profiles
+#--------------------------------
+
+progress("Binning Sv into depth profiles...");   
+
+my(@dc_nSv);
+for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {
+	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+	my(@bindepth) = binDepths($ens);
+	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+		next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);		
+		my($bi) = $bindepth[$bin]/$opt_o;
+		next unless ($DNCAST{N_SAMP}[$bi]>=$opt_k) && numberp($DNCAST{MEDIAN_W}[$bi]);
+		$DNCAST{SV}[$bi] += $LADCP{ENSEMBLE}[$ens]->{SV}[$bin]; $dc_nSv[$bi]++;
+    }
+}
+my(@uc_nSv);
+for ($ens=$LADCP_atbottom; $ens<=$lastGoodEns; $ens++) {
+	next unless numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH});
+	my(@bindepth) = binDepths($ens);
+	for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
+		next unless ($bin+1>=$outGrid_firstBin && $bin+1<=$outGrid_lastBin);
+		next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
+		my($bi) = $bindepth[$bin]/$opt_o;
+		next unless ($UPCAST{N_SAMP}[$bi]>=$opt_k) && numberp($UPCAST{MEDIAN_W}[$bi]);
+		$UPCAST{SV}[$bi] += $LADCP{ENSEMBLE}[$ens]->{SV}[$bin]; $uc_nSv[$bi]++;
+    }
+}
+for (my($bi)=0; $bi<=max($#{$DNCAST{ENSEMBLE}},$#{$UPCAST{ENSEMBLE}}); $bi++) {	
+	$DNCAST{SV}[$bi] = $dc_nSv[$bi] ? ($DNCAST{SV}[$bi]/$dc_nSv[$bi]) : nan;
+	$UPCAST{SV}[$bi] = $uc_nSv[$bi] ? ($UPCAST{SV}[$bi]/$uc_nSv[$bi]) : nan;
+}
+
+progress("\n");
+
 #----------------------------------------------------------------------
 # remove ensembles with large rms residuals
 #----------------------------------------------------------------------
@@ -1804,7 +1849,12 @@ if (defined($opt_r) && !$opt_q) {
 	}
 
     progress("\tre-binning profile data...\n");
-    undef(%DNCAST); undef(%UPCAST);
+	foreach my $k (keys(%DNCAST)) {													# keep Sv profiles
+		next if ($k eq 'SV');
+		undef($DNCAST{$k});
+		undef($UPCAST{$k});
+    }
+
 	$min_depth = 9e99; my($max_depth) = 0;
 	for ($ens=$firstGoodEns; $ens<$LADCP_atbottom; $ens++) {						# downcast
 		unless (numberp($LADCP{ENSEMBLE}[$ens]->{CTD_DEPTH})) {
@@ -1839,6 +1889,8 @@ if (defined($opt_r) && !$opt_q) {
 	for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {							# bin data into profile
 		$DNCAST{MEAN_DEPTH}[$bi]	= avg(@{$DNCAST{DEPTH}[$bi]});	
 		$DNCAST{MEAN_ELAPSED}[$bi]	= avg(@{$DNCAST{ELAPSED}[$bi]});
+		$DNCAST{MIN_ELAPSED}[$bi]	= min(@{$DNCAST{ELAPSED}[$bi]});
+		$DNCAST{MAX_ELAPSED}[$bi]	= max(@{$DNCAST{ELAPSED}[$bi]});
 		$DNCAST{MEDIAN_W}[$bi]		= median(@{$DNCAST{W}[$bi]});
 		$DNCAST{MEDIAN_W12}[$bi]	= median(@{$DNCAST{W12}[$bi]});
 		$DNCAST{MEDIAN_W34}[$bi]	= median(@{$DNCAST{W34}[$bi]});
@@ -1880,6 +1932,8 @@ if (defined($opt_r) && !$opt_q) {
 	for (my($bi)=0; $bi<=$#{$UPCAST{ENSEMBLE}}; $bi++) {
 		$UPCAST{MEAN_DEPTH}[$bi]	= avg(@{$UPCAST{DEPTH}[$bi]});
 		$UPCAST{MEAN_ELAPSED}[$bi]	= avg(@{$UPCAST{ELAPSED}[$bi]});
+		$UPCAST{MIN_ELAPSED}[$bi]	= min(@{$UPCAST{ELAPSED}[$bi]});
+		$UPCAST{MAX_ELAPSED}[$bi]	= max(@{$UPCAST{ELAPSED}[$bi]});
 		$UPCAST{MEDIAN_W}[$bi]		= median(@{$UPCAST{W}[$bi]});
 		$UPCAST{MEDIAN_W12}[$bi]	= median(@{$UPCAST{W12}[$bi]});
 		$UPCAST{MEDIAN_W34}[$bi]	= median(@{$UPCAST{W34}[$bi]});
@@ -1926,7 +1980,7 @@ for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {
 	$DNCAST{MEAN_RESIDUAL34}[$bi] = avg(@{$DNCAST{RESIDUAL34}[$bi]});
 }
 
-for (my($bi)=0; $bi<$#{$DNCAST{ENSEMBLE}}; $bi++) {							# rms beampair residual in 5-bin-thick layers
+for (my($bi)=0; $bi<=$#{$DNCAST{ENSEMBLE}}; $bi++) {							# rms beampair residual in 5-bin-thick layers
 	$DNCAST{LR_RMS_BP_RESIDUAL}[$bi] = 
 		rms(@{$DNCAST{MEAN_RESIDUAL12}}[max(0,$bi-2)..min($#{$DNCAST{ENSEMBLE}},$bi+2)],
 		    @{$DNCAST{MEAN_RESIDUAL34}}[max(0,$bi-2)..min($#{$DNCAST{ENSEMBLE}},$bi+2)]);
@@ -1974,12 +2028,24 @@ progress("$nbrm bins removed  (%d%% of profile)\n",round(100*$nbrmf));
 warning(2,"large fraction (%d%%) of profile exceeds residuals-profile threshold\n",round(100*$nbrmf))
 	if ($nbrmf >= 0.1);		
 
-#------------------------
-# Profile is now final
-#	=> calc <w>, w.var
-#------------------------
+#-----------------------------------------------
+# Apply Sv Seabed Contamination Filter
+#-----------------------------------------------
 
-my($dcw,$ucw,$nw) = (0,0);															# <w> (vertically averaged)
+progress("Applying seabed echo return filter...\n");   
+&antsAddParams('seabed_contamination_filter_limit',$seabed_contamination_Sv_grad_limit);
+
+my($nbrm) = editSeabedContamination($seabed_contamination_Sv_grad_limit);
+progress("\t$nbrm depth bins removed\n");
+warning(2,"seabed contamination threshold exceeded in a large number of profile bins ($nbrm)\n")
+	if ($nbrm > 4);		
+
+#----------------------------------
+# Profile is now final
+#	- calculate <w>, w.var metadata
+#----------------------------------
+
+my($dcw,$ucw,$nw) = (0,0,0);														# <w> (vertically averaged)
 for (my($bi)=0; $bi<@{$DNCAST{ENSEMBLE}}; $bi++) {
 	next unless ($DNCAST{N_SAMP}[$bi]>=$opt_k) && numberp($DNCAST{MEDIAN_W}[$bi]);
 	$dcw += $DNCAST{MEDIAN_W}[$bi];
@@ -1994,7 +2060,7 @@ for (my($bi)=0; $bi<@{$UPCAST{ENSEMBLE}}; $bi++) {
 }
 $ucw = $nw ? ($ucw/$nw) : nan;
 
-my($dcss,$ucss,$nw) = (0,0);														# variance(w)
+my($dcss,$ucss,$nw) = (0,0,0);														# variance(w)
 for (my($bi)=0; $bi<@{$DNCAST{ENSEMBLE}}; $bi++) {
 	next unless ($DNCAST{N_SAMP}[$bi]>=$opt_k) && numberp($DNCAST{MEDIAN_W}[$bi]);
 	$dcss += ($DNCAST{MEDIAN_W}[$bi] - $dcw)**2;
@@ -2087,15 +2153,15 @@ for (my($bin)=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 	}
 }
 
-local($uc_bres12_max_nsamp,$dc_bres12_max_nsamp) = (0,0);							# calc rms in block of well sampled bins
+local($uc_bres12_max_nsamp,$dc_bres12_max_nsamp) = (0,0);						# calc rms in block of well sampled bins
 local($uc_bres34_max_nsamp,$dc_bres34_max_nsamp) = (0,0);
 for (my($bin)=$LADCP_firstBin; $bin<=$LADCP_lastBin-1; $bin++) {				# SKIP 1ST BIN!!!
 	next if ($bin+1<$outGrid_firstBin || $bin+1>$outGrid_lastBin);				# skip bins not included in gridded output
-	$dc_bres12_max_nsamp = $dc_bres12_nsamp[$bin]									# nsamp in best sampled bin
+	$dc_bres12_max_nsamp = $dc_bres12_nsamp[$bin]								# nsamp in best sampled bin
 		if ($dc_bres12_nsamp[$bin] > $dc_bres12_max_nsamp);
 	$uc_bres12_max_nsamp = $uc_bres12_nsamp[$bin]
 		if ($uc_bres12_nsamp[$bin] > $uc_bres12_max_nsamp);
-	$dc_bres34_max_nsamp = $dc_bres34_nsamp[$bin]									# nsamp in best sampled bin
+	$dc_bres34_max_nsamp = $dc_bres34_nsamp[$bin]								# nsamp in best sampled bin
 		if ($dc_bres34_nsamp[$bin] > $dc_bres34_max_nsamp);
 	$uc_bres34_max_nsamp = $uc_bres34_nsamp[$bin]
 		if ($uc_bres34_nsamp[$bin] > $uc_bres34_max_nsamp);
@@ -2186,9 +2252,9 @@ if ($LADCP{ENSEMBLE}[$LADCP_atbottom]->{XDUCER_FACING_DOWN} && defined($water_de
 	}
 }
 
-#------------------------
-# output all samples (-w)
-#------------------------
+#----------------------------
+# output all samples (.wsamp)
+#----------------------------
 
 # NB: residual fields are calculated with respect to down-/upcast medians in -o-size bins
 
@@ -2227,7 +2293,7 @@ if (@out_wsamp) {
 		  for ($bin=$LADCP_firstBin-1; $bin<=$LADCP_lastBin-1; $bin++) {
 			  next unless numberp($LADCP{ENSEMBLE}[$ens]->{W}[$bin]);
 			  my($bi) = $bindepth[$bin]/$opt_o;
-			  next unless numberp($DNCAST{MEDIAN_W}[$bi]);
+			  next unless numberp($DNCAST{MEDIAN_W}[$bi]);								# don't output samples contributing to bad depth bins
 			  &antsOut(
 				  $LADCP{ENSEMBLE}[$ens]->{NUMBER},$bin+1,
 				  $CTD{ELAPSED}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
@@ -2308,9 +2374,9 @@ if (@out_wsamp) {
 	progress("\n");
 }
 	
-#----------------------------
-# Output depth-binned profile
-#----------------------------
+#-------------------------------------
+# Output depth-binned profile (.wprof)
+#-------------------------------------
 
 if (@out_profile) {
 	progress("Writing vertical-velocity profiles to ");
@@ -2318,13 +2384,15 @@ if (@out_profile) {
 	push(@antsNewLayout,'depth','hab',											# consistent with [LADCP_w_postproc]
 						'dc_elapsed','dc_w','dc_w.mad','dc_w.nsamp',
 						'uc_elapsed','uc_w','uc_w.mad','uc_w.nsamp'); 
-	push(@antsNewLayout,'dc_lr_bp_res.rms',										# additional fields (inconsistent w postproc)
+	push(@antsNewLayout,'dc_lr_bp_res.rms','dc_Sv',								# additional fields (inconsistent w postproc)
+						'dc_exposure_time',
 						'dc_depth','dc_w12','dc_w34','dc_v12','dc_v34',	
-						'uc_lr_bp_res.rms',
-						'uc_depth','uc_w12','uc_w34','uc_v12','uc_v34',
 						'dc_pitch.mu','dc_roll.mu','dc_tilt.mu',
+						'uc_lr_bp_res.rms','uc_Sv',
+						'uc_exposure_time',
+						'uc_depth','uc_w12','uc_w34','uc_v12','uc_v34',
 						'uc_pitch.mu','uc_roll.mu','uc_tilt.mu',
-	                    'BT_w','BT_w.mad','BT_w.nsamp');
+	                    'BT_w','BT_w.mad','BT_w.nsamp','Sv.diff');
 
 	foreach my $of (@out_profile) {
 	    progress("<$of> ");
@@ -2350,17 +2418,22 @@ if (@out_profile) {
 					 $UPCAST{N_SAMP}[$bi]>=$opt_k?$UPCAST{MEDIAN_W}[$bi]:nan,
 					 $UPCAST{MAD_W}[$bi],$UPCAST{N_SAMP}[$bi],
 					 $DNCAST{LR_RMS_BP_RESIDUAL}[$bi],								# remaining dc data
+					 $DNCAST{SV}[$bi],
+				     $DNCAST{MAX_ELAPSED}[$bi]-$DNCAST{MIN_ELAPSED}[$bi],
 					 $DNCAST{MEAN_DEPTH}[$bi],
 					 $DNCAST{MEDIAN_W12}[$bi],$DNCAST{MEDIAN_W34}[$bi],
 					 $DNCAST{MEDIAN_V12}[$bi],$DNCAST{MEDIAN_V34}[$bi],
+					 $DNCAST{MEAN_PITCH}[$bi],$DNCAST{MEAN_ROLL}[$bi],$DNCAST{MEAN_TILT}[$bi],
 					 $UPCAST{LR_RMS_BP_RESIDUAL}[$bi],								# remaining uc data
+					 $UPCAST{SV}[$bi],
+				     $UPCAST{MAX_ELAPSED}[$bi]-$UPCAST{MIN_ELAPSED}[$bi],
 					 $UPCAST{MEAN_DEPTH}[$bi],
 					 $UPCAST{MEDIAN_W12}[$bi],$UPCAST{MEDIAN_W34}[$bi],
 					 $UPCAST{MEDIAN_V12}[$bi],$UPCAST{MEDIAN_V34}[$bi],
-					 $DNCAST{MEAN_PITCH}[$bi],$DNCAST{MEAN_ROLL}[$bi],$DNCAST{MEAN_TILT}[$bi],	# instrument tilt
 					 $UPCAST{MEAN_PITCH}[$bi],$UPCAST{MEAN_ROLL}[$bi],$UPCAST{MEAN_TILT}[$bi],	
 					 $BT{N_SAMP}[$bi]>=$opt_k?$BT{MEDIAN_W}[$bi]:nan,				# BT data
-					 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi]
+					 $BT{MAD_W}[$bi],$BT{N_SAMP}[$bi],
+					 $DNCAST{SV}[$bi]-$UPCAST{SV}[$bi],
 			);
 		}
 	    &antsOut('EOF'); open(STDOUT,">&2");
