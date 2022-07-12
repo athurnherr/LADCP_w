@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ S E R I E S . P L 
 #                    doc: Sun May 23 16:40:53 2010
-#                    dlm: Sat Apr 24 11:19:07 2021
+#                    dlm: Tue Jul 12 02:01:56 2022
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 26 27 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 28 46 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -24,6 +24,8 @@
 #				  - BUG: reflr u and v calcs did not work
 #	Apr 21, 2019: - improved surface gap warning message
 #	Apr 24, 2021: - output cosmetics
+#	Jul 12, 2022: - BUG: negative dt (garbage in PD0 file) was
+#						 not handled correctly
 
 # NOTES:
 #	- resulting DEPTH field based on integrated w without any sound speed correction
@@ -80,11 +82,11 @@ sub calcLADCPts($$$$)
 		ref_lr_w($dta,$e,$rl_b0,$rl_b1);
 	
 		if (defined($firstgood)) {
-			$dta->{ENSEMBLE}[$e]->{ELAPSED} =				# time since start
+			$dta->{ENSEMBLE}[$e]->{ELAPSED} =										# time since start
 				$dta->{ENSEMBLE}[$e]->{UNIX_TIME} -
 				$dta->{ENSEMBLE}[$firstgood]->{UNIX_TIME};
 		} else {
-			if (defined($dta->{ENSEMBLE}[$e]->{REFLR_W})) {		# start of prof.
+			if (defined($dta->{ENSEMBLE}[$e]->{REFLR_W})) {							# start of prof.
 				$firstgood = $lastgood = $e;		    
 				$dta->{ENSEMBLE}[$e]->{ELAPSED} = 0;
 				$dta->{ENSEMBLE}[$e]->{DEPTH} = $depth;
@@ -92,14 +94,21 @@ sub calcLADCPts($$$$)
 			next;
 		}
 	
-		unless (defined($dta->{ENSEMBLE}[$e]->{REFLR_W})) {				# gap
+		unless (defined($dta->{ENSEMBLE}[$e]->{REFLR_W})) {							# gap
 			$w_gap_time += $dta->{ENSEMBLE}[$e]->{UNIX_TIME} -
 						   $dta->{ENSEMBLE}[$e-1]->{UNIX_TIME};
 			next;
 		}
 	
-		my($dt) = $dta->{ENSEMBLE}[$e]->{UNIX_TIME} -		# time step since
-				  $dta->{ENSEMBLE}[$lastgood]->{UNIX_TIME}; # ... last good ens
+		my($dt) = $dta->{ENSEMBLE}[$e]->{UNIX_TIME} -								# time step since
+				  $dta->{ENSEMBLE}[$lastgood]->{UNIX_TIME}; 						# ... last good ens
+
+		if ($dt < 0) {
+			warning(1,"negative dt; ensemble #%d ignored\n",
+							$dta->{ENSEMBLE}[$e]->{NUMBER});
+			next;
+		}
+		
 	
 		if ($dt > $max_gap) {
 			if (($max_depth>50 && abs($depth)<0.1*$max_depth) &&					# looks like a profile
