@@ -2,9 +2,17 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
+<<<<<<< working copy
+#                    dlm: Mon Aug 29 16:52:45 2022
+=======
 #                    dlm: Mon Jun 27 19:04:02 2022
+>>>>>>> destination
 #                    (c) 2014 A.M. Thurnherr
+<<<<<<< working copy
+#                    uE-Info: 158 66 NIL 0 0 72 2 2 4 NIL ofnI
+=======
 #                    uE-Info: 213 68 NIL 0 0 72 0 2 4 NIL ofnI
+>>>>>>> destination
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -102,6 +110,7 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	May 10, 2022: - BUG: non-numeric ids no longer worked
 #				  - added -d to allow for station and cast numbering
 #	May 17, 2022: - made station cast numbering work based on input file name
+#	Aut 29, 2022: - BUG: -d should not depend on length of BASENAME
 # HISTORY END
 #	Jun 27, 2022: - BUG: fill_gaps code could not deal with format errors (nans)
 #				  - reversed semantics of -m because modulo error correction code has bugs
@@ -154,10 +163,10 @@ $IS = &antsLoadModel('`','.nminterp','linear');
 
 $CNVfile = $ARGV[0];											# input file
 
-($basename) = ($CNVfile =~ m{([^/]*)\.[^\.]*$});					# determine number of digits to use in profile id
-$opt_d = length($basename)										# 	- default is 3
-	if length($basename)>3 && !defined($opt_d);					#	- use length of input basename if it is longer than 3
-&antsCardOpt(\$opt_d,3);										# 	- explicit -d overrides 
+($basename) = ($CNVfile =~ m{([^/]*)\.[^\.]*$});				# determine number of digits to use in profile id
+$opt_d = length($basename)										# use length of input basename if it is a number longer than 3
+	if ($basename =~ /^d+$/) && length($basename)>3 && !defined($opt_d);
+&antsCardOpt(\$opt_d,3);										# explicit -d overrides 
 	
 open(F,&antsFileArg());											# open CNV file
 &antsAddDeps($CNVfile);
