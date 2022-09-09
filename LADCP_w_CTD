@@ -2,17 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-<<<<<<< working copy
-#                    dlm: Mon Aug 29 16:52:45 2022
-=======
-#                    dlm: Mon Jun 27 19:04:02 2022
->>>>>>> destination
+#                    dlm: Fri Sep  9 12:38:13 2022
 #                    (c) 2014 A.M. Thurnherr
-<<<<<<< working copy
-#                    uE-Info: 158 66 NIL 0 0 72 2 2 4 NIL ofnI
-=======
-#                    uE-Info: 213 68 NIL 0 0 72 0 2 4 NIL ofnI
->>>>>>> destination
+#                    uE-Info: 25 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
