@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Wed May 18 08:52:28 2022
+#                    dlm: Mon Sep 19 18:33:30 2022
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 193 67 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 92 33 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -88,6 +88,8 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #	May 10, 2022: - added -f
 #	May 17, 2022: - changed semantics to take output file name from input file names
 #	May 18, 2022: - BUG: new semantics did not work (oops)
+#	Sep 19, 2022: - BUG: plot did not work any more (unclear since when) for dual-head
+#						 profiles
 # HISTORY END
 
 
@@ -433,7 +435,6 @@ if (defined($opt_p)) {												# begin summary plot
 
 $min_depth =  9e99;										# sentinels
 $max_depth = -9e99;
-
 $curF = $P{PATHNAME};															# current input file (sentinel)
 $filt = 0;
 for ($r=0; &antsIn(); $r++) {
@@ -610,25 +611,26 @@ if ($dual_head) {																# dual-head output
 }
 
 #&antsInfo("WARNING: unknown water depth (no height-above-bottom)")
+
 #	unless numberp($P{water_depth});
 
 my(@dcwm,@ucwm,@dcns,@ucns,@dcwmad,@ucwmad);
 for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
 	$dcwm[$bi] = median(@{$dcw[$bi]}); 
 	$ucwm[$bi] = median(@{$ucw[$bi]});
-	$dcns[$bi] = @{$dcw[$bi]};
+	$dcns[$bi] = @{$dcw[$bi]}; 
 	$ucns[$bi] = @{$ucw[$bi]};
 	$dcwmad[$bi] = mad2($dcwm[$bi],@{$dcw[$bi]});
 	$ucwmad[$bi] = mad2($ucwm[$bi],@{$ucw[$bi]});
 	push(@{$out[$bi]},
-			 ($bi+0.5)*$opt_o,
-			 (numberp($P{water_depth}) ? $P{water_depth}-($bi+0.5)*$opt_o : nan),
-			 avg(@{$dce[$bi]}),
-			 (($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),(($dcns[$bi]>=$opt_k)?$dcwmad[$bi]:nan),
-			 scalar(@{$dcw[$bi]}),
-			 avg(@{$uce[$bi]}),
-			 (($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),(($ucns[$bi]>=$opt_k)?$ucwmad[$bi]:nan),
-			 scalar(@{$ucw[$bi]}));
+			 ($bi+0.5)*$opt_o,																# depth
+			 (numberp($P{water_depth}) ? $P{water_depth}-($bi+0.5)*$opt_o : nan),			# hab
+			 avg(@{$dce[$bi]}),																# dc_elapsed
+			 (($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),(($dcns[$bi]>=$opt_k)?$dcwmad[$bi]:nan),	# dc_w, dc_w.mad
+			 scalar(@{$dcw[$bi]}),															# dc_w.nsamp
+			 avg(@{$uce[$bi]}),																# uc_elapsed
+			 (($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan),(($ucns[$bi]>=$opt_k)?$ucwmad[$bi]:nan),	# uc_w, uc_w.mad
+			 scalar(@{$ucw[$bi]}));															# uc_w.nsamp
 	if ($dual_head) {
 		push(@{$out[$bi]},$dc_diff[$bi],$uc_diff[$bi],
 						  $dc_R[$bi],$dc_var[$bi],$dc_rms_wdiff[$bi],
@@ -642,25 +644,34 @@ for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
 if (defined($opt_p)) {																# complete summary plot
 	GMT_setR($R);
 
-	if ($P{water_depth} > 0) {															# SEABED
+	if ($P{water_depth} > 0) {														# SEABED
 		GMT_psxy('-G204/153/102');
 		print(GMT "$xmin $ymax\n0.07 $ymax\n0.07 $P{water_depth}\n $xmin $P{water_depth}\n");
 	}
 
 	GMT_psxy('-W1.5,coral');														# median profiles
 	for (my($bi)=0; $bi<=$#dcw; $bi++) {
-#		printf(GMT "%f %f\n",(($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan),($bi+0.5)*$opt_o);
-		printf(GMT "%f %f\n",(numberp($DL_dc_median[$bi]) &&
-							  numberp($UL_dc_median[$bi]) &&
-							  ($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan)
-							,($bi+0.5)*$opt_o);
+		if ($dual_head) {
+			printf(GMT "%f %f\n",(numberp($DL_dc_median[$bi]) &&
+								  numberp($UL_dc_median[$bi]) &&
+								  ($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan)
+								,($bi+0.5)*$opt_o);
+		} else {
+			printf(GMT "%f %f\n",(($dcns[$bi]>=$opt_k)?$dcwm[$bi]:nan)
+								,($bi+0.5)*$opt_o);
+		}
 	}
 	GMT_psxy('-W1.5,SeaGreen');
 	for (my($bi)=0; $bi<=$#ucw; $bi++) {
-		printf(GMT "%f %f\n",(numberp($DL_uc_median[$bi]) &&
-							  numberp($UL_uc_median[$bi]) &&
-							  ($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan)
-							,($bi+0.5)*$opt_o);
+		if ($dual_head) {
+			printf(GMT "%f %f\n",(numberp($DL_uc_median[$bi]) &&
+								  numberp($UL_uc_median[$bi]) &&
+								  ($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan)
+								,($bi+0.5)*$opt_o);
+		} else {
+			printf(GMT "%f %f\n",(($ucns[$bi]>=$opt_k)?$ucwm[$bi]:nan)
+								,($bi+0.5)*$opt_o);
+		}
 	}
 
 	GMT_psxy('-Sc0.1 -Gcoral');														# m.a.d. profiles

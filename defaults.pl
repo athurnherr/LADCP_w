@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Tue Oct 26 12:12:27 2021
+#                    dlm: Fri Sep 16 14:09:13 2022
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 183 72 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 95 81 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -91,6 +91,8 @@
 #	Jun 30, 2021: - ditto
 #	Jul  9, 2021: - added $layer_residuals_rms_max
 #	Sep  1, 2021: - added $seabed_contamination_Sv_grad_limit
+#	Sep 16, 2022: - added $SS_use_BT_allowed (default to 0) to allow
+#				    disabling use of ADCP BT data altogether (enabled by default)
 # HISTORY END
 
 #======================================================================
@@ -446,11 +448,20 @@ $opt_p = '+' unless defined($opt_p);
 $Sv_ref_bin = 1; 
 
 
-# Set to folloing variable to 1 to use ADCP BT data to detect seabed 
-# instead of default code based on Sv (echo amplitude). I do not know
-# which code is better.
+# By default, the ADCP BT data (from WM15 or BT pings) are ignored, i.e.
+# only  "post-processed" BT data (from regular "water-track" pings) are
+# used for the seabed detection. Set $SS_use_BT = 1 if you want to use
+# the water depth information from the ADCP BT data instead. This is
+# not recommended, because the WM15 BT data often returns values even
+# the seabed is out of range. If no seabed is detected in the
+# water-track data but the ADCP BT data has apparently valid water
+# depths and if $SS_use_BT_allowed is true, the software sets
+# $SS_use_BT = 1 for the profile and uses BT data. This, too, is 
+# not recommended because of erroneous bottom detection by the
+# ADCPs.
 
-$SS_use_BT = 0;
+$SS_use_BT 		   = 0;
+$SS_use_BT_allowed = 0;
 
 
 # The following variable defines the minimum Sv signal in a bin (max - min)
@@ -499,8 +510,6 @@ $SS_max_allowed_depth_range = 10;
 
 #======================================================================
 # Bottom Tracking
-#	- at present, the ADCP BT data are ignored, i.e. "post-processed"
-#	  BT data are used.
 #======================================================================
 
 # Don't look for BT-referenced velocities if package is more than $BT_max_range

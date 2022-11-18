@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon Oct 18 21:27:57 2021
+#                    dlm: Fri Sep 16 14:11:02 2022
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 2040 92 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 331 56 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -328,6 +328,7 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #				  - added {dc,uc}_exposure_time to .wprof output
 #	Oct 18, 2021: - BUG: Sv profiles included bins without valid w
 #				  - moved Sv profile code after additional filters; 
+#	Sep 16, 2022: - added support for $SS_use_BT_allowed
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -1313,9 +1314,13 @@ if (!defined($water_depth) &&														# find seabed in data
 #		warning(0,sprintf("Large instrument vs. backscatter-derived water-depth difference (%.1fm)\n",$dd))
 #			if ($dd > 10);
 	}
-	if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {		# warn if use of BT was not
-		warning(1,"using water_depth from ADCP BT data\n");							# explicitly requested
-		$SS_use_BT = 1;
+	if (!$SS_use_BT && !defined($water_depth) && defined($water_depth_BT)) {		# ADCP BT data available but not requested
+		if ($SS_use_BT_allowed) {
+			warning(1,"using water_depth from ADCP BT data\n");						# 
+			$SS_use_BT = 1;
+        } else {
+			warning(1,"disregarding water_depth = %dm from ADCP BT data\n",$water_depth_BT);						# 
+        }
 	}
 	if ($SS_use_BT && numberp($water_depth_BT)) {									# water depth from BT data
 		&antsAddParams('water_depth_from','BT_data');

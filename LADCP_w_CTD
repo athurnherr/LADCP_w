@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Fri Sep  9 12:38:13 2022
+#                    dlm: Fri Sep 16 14:39:17 2022
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 25 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 108 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -102,10 +102,9 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	May 10, 2022: - BUG: non-numeric ids no longer worked
 #				  - added -d to allow for station and cast numbering
 #	May 17, 2022: - made station cast numbering work based on input file name
-#	Aut 29, 2022: - BUG: -d should not depend on length of BASENAME
-# HISTORY END
 #	Jun 27, 2022: - BUG: fill_gaps code could not deal with format errors (nans)
 #				  - reversed semantics of -m because modulo error correction code has bugs
+#	Aug 29, 2022: - BUG: -d should not depend on length of BASENAME
 # HISTORY END
 
 # NOTES:
