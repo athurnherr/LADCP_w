@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Sun Aug  8 11:06:48 2021
+#                    dlm: Mon May  8 21:25:02 2023
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 82 60 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 85 102 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -80,6 +80,9 @@
 #	Oct 16, 2018: - removed debug code
 #	Jul  1, 2021: - made %PARAMs more standard
 #	Aug  8, 2021: - BUG: empty upcast made time-lagging bomb
+#	May  8, 2023: - added detection/mitigation of no-overlap initial guesses
+#				  - added best_lag initialization
+#				  - BUG: -3 L3 warning was not produced due to erroneous string equality check with ==
 # HISTORY END
 
 # DIFFICULT STATIONS:
@@ -200,6 +203,7 @@ RETRY:
 		die("assertion failed\n\tfe = $fe, first_ens = $first_ens, last_ens = $last_ens, window_ens = $window_ens, firstGoodEns = $firstGoodEns, lastGoodEns = $lastGoodEns")
 			unless ($fe>=$firstGoodEns && $fe+$window_ens<=$lastGoodEns);
 		my($so,$mad) = bestLag($fe,$fe+$window_ens,$search_radius,$scan_increment);
+		debugmsg("($so,$mad) = bestLag($fe,$fe+$window_ens,$search_radius,$scan_increment);\n");
 		$elapsed[$wi] = $LADCP{ENSEMBLE}[$fe+int($w_size/2/$LADCP{MEAN_DT}+0.5)]->{ELAPSED};
 		die("assertion failed\nfe=$fe, lastGoodEns=$lastGoodEns, w_size=$w_size") unless ($elapsed[$wi]);
 		next unless ($mad < 9e99);
@@ -218,7 +222,22 @@ RETRY:
 		$maxN = $nBest{$i} if ($nBest{$i} > $maxN);
 		$madBest{$i} /= $nBest{$i};
 	}
-
+	my($hint);
+	unless ($maxN > 1) {
+		error("$0: no overlap between time series; need valid -i to proceed\n")
+			if ($hint > 8e99);
+		warning(1,"poor guestimate -- no overlap between time series -- trying neigboring window\n");
+		if (defined($hint)) {
+			$CTD{TIME_LAG} = $hint;
+			$hint = 9e99;
+		} else {
+			$CTD{TIME_LAG} += $search_radius/2;
+			$hint = $CTD{TIME_LAG} - $search_radius/2;
+		}
+		undef(%nBest); undef(%madBest); undef(@best_lag);
+		goto RETRY;
+	}
+	
 	foreach my $lag (keys(%nBest)) {										# remove unpopular lags
 		next if ($nBest{$lag} >= $maxN/10);
 		$n_valid_windows -= $nBest{$lag};
@@ -233,7 +252,7 @@ RETRY:
 	}
 
 
-	my(@best_lag);															# find 3 most popular lags
+	my(@best_lag) = (0,0,0);												# find 3 most popular lags
 	foreach my $lag (keys(%nBest)) {
 		$best_lag[0] = $lag if ($nBest{$lag} > $nBest{$best_lag[0]});
 	}
@@ -262,9 +281,9 @@ RETRY:
 	unless ($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]}	# require quorum
 				>= $opt_3*$n_valid_windows) {
 		if (max(@best_lag)-min(@best_lag) > $TL_max_allowed_three_lag_spread) {
-			warning(2,"$0: cannot determine a valid $ctmsg lag; top 3 tags account for %d%% of total (use -3 to relax criterion)\n",
+			warning(2,"cannot determine a valid $ctmsg lag; top 3 tags account for %d%% of total (use -3 to relax criterion)\n",
 				int(100*($nBest{$best_lag[0]}+$nBest{$best_lag[1]}+$nBest{$best_lag[2]})/$n_valid_windows+0.5))
-					unless ($ctmsg == 'partial-cast');
+					unless ($ctmsg eq 'partial-cast');
 			$failed = 1;				
 		} else {
 			warning(1,"top 3 tags account for only %d%% of total\n",

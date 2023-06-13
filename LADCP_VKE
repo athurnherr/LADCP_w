@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Tue May 17 16:46:00 2022
+#                    dlm: Wed May 10 13:57:54 2023
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 126 87 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 127 49 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -122,8 +122,9 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #				  - disabled spectral tests based on data editing implemented for GO-SHIP A20 
 #				  - this allowed return to original $c value for VKE parameterization
 #				  - doubled default surface layer from 150 to 300m
-#	May 17. 2022: - BUG: -h was wrong (used # of files instead of # of spectra)
+#	May 17, 2022: - BUG: -h was wrong (used # of files instead of # of spectra)
 #				  - changed semantics to make output file name based on input file name
+#	May 10, 2023: - BUG: -s/-h options were wrong
 # HISTORY END
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -161,11 +162,11 @@ $opt_h = 2;								# require 2 spectra for estimate
 #----------------------------------------------------------------------
 
 $antsSuppressCommonOptions = 1;
-&antsUsage('a:bc:de:f:g:h:i:k:l:mno:p:q:r:S:s:tuw:x:yz:',0,
+&antsUsage('a:bc:de:f:g:h:i:k:l:mno:p:q:r:s:tuw:x:yz:',0,
 		    "[poly-o)rder <n[$opt_o]> to de-mean data; -1 to disable>] [apply cosine-t)aper]",
 		    '[-d)own/-u)pcast-only] [exclude -b)ottom window]',								# LADCP_wspec options
-			"[require spectral -s)amples <min[${opt_h}]>",
-			"[-S)urface <layer depth to exclude[${opt_s}m]>",
+			"[-h) require spectral samples <min[${opt_h}]>",
+			"[-s)urface <layer depth to exclude[${opt_s}m]>",
             "[-g)ap <max depth layer to fill with interpolation[${opt_g}m]>]",
             '[-w)indow <power-of-two input-records[32]>]',
 			"[shortwave -c)utoff <kz or lambda[${opt_c_default}m]>]",						# LADCP_VKE options

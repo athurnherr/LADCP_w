@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Mon Oct 18 21:39:56 2021
+#                    dlm: Mon May  8 11:52:57 2023
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 55 60 NIL 0 0 72 72 2 4 NIL ofnI
+#                    uE-Info: 56 37 NIL 0 0 72 72 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -53,6 +53,7 @@
 #					independent of tilt
 #	Oct 18, 2021: - BUG: seabed contamination was missing abs() and did not
 #						 work correctly with missing Sv data
+#	May  8, 2023: - disabled debugmsg
 # END OF HISTORY
 
 # NOTES:
@@ -313,7 +314,7 @@ sub editSideLobes($$$)
 			$dirty = 1;
 			$nvrm++;
 			undef($LADCP{ENSEMBLE}[$e]->{W}[$bin]);
-			debugmsg("sidelobe at range=$range firstBadBin=$firstBadBin ens=$e bin=$bin at CTD depth = $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}\n");
+#			debugmsg("sidelobe at range=$range firstBadBin=$firstBadBin ens=$e bin=$bin at CTD depth = $LADCP{ENSEMBLE}[$e]->{CTD_DEPTH}\n");
 		}
 
 		$nerm += $dirty;

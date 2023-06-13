@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Mon Sep 19 18:33:30 2022
+#                    dlm: Thu May 11 10:37:42 2023
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 92 33 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 119 75 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -90,6 +90,9 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #	May 18, 2022: - BUG: new semantics did not work (oops)
 #	Sep 19, 2022: - BUG: plot did not work any more (unclear since when) for dual-head
 #						 profiles
+#	May 11, 2023: - BUG: -s did not work (usage had -l)
+#				  - made default output skip surface layer
+#				  - added -a
 # HISTORY END
 
 
@@ -107,13 +110,13 @@ require "$ANTS/libGMT.pl";
 &antsAddParams('LADCP_w_postproc::version',$VERSION);
 
 $antsSuppressCommonOptions = 1;
-&antsUsage('b:c:d:f:i:k:l:o:p:v:w:z',1,
+&antsUsage('ab:c:d:f:i:k:o:p:s:v:w:z',1,
 	'[profile -i)d <id>]',
 	'[disable -z)eroing of <w> (disable bias correction)]',
 	'[-o)utput bin <resolution>] [-k) require <min> samples]',
 	'[-v)alid bins <DL first>,<DL last>[,<UL first>,<UL_last>]',
 	'[-w) <DL_dc_field>,<DL_uc_field>[,<UL_dc_field>,<UL_uc_field>]',
-	'[-s)urface-layer <limit[300m]>]',
+	'[-s)urface-layer <limit[300m]>] [-a)llow surface-layer data in output]',
 	'[-c)orrelation <window size[320m]>]',
 	'[ouptput -d)ir <name> -f)ile <fmt[%03d.wprof]>]',
 	'[-p)lot <[%03d_wprof.eps]> [-b)t <wprof>]]',
@@ -588,7 +591,8 @@ if ($dual_head) {
 	if ($filt > 0);
 
 #----------------------------------------------------------------------
-# Average and Output Profiles, Add to Summary Plot
+# Output Profiles
+#	- data from surface layer are not output
 #	- same output file layout for single- and dual-head systems
 #----------------------------------------------------------------------
 
@@ -611,11 +615,11 @@ if ($dual_head) {																# dual-head output
 }
 
 #&antsInfo("WARNING: unknown water depth (no height-above-bottom)")
-
 #	unless numberp($P{water_depth});
 
 my(@dcwm,@ucwm,@dcns,@ucns,@dcwmad,@ucwmad);
 for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
+	next if (($bi+0.5)*$opt_o<$opt_s && !$opt_a);
 	$dcwm[$bi] = median(@{$dcw[$bi]}); 
 	$ucwm[$bi] = median(@{$ucw[$bi]});
 	$dcns[$bi] = @{$dcw[$bi]}; 

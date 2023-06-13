@@ -2,7 +2,7 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Tue Dec  6 12:44:33 2022
+#                    dlm: Mon May  8 20:59:55 2023
 #                    (c) 2010 A.M. Thurnherr
 #                    uE-Info: 458 34 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
@@ -455,7 +455,7 @@ $antsSuppressCommonOptions = 1;
 if ($opt_V) {
 	printf(STDERR "+------------------------------+\n");
 	printf(STDERR "| LADCP_w Software V%s        |\n",$VERSION);
-	printf(STDERR "| (c) 2015-2022 A.M. Thurnherr |\n");
+	printf(STDERR "| (c) 2015-2023 A.M. Thurnherr |\n");
 	printf(STDERR "+------------------------------+\n");
 	exit(0);
 }
