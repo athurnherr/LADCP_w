@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ L A G . P L 
 #                    doc: Fri Dec 17 21:59:07 2010
-#                    dlm: Mon May  8 21:25:02 2023
+#                    dlm: Fri Mar 22 08:55:14 2024
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 85 102 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 87 42 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -83,6 +83,8 @@
 #	May  8, 2023: - added detection/mitigation of no-overlap initial guesses
 #				  - added best_lag initialization
 #				  - BUG: -3 L3 warning was not produced due to erroneous string equality check with ==
+#	Aug 22, 2023: - added debug messages
+#	Mar 22, 2024: - improved error message
 # HISTORY END
 
 # DIFFICULT STATIONS:
@@ -139,16 +141,16 @@ sub bestLag($$$$)								# find best lag in window
 	my($bestso) = 0;							# error at first-guess offset
 	my($bestmad) = mad_w($fe,$le,0);
 
-#	print(STDERR "bestLag($fe,$le,$ww,$soi)\n");
+	debugmsg("bestLag($fe,$le,$ww,$soi)\n");
 	for (my($dso) = 1; $dso <= int($ww/2/$CTD{DT} + 0.5); $dso+=$soi) {
 		my($mad) = mad_w($fe,$le,-$dso);
-#		print(STDERR "-$dso $mad\n");
+		debugmsg("-$dso $mad\n");
 		$bestmad=$mad,$bestso=-$dso if ($mad < $bestmad);
 		$mad = mad_w($fe,$le,$dso);
-#		print(STDERR " $dso $mad\n");
+		debugmsg(" $dso $mad\n");
 		$bestmad=$mad,$bestso=$dso if ($mad < $bestmad);
 	}
-#	print(STDERR "-> $bestso $bestmad\n");
+	debugmsg("-> $bestso $bestmad\n");
 	return ($bestso,$bestmad);
 }
 
@@ -224,8 +226,13 @@ RETRY:
 	}
 	my($hint);
 	unless ($maxN > 1) {
-		error("$0: no overlap between time series; need valid -i to proceed\n")
-			if ($hint > 8e99);
+		if ($hint > 8e99) {
+			if (defined($opt_i)) {
+				error("$0: no overlap between time series\n");
+			} else {
+				error("$0: no overlap between time series; need valid -i to proceed\n");
+			}
+		}
 		warning(1,"poor guestimate -- no overlap between time series -- trying neigboring window\n");
 		if (defined($hint)) {
 			$CTD{TIME_LAG} = $hint;

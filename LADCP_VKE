@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Wed May 10 13:57:54 2023
+#                    dlm: Fri Mar 22 09:38:36 2024
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 127 49 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 128 43 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -125,6 +125,7 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #	May 17, 2022: - BUG: -h was wrong (used # of files instead of # of spectra)
 #				  - changed semantics to make output file name based on input file name
 #	May 10, 2023: - BUG: -s/-h options were wrong
+#	Mar 22, 2024: - BUG: error message typo
 # HISTORY END
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -289,7 +290,7 @@ if (defined(fnrNoErr('dc_w'))) {													# pre-process with LADCP_wspec when
 	if ($ARGV[0]) {
 		croak("$ARGV[0]: no such file or directory\n");
 	} else {
-		croak("$0: empyt input\n");
+		croak("$0: empty input\n");
 	}
 }
 

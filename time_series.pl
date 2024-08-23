@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ S E R I E S . P L 
 #                    doc: Sun May 23 16:40:53 2010
-#                    dlm: Tue Jul 12 02:01:56 2022
+#                    dlm: Thu Aug 31 11:21:47 2023
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 28 46 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 35 64 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -26,6 +26,14 @@
 #	Apr 24, 2021: - output cosmetics
 #	Jul 12, 2022: - BUG: negative dt (garbage in PD0 file) was
 #						 not handled correctly
+#	Aug 24, 2023: - BUG: surface gap treated negative depth wrongly
+#				  - added depth info to gap warnings
+#				  - improved profile-end detection to allow it anytime
+#				    during second half of profile, rather than only
+#					during last quartile
+#	Aug 31, 2023: - BUG: surface-gap detection did not deal correctly
+#						 with consistently -ve in-air velocities
+# HISTORY END
 
 # NOTES:
 #	- resulting DEPTH field based on integrated w without any sound speed correction
@@ -111,13 +119,14 @@ sub calcLADCPts($$$$)
 		
 	
 		if ($dt > $max_gap) {
-			if (($max_depth>50 && abs($depth)<0.1*$max_depth) &&					# looks like a profile
-				(@{$dta->{ENSEMBLE}}-$e < 0.25*@{$dta->{ENSEMBLE}})) {				# in the final quartile of the data
+			if (($max_depth>50 && $depth<0.1*$max_depth) &&							# looks like a profile
+				(@{$dta->{ENSEMBLE}}-$e < 0.5*@{$dta->{ENSEMBLE}})) {				# in the final quartile of the data
 					warning(1,"long gap (%ds) after likely profile (0->%d->%dm) --- finishing at ens#$dta->{ENSEMBLE}[$e]->{NUMBER}\n",
 						$dt,$max_depth,$depth);
 					last;				
-            } elsif ((abs($depth) < 10) ||											# shallow gap at the beginning
-            		 ($depth == $max_depth)) {										# biased in-air data
+            } elsif (!defined($max_depth) ||					# no +ve velocities measured (only in-air negative)
+            		 ($depth == $max_depth) ||					# no -ve velocities measured (only in-air positive)
+					 (($depth < 10) && ($max_depth < 10))) {	# just bobbing at the surface
             		 	my($md) = defined($max_depth) ? sprintf('%d',$max_depth) : 'undefined';
 						warning(1,"long surface gap (%ds) --- restarting at ens#$dta->{ENSEMBLE}[$e]->{NUMBER} " .
 								  "[depth = %d m; max_depth = $md m]\n",$dt,$depth);
@@ -129,12 +138,12 @@ sub calcLADCPts($$$$)
 						$w_gap_time = 0;
 						next;
 			}
-			if ($dta->{ENSEMBLE}[$e]->{ELAPSED} < 200) {
-				warning(1,"long gap (%ds) at ensembles #$dta->{ENSEMBLE}[$lastgood]->{NUMBER}-$dta->{ENSEMBLE}[$e]->{NUMBER}, %ds into the profile\n",
-					$dt,$dta->{ENSEMBLE}[$e]->{ELAPSED});
+			if ($dta->{ENSEMBLE}[$lastgood]->{ELAPSED} < 200) {
+				warning(1,"long gap (%ds) at ensembles #$dta->{ENSEMBLE}[$lastgood]->{NUMBER}-$dta->{ENSEMBLE}[$e]->{NUMBER}, %ds into the profile at %dm depth [max_depth = $max_depth]\n",
+					$dt,$dta->{ENSEMBLE}[$lastgood]->{ELAPSED},$depth);
 			} else {
-				warning(1,"long gap (%ds) at ensembles #$dta->{ENSEMBLE}[$lastgood]->{NUMBER}-$dta->{ENSEMBLE}[$e]->{NUMBER}, %.1fmin into the profile\n",
-					$dt,$dta->{ENSEMBLE}[$e]->{ELAPSED}/60);
+				warning(1,"long gap (%ds) at ensembles #$dta->{ENSEMBLE}[$lastgood]->{NUMBER}-$dta->{ENSEMBLE}[$e]->{NUMBER}, %.1fmin into the profile at %dm depth [max_depth = $max_depth]\n",
+					$dt,$dta->{ENSEMBLE}[$lastgood]->{ELAPSED}/60,$depth);
 			}
 		}
 	

@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon May  8 20:59:55 2023
+#                    dlm: Mon Mar 25 10:18:41 2024
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 458 34 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 337 46 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -329,6 +329,12 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Oct 18, 2021: - BUG: Sv profiles included bins without valid w
 #				  - moved Sv profile code after additional filters; 
 #	Sep 16, 2022: - added support for $SS_use_BT_allowed
+#	Mar 15, 2024: - added LADCP_reflr_{u,v} to wsamp output
+#	Mar 21, 2024: - BUG: post_merge_hook was called before final filter (which 
+#						 is disabled by default)
+#	Mar 22, 2024: - added CTD/LADCP depth-mismatch error
+#				  - BUG: $max_hspeed in ProcessingParams was overwritten by max_hspeed()
+#	Mar 25, 2024: - BUG: typo in error message
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -1043,6 +1049,10 @@ error("$0: CTD start depth must be numeric\n")
 progress("\tstart depth = %.1fm\n",$CTD{DEPTH}[0]);
 progress("\tmax depth   = %dm (# $CTD_atbottom)\n",$CTD_maxdepth);
 
+error("$0: CTD and LADCP depths disagree by more than 20% (wrong CTD file?)\n")
+	unless abs($CTD_maxdepth-$LADCP{ENSEMBLE}[$LADCP_atbottom]->{DEPTH}) 
+				< 0.2*max($CTD_maxdepth,$LADCP{ENSEMBLE}[$LADCP_atbottom]->{DEPTH});
+
 #--------------------------------------------------------------------
 # Construct sound-speed correction profile from CTD 1Hz downcast data
 #	very simple algorithm that stores the last value found
@@ -1506,7 +1516,8 @@ $nerm = editSurfLayer($firstGoodEns,$lastGoodEns,$surface_layer_depth);
 progress("\t$nerm ensembles removed\n");
 
 progress("Removing data collected at large horizontal package speeds...\n");
-$max_hspeed = &max_hspeed();												# defined in [defaults.h]
+$max_hspeed = &max_hspeed()
+	unless defined($max_hspeed);												# defined in [defaults.h]
 &antsAddParams('max_hspeed',$max_hspeed);
 $nerm = editLargeHSpeeds($firstGoodEns,$lastGoodEns,$max_hspeed);
 my($nermf) = $nerm / ($lastGoodEns - $firstGoodEns + 1);
@@ -1514,11 +1525,6 @@ info("\treference-layer horizontal speed threshold (max_hspeed = %g m/s): %d ens
 	$max_hspeed,$nerm,round(100*$nermf));
 warning(2,"large fraction (%d%%) of samples exceed reference-layer horizontal speed threshold\n",round(100*$nermf))
 	if ($nermf > 0.05);		
-
-if (defined($post_merge_hook)) {
-	progress("Executing user-supplied \$post_merge_hook...\n");
-	&{$post_merge_hook}($firstGoodEns,$lastGoodEns);
-}
 
 #----------------------------------------------------------------------
 # apply pressure-sensor acceleration correction (-a)
@@ -1542,6 +1548,15 @@ if ($opt_a != 1) {
 			$LADCP{ENSEMBLE}[$ens]->{REFLR_W} -= $acorr;
 		}
 	}
+}
+
+#----------------------------------------------------------------------
+# Execute User Plugin Code
+#----------------------------------------------------------------------
+
+if (defined($post_merge_hook)) {
+	progress("Executing user-supplied \$post_merge_hook...\n");
+	&{$post_merge_hook}($firstGoodEns,$lastGoodEns);
 }
 
 #---------------------------------------------------------------------------
@@ -2280,7 +2295,8 @@ if (@out_wsamp) {
 						  'w','w12','w34','v12','v34','residual','residual12','residual34',
 						  'CTD_w','CTD_w_t','CTD_w_tt','LADCP_w','LADCP_reflr_w','winch_w',
 						  'errvel','correlation','echo_amplitude','Sv',
-	                      'pitch','roll','tilt','heading','3_beam','svel');
+	                      'pitch','roll','tilt','heading','3_beam','svel',
+						  'LADCP_reflr_u','LADCP_reflr_v');
 
 	    $of = ">$of" unless ($of =~ /^$|^\s*\|/);
 		open(STDOUT,$of) || error("$of: $!\n");
@@ -2329,6 +2345,8 @@ if (@out_wsamp) {
 				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
 				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
 				  $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				  $LADCP{ENSEMBLE}[$ens]->{REFLR_U},
+				  $LADCP{ENSEMBLE}[$ens]->{REFLR_V},
 			  );
 		  } # for $bin
 		} # for $ens
@@ -2370,6 +2388,8 @@ if (@out_wsamp) {
 				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][2]) +
 				   defined($LADCP{ENSEMBLE}[$ens]->{VELOCITY}[$bin][3])) < 4 ? 1 : 0,
 				  $CTD{SVEL}[$LADCP{ENSEMBLE}[$ens]->{CTD_SCAN}],
+				  $LADCP{ENSEMBLE}[$ens]->{REFLR_U},
+				  $LADCP{ENSEMBLE}[$ens]->{REFLR_V},
 			  );
 		  } # for $bin
 		} # for $ens

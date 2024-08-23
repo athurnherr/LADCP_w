@@ -1,9 +1,9 @@
 #======================================================================
 #                    A C O U S T I C _ B A C K S C A T T E R . P L 
 #                    doc: Wed Oct 20 13:02:27 2010
-#                    dlm: Mon Oct 18 19:28:18 2021
+#                    dlm: Fri Sep 22 11:13:20 2023
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 33 56 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 54 40 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -31,31 +31,44 @@
 #   May 24, 2016: - calc_binDepths() -> binDepths()
 #	Jul  1, 2021: - made %PARAMs more standard
 #	Oct 18, 2021: - made edit high-residuals not edit Sv
+#	Sep 22, 2023: - renamed Sv() do Deines99()
+#				  - added GostiauxAndvanHaren10()
+#				  - added $Sv to [defaults.pl]
 # HISTORY END
 
 
 #----------------------------------------------------------------------
-# Volume Scattering Coefficient, following Deines (IEEE 1999)
+# Volume Scattering Coefficient, following Deines (IEEE 1999) and
+#	(as of V2.3, Sep 2023) Gostiaux and van Haren (JAOT 2010)
 # NOTES:
 #	- instrument specific! (300kHz Workhorse)
 #   - no sound-speed correction applied
 #   - R in bin center, instead of last quarter
 #   - transmit power assumes 33V batteries
-# EMPIRICAL FINDINGS (after applying the empirical correction)
-#  - Sv(WH300) ~ Sv(WH150)/1.4-34
-#      - based on DoMORE-1: 004, 005
-#      - identical instrument setup (0/8/8m)
-#      - 003, with higher scattering is somewhat different
+# FINDINGS 
+#	- Gostiaux and van Haren correction and Deines corrections
+#	  are only different at significant distances from the transducer
+#		- since the empirical correction references everything to
+#		  a near bin, there are no significant difference between
+#		  the two corrections (checked with 2016 P18 data and also
+#		  with Peru data with LADCPproc)
+#		- using the Deines correction leads to (very slightly)
+#		  less noisy data
+#	- scaling after empirical correction:
+#	  - Sv(WH300) ~ Sv(WH150)/1.4-34
+#   	  - based on DoMORE-1: 004, 005
+#	      - identical instrument setup (0/8/8m)
+#	      - 003, with higher scattering is somewhat different
 #----------------------------------------------------------------------
 
 # NB:
-#	- correction seems to work for a subset of bins (~bins 3-9 for 
+#	- Deines correction seems to work for a subset of bins (~bins 3-9 for 
 #	  2010 P403 station 46) 
 #	- this may imply that noise level depends on bin
 # 	- far bins are important for seabed detection, i.e. cannot simply
 #	  be discarded at this stage
 
-sub Sv($$$$$)
+sub Deines99($$$$$)
 {
     my($temp,$PL,$Er,$R,$EA) = @_;
     my($C)      = -143;                 # RDI WHM300 (from Deines)
@@ -64,8 +77,23 @@ sub Sv($$$$$)
     my($alpha)  = 0.069;
     my($Kc)     = 0.45;
     
+#	print(STDERR "$temp,$R,$Er,$EA\n");
     return $C + 10*log10(($temp+273)*$R**2) - $Ldbm - $PdbW
               + 2*$alpha*$R + $Kc*($EA-$Er);
+}
+
+sub GostiauxAndvanHaren10($$$$$)
+{
+    my($temp,$PL,$Er,$R,$EA) = @_;
+    my($C)      = -143;                 # RDI WHM300 (from Deines)
+    my($Ldbm)   = 10 * log10($PL);
+    my($PdbW)   = 14.0;
+    my($alpha)  = 0.069;
+    my($Kc)     = 0.45;
+    
+#	print(STDERR "$temp,$R,$Er,$EA\n");
+    return $C + 10*log10(($temp+273)*$R**2) - $Ldbm - $PdbW
+              + 2*$alpha*$R + 10*log10(10**($Kc*($EA-$Er)/10) - 1);
 }
 
 #----------------------------------------------------------------------
@@ -109,16 +137,16 @@ sub calc_backscatter_profs($$)
 					  : $LADCP{ENSEMBLE}[$ens]->{TEMPERATURE};
 			$LADCP{ENSEMBLE}[$ens]->{SV}[$bin] =
 				median(
-					Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[0],$range_to_bin,
+					&$Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[0],$range_to_bin,
 					   $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][0]
 				    ),
-				    Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[1],$range_to_bin,
+				    &$Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[1],$range_to_bin,
 					   $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][1]
 					),
-					Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[2],$range_to_bin,
+					&$Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[2],$range_to_bin,
 					   $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][2]
 					),
-					Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[3],$range_to_bin,
+					&$Sv($temp,$LADCP{TRANSMITTED_PULSE_LENGTH},$Er[3],$range_to_bin,
 	     			   $LADCP{ENSEMBLE}[$ens]->{ECHO_AMPLITUDE}[$bin][3]
 					)
 				);

@@ -1,9 +1,9 @@
 #======================================================================
 #                    V E R S I O N . P L 
 #                    doc: Tue Oct 13 10:40:57 2015
-#                    dlm: Tue Dec  6 12:43:45 2022
+#                    dlm: Fri Mar 15 17:27:16 2024
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 47 29 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 53 29 NIL 0 0 72 72 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -34,6 +34,9 @@
 #	Sep  1, 2021: - updated to V2.1 (Sv profiles & better sidelobes)
 #	Dec  6, 2022: - updated to V2.2
 #				  - updated prerequisites
+#	Sep 22, 2023: - updated to V2.3 (Sv from Gostiaux and van Haren)
+#				  - no update to prerequisites needed
+#	Mar 15, 2023: - updated to V2.4 (reflr_{u,v} in wsamp output)
 
 #$VERSION = '1.1';				# Jan  4, 2016
 #$VERSION = '1.2';				# May 12, 2016
@@ -42,10 +45,12 @@
 #$VERSION = '1.5';				# Sep 12, 2018
 #$VERSION = '2.0';				# Aug  6, 2021
 #$VERSION = '2.1';				# Sep  1, 2021
-$VERSION = '2.2';				# Dec  6, 2022
+#$VERSION = '2.2';				# Dec  6, 2022
+#$VERSION = '2.3';				# Sep 22, 2023
+$VERSION = '2.4';				# Mar 15, 2024
 
 $antsMinLibVersion 		= 7.5;
-$ADCP_tools_minVersion 	= 2.5;
+$ADCP_tools_minVersion 	= 2.6;
 
 use lib '.';
 

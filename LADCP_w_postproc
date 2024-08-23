@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Thu May 11 10:37:42 2023
+#                    dlm: Fri Aug  4 11:28:09 2023
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 119 75 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 98 70 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -93,6 +93,9 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #	May 11, 2023: - BUG: -s did not work (usage had -l)
 #				  - made default output skip surface layer
 #				  - added -a
+#	Aug  3, 2023: - BUG: replaced die() by croak()
+#	Aug  4, 2023: - BUG: several bugs in window correlation with gappy profiles
+#				  - BUG: warning about lack of overlap was often wrong
 # HISTORY END
 
 
@@ -204,7 +207,7 @@ if (-t STDOUT) {
 		$outfile = defined($opt_d) ? sprintf("%s/$opt_f",$opt_d,$id)
 								   : sprintf($opt_f,$id);
 	}
-	open(STDOUT,">$outfile") || die("$outfile: $!\n");
+	open(STDOUT,">$outfile") || croak("$outfile: $!\n");
 }
 
 croak("$0: -b only makes sense when plots are produced\n")
@@ -293,7 +296,8 @@ sub dc_corr($$)
 	my($ax,$ay) = (0,0);
 	my($ssq_diff) = 0;
 
-	return (nan,nan,nan,nan,nan) unless ($li > $fi);				# for shallow profiles this fails
+	return (nan,nan,nan,nan,nan)							# shallow profiles 
+		unless ($li > $fi);
 
 	for (my($bi)=$fi; $bi<=$li; $bi++) {
 		next unless numberp($DL_dc_median[$bi]) && numberp($UL_dc_median[$bi]);
@@ -302,8 +306,8 @@ sub dc_corr($$)
 		$ay += $UL_dc_median[$bi];
 		$ssq_diff += ($DL_dc_median[$bi] - $UL_dc_median[$bi])**2;
 	}
-	return (nan,nan,nan,nan,nan) unless ($n > 0.8*($li-$fi+1));
-	die("$n,$li,$fi [$n > 0.8*($li-$fi+1)]\n") unless ($n > 0);
+	return (nan,nan,nan,nan,nan)
+		unless (($li-$fi > 10) ? ($n>0.8*($li-$fi+1) || ($n>20)) : ($n>2));
 	$ax /= $n;
 	$ay /= $n;
 
@@ -331,6 +335,9 @@ sub uc_corr($$)
 	my($ax,$ay) = (0,0);
 	my($ssq_diff) = 0;
 
+	return (nan,nan,nan,nan,nan)							# shallow profiles 
+		unless ($li > $fi);				
+		
 	for (my($bi)=$fi; $bi<=$li; $bi++) {
 		next unless numberp($DL_uc_median[$bi]) && numberp($UL_uc_median[$bi]);
 		$n++;
@@ -338,7 +345,8 @@ sub uc_corr($$)
 		$ay += $UL_uc_median[$bi];
 		$ssq_diff += ($DL_uc_median[$bi] - $UL_uc_median[$bi])**2;
 	}
-	return (nan,nan,nan,nan,nan) unless ($n > 2);
+	return (nan,nan,nan,nan,nan)
+		unless (($li-$fi > 10) ? ($n>0.8*($li-$fi+1) || ($n>20)) : ($n>2));
 	$ax /= $n;
 	$ay /= $n;
 
@@ -570,9 +578,9 @@ if ($dual_head) {
 	my($window_size) = 320;
 	for (my($bi)=0; $bi<=$#dcw1; $bi++) {
 		($dc_R[$bi],$dc_var[$bi],$dummy,$dummy,$dc_rms_wdiff[$bi]) =
-			&dc_corr(max(0,$bi-int($window_size/2/$opt_o)),min($#dcw1,$bi+int($window_size/2/$opt_o)));
+			&dc_corr(max(0,$bi-int($window_size/2/$opt_o)+1/2),min($#dcw1,$bi+int($window_size/2/$opt_o)-1/2));
 		($uc_R[$bi],$uc_var[$bi],$dummy,$dummy,$uc_rms_wdiff[$bi]) =
-			&uc_corr(max(0,$bi-int($window_size/2/$opt_o)),min($#dcw1,$bi+int($window_size/2/$opt_o)));
+			&uc_corr(max(0,$bi-int($window_size/2/$opt_o)+1/2),min($#dcw1,$bi+int($window_size/2/$opt_o)-1/2));
 	}
 		
 	if (defined($opt_p)) {														# plot 2nd-instrument profiles

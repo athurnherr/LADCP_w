@@ -1,9 +1,9 @@
 #======================================================================
 #                    E D I T _ D A T A . P L 
 #                    doc: Sat May 22 21:35:55 2010
-#                    dlm: Mon May  8 11:52:57 2023
+#                    dlm: Tue Jul  2 13:37:25 2024
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 56 37 NIL 0 0 72 72 2 4 NIL ofnI
+#                    uE-Info: 61 45 NIL 0 0 72 72 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -54,9 +54,11 @@
 #	Oct 18, 2021: - BUG: seabed contamination was missing abs() and did not
 #						 work correctly with missing Sv data
 #	May  8, 2023: - disabled debugmsg
+#	Jul  2, 2024: - added Nortek beam aperture guess
 # END OF HISTORY
 
 # NOTES:
+#	- NEED BETTER VALUE FOR NORTEK BEAM WIDTH
 #	- all bins must be edited (not just the ones between $LADCP_firstBin
 #	  and $LADCP_lastBin to allow reflr calculations to use bins outside
 #	  this range (ONLY FOR BEAM-COORD EDITS)
@@ -394,12 +396,19 @@ sub editPPI($$$)
 	my($nerm) = 0;			# of ensembles affected
 
 	unless (defined($bha)) {
-		if    (abs($LADCP{BEAM_FREQUENCY}-1200)/1200 <= 0.1) { $bha = 2.4; }
-		elsif (abs($LADCP{BEAM_FREQUENCY}-600) / 600 <= 0.1) { $bha = 2.5; }
-		elsif (abs($LADCP{BEAM_FREQUENCY}-300) / 300 <= 0.1) { $bha = 3.7; }
-		elsif (abs($LADCP{BEAM_FREQUENCY}-150) / 150 <= 0.1) { $bha = 6.7; }
-		elsif (abs($LADCP{BEAM_FREQUENCY}-75)  /  75 <= 0.1) { $bha = 8.4; }
-		else { error("$0: unexpected transducer frequency $LADCP{BEAM_FREQUENCY}\n"); }
+		if ($LADCP{PRODUCER} =~ /^TRDI/) {
+			if    (abs($LADCP{BEAM_FREQUENCY}-1200)/1200 <= 0.1) { $bha = 2.4; }
+			elsif (abs($LADCP{BEAM_FREQUENCY}-600) / 600 <= 0.1) { $bha = 2.5; }
+			elsif (abs($LADCP{BEAM_FREQUENCY}-300) / 300 <= 0.1) { $bha = 3.7; }
+			elsif (abs($LADCP{BEAM_FREQUENCY}-150) / 150 <= 0.1) { $bha = 6.7; }
+			elsif (abs($LADCP{BEAM_FREQUENCY}-75)  /  75 <= 0.1) { $bha = 8.4; }
+			else { error("$0: unexpected $LADCP{PRODUCER} transducer frequency $LADCP{BEAM_FREQUENCY} kHz in editPPI()\n"); }
+	    } elsif ($LADCP{PRODUCER} =~ /^Nortek/) {
+			if    (abs($LADCP{BEAM_FREQUENCY}-100) / 100 <= 0.1) { $bha = 7.5; }	# guessed value
+			else { error("$0: unexpected $LADCP{PRODUCER} transducer frequency $LADCP{BEAM_FREQUENCY} kHz in editPPI()\n"); }
+        } else {
+			error("$0: unexpected producer $LADCP{PRODUCER} in editPPI()\n"); 
+        }
 	}
 	
 	for (my($e)=$fe; $e<=$te; $e++) {

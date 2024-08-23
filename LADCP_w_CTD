@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ C T D 
 #                    doc: Mon Nov  3 17:34:19 2014
-#                    dlm: Fri Sep 16 14:39:17 2022
+#                    dlm: Fri Mar 22 11:34:56 2024
 #                    (c) 2014 A.M. Thurnherr
-#                    uE-Info: 108 0 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 1007 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
@@ -105,6 +105,9 @@ $antsSummary = 'pre-process SBE 9plus CTD data for LADCP_w';
 #	Jun 27, 2022: - BUG: fill_gaps code could not deal with format errors (nans)
 #				  - reversed semantics of -m because modulo error correction code has bugs
 #	Aug 29, 2022: - BUG: -d should not depend on length of BASENAME
+#	Jul 21, 2023: - BUG: error message was inaccurate
+#	Mar  6, 2024: - removed -m debug messages
+#	Mar 22, 2024: - BUG: -c0 did not work
 # HISTORY END
 
 # NOTES:
@@ -292,14 +295,14 @@ if ($fill_gaps) {
 	my($scans_deleted) = 0;
 	my($tot_gaps) = 0;
 
-	printf("BEFORE: %d scans\n",scalar(@ants_));
+#	printf("BEFORE: %d scans\n",scalar(@ants_));
 	for (my($scan)=my($scani)=0; $scan<@ants_; $scan++,$scani++) {					# remove scans with incomplete information
 		next if numbersp($ants_[$scan][$systimeF],$ants_[$scan][$xmerrF]);
 		printf(STDERR "scani#%d removed\n",$scani+1);
 		splice(@ants_,$scan,1);
 		$scan--; $scans_deleted++;
     }
-	printf("AFTER: %d scans\n",scalar(@ants_));
+#	printf("AFTER: %d scans\n",scalar(@ants_));
 
 	for (my($scan) = 30; $scan<@ants_; $scan++) {									# start a bit more than 1 second into the cast	
 		next if ($ants_[$scan][$systimeF] == $ants_[$scan-1][$systimeF]);			# skip forward to next systime second
@@ -687,7 +690,7 @@ for (my($s)=0; $s<$nscans; $s++) {
 	$minP = $ants_[$s][$pressF]
 		if numberp($ants_[$s][$pressF]) && ($ants_[$s][$pressF] < $minP);
 }
-_croak("$CNVfile: no valid CTD pressure data below 25dbar\n")
+_croak("$CNVfile: no valid CTD pressure data\n")
 	unless ($minP < 9e99);
 
 if ($minP < 25) {
@@ -829,42 +832,48 @@ push(@w,nan);
 printf(STDERR "\n") if ($opt_v);
 
 #----------------------------------------------------------------------
-# Low-pass filter velocity data
-#	- interpolate missing vertical velocities first
+# Interpolate missing vertical velocities 
 #----------------------------------------------------------------------
+
+print(STDERR "Trimming and filling vertical package velocity time series...") if ($opt_v);
+
+my($trimmed) = 0;
+shift(@w),shift(@depth),shift(@elapsed),shift(@sspd),$trimmed++
+	until numberp($w[0]);
+my($interpolated) = 0;
+for ($r=1; $r<@w; $r++) {
+	next if numberp($w[$r]);
+	my($lv) = $r-1;
+	for ($nv=$r+1; $nv<@depth && !numberp($w[$nv]); $nv++) {}
+	if ($nv < @depth) {
+		while ($r < $nv) {
+			$w[$r] = $w[$lv] + ($r-$lv)/($nv-$lv) * ($w[$nv]-$w[$lv]);
+			$interpolated++;
+			$r++;
+		}
+	    
+	} else {
+		$trimmed += @w-$r;
+		splice(@w,$r); splice(@depth,$r);
+		splice(@elapsed,$r); splice(@sspd,$r);
+	}
+}
+&antsAddParams('w_interpolated',$interpolated);
+printf(STDERR "\n\t%d/%d vertical velocities trimmed/interpolated",$trimmed,$interpolated) if ($opt_v > 1);
+printf(STDERR "\n") if ($opt_v);
+
+#----------------------------------------------------------------------
+# Low-pass filter velocity data
+#----------------------------------------------------------------------
+
+&antsAddParams('w_lowpass_cutoff',$opt_c);	
 
 if ($opt_c > 0) {
 	print(STDERR "Low-pass filtering vertical package velocity...") if ($opt_v);
-	&antsAddParams('w_lowpass_cutoff',$opt_c);
-	
-	my($trimmed) = 0;
-	shift(@w),shift(@depth),shift(@elapsed),shift(@sspd),$trimmed++
-		until numberp($w[0]);
-	my($interpolated) = 0;
-	for ($r=1; $r<@w; $r++) {
-		next if numberp($w[$r]);
-		my($lv) = $r-1;
-		for ($nv=$r+1; $nv<@depth && !numberp($w[$nv]); $nv++) {}
-		if ($nv < @depth) {
-			while ($r < $nv) {
-				$w[$r] = $w[$lv] + ($r-$lv)/($nv-$lv) * ($w[$nv]-$w[$lv]);
-				$interpolated++;
-				$r++;
-			}
-		    
-		} else {
-			$trimmed += @w-$r;
-			splice(@w,$r); splice(@depth,$r);
-			splice(@elapsed,$r); splice(@sspd,$r);
-		}
-	}
-	&antsAddParams('w_interpolated',$interpolated);
-	printf(STDERR "\n\t%d/%d vertical velocities trimmed/interpolated",$trimmed,$interpolated) if ($opt_v > 1);
 
-
-#--------------------
-# Zero Pad Data
-#--------------------
+	#--------------------
+	# Zero Pad Data
+	#--------------------
 	
 	for ($pot=1; $pot<@w; $pot<<=1) {}									# determine power of two
 	
@@ -878,9 +887,9 @@ if ($opt_c > 0) {
 		$r++;
 	}
 	
-#--------------------
-# Low-Pass Filter
-#--------------------
+	#--------------------
+	# Low-Pass Filter
+	#--------------------
 	
 	@fco = &FOUR1(-1,@fftbuf);											# forward FFT
 	$n = @fco/2;
@@ -893,8 +902,16 @@ if ($opt_c > 0) {
 	@w_lp = &FOUR1(1,@fco); 											# inverse FFT
 	
 	printf(STDERR "\n") if ($opt_v);
-} else {
-	@w_lp = @w;
+
+} else {																# don't low-pass filter
+
+	#--------------------
+	# Copy Scaled Raw Data
+	#--------------------
+
+	for ($r=0; $r<@w; $r++) {
+		$w_lp[2*$r] = $w[$r] * @w;										# scaled like output from fft
+	}
 }
 
 #----------------------------------------

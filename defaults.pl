@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Fri Sep 16 14:09:13 2022
+#                    dlm: Tue Jul  2 13:36:42 2024
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 95 81 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 97 47 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -93,6 +93,8 @@
 #	Sep  1, 2021: - added $seabed_contamination_Sv_grad_limit
 #	Sep 16, 2022: - added $SS_use_BT_allowed (default to 0) to allow
 #				    disabling use of ADCP BT data altogether (enabled by default)
+#	Mar 22, 2024: - improved documentation of max_hspeed
+#	Jul  2, 2024: - added hvel limit for Nortek
 # HISTORY END
 
 #======================================================================
@@ -346,21 +348,32 @@ $seabed_contamination_Sv_grad_limit = 0.1;
 # read, must return the maximum horizontal reference-layer
 # speed that is allowed. The following values are based on 2018 GO-SHIP
 # S4P profile #106 where the CTD rosette was dragged quickly during
-# the latter part of the upcast. Of course, it is possible that the
-# differnces between the UL and DL data could be due to tilt-
-# sensor differences, rather than due to instrument type.
+# the latter part of the upcast. It is possible that the
+# differences between the UL and DL data could be due to tilt-
+# data differences, rather than due to instrument type, but this seems
+# not very likely given the apparent magnitude of the difference.
+# In order to set a different limit, either the function can be re-
+# defined, or the variable $max_hspeed can be set. 
+# The Nortek Sig100 number is very much unsure. Based on Dan Torres' 
+# 2024 Lab Sea upcast upper 2000m profile the value would have to be
+# reduced to about 20cm/s for the bad velocities to disappear, but 
+# if this is really the limit, it makes LADCP work with this instrument
+# more-or-less impossible. 
 
-$max_hspeed_300kHz = 0.55; # m/s
-$max_hspeed_150kHz = 0.35; # m/s
+$max_hspeed_WH300 	= 0.55; # m/s
+$max_hspeed_WH150 	= 0.35; # m/s
+$max_hspeed_Sig100 	= 0.30; # m/s		
 
 sub max_hspeed()
 {
-	if (abs($LADCP{BEAM_FREQUENCY}-300) <= 25) {		# 300kHz Workhorse
-		$max_hspeed = $max_hspeed_300kHz;
-	} elsif (abs($LADCP{BEAM_FREQUENCY}-150) <= 25) {	# 150kHz Workhorse
-		$max_hspeed = $max_hspeed_150kHz;
+	if ($LADCP{PRODUCER} =~ /^TRDI/ && abs($LADCP{BEAM_FREQUENCY}-300) <= 25) {		# 300kHz Workhorse
+		$max_hspeed = $max_hspeed_WH300;
+	} elsif ($LADCP{PRODUCER} =~ /^TRDI/ && abs($LADCP{BEAM_FREQUENCY}-150) <= 25) {	# 150kHz Workhorse
+		$max_hspeed = $max_hspeed_WH150;
+	} elsif ($LADCP{PRODUCER} =~ /^Nortek/ && abs($LADCP{BEAM_FREQUENCY}-100) <= 25) {	# Signature-100
+		$max_hspeed = $max_hspeed_Sig100;
 	} else {
-		warning(2,"unknown horizontal speed limit for this instrument frequency ($LADCP{BEAM_FREQUENCY} kHz)\n");
+		warning(2,"unknown horizontal speed limit for $LADCP{PRODUCER} ($LADCP{BEAM_FREQUENCY} kHz)\n");
 		$max_hspeed = 9e99;
 	}
 }
@@ -432,9 +445,23 @@ $opt_p = '+' unless defined($opt_p);
 # Acoustic Backscatter and Seabed Search
 #======================================================================
 
-# After applying the method of Deines (1999), an empirical correction
-# for Sv is applied to the data. The following variable determines which
-# bin is chosen to construct a reference profile for Sv. The bin number
+# Acoustic backscatter is estimated from the echo amplitude data either
+# using the method of Deines (1999) or the updated method of Gostiaux
+# and van Haren (2010) that is more accurate in regions of weak back-
+# scatter. Note that the Sv values depend significantly on the distance
+# from the transducer (bin number) regardless which method is used.
+# This implies that both corrections are seriously flawed. The problem
+# can be reduced significanly by chosing a lower value for the 
+# attenuation coefficient. In addition to attenuation, the problem
+# could be related to errors in the beam spreading.
+
+# $Sv = \&Deines99;						# method is inaccurate in weak backscatter
+$Sv = \&GostiauxAndvanHaren10;
+
+# After applying estimating the backscatter from the ADCP echo amplitude,
+# an empirical correction for Sv is applied to the data. The following 
+# variable determines which # bin is chosen to construct a reference 
+# profile for Sv. The bin number
 # is automatically increased if its value is less than LADCP_firstBin (-b),
 # and also if the selected bin does not contain valid
 # data, i.e. the default value of 1 ensures that the closest valid bin
@@ -443,7 +470,7 @@ $opt_p = '+' unless defined($opt_p);
 # correction, undefine the following variable ($Sv_ref_bin = undef;)
 #
 # NOTE: Accoustic backscatter data in the reference bin are not
-#		corrected beyond the method of Deines (1999).
+#		corrected beyond the method used to estimate Sv.
 
 $Sv_ref_bin = 1; 
 
