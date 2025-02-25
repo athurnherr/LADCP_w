@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Fri Mar 22 09:38:36 2024
+#                    dlm: Tue Feb 25 15:14:13 2025
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 128 43 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 130 57 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -126,6 +126,8 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #				  - changed semantics to make output file name based on input file name
 #	May 10, 2023: - BUG: -s/-h options were wrong
 #	Mar 22, 2024: - BUG: error message typo
+#	Mar 25, 2025: - BUG: wrong error message produced for invalid input file
+#				  - added check for duplicate input files
 # HISTORY END
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -203,6 +205,8 @@ unless ($ARGV eq '-') {
 
 my($widx_min) =  99;																# sentinels
 my($widx_max) = -99;
+
+my(@filehash);
 
 if (defined(fnrNoErr('dc_w'))) {													# pre-process with LADCP_wspec when handed vertical-velocity input
 	&antsInstallBufFull('eof');														# read first file
@@ -288,7 +292,7 @@ if (defined(fnrNoErr('dc_w'))) {													# pre-process with LADCP_wspec when
 		if ($opt_d || $opt_u || $opt_b || defined($opt_w) || defined($opt_s) || defined($opt_g));
 } else {
 	if ($ARGV[0]) {
-		croak("$ARGV[0]: no such file or directory\n");
+		croak("$ARGV[0]: invalid input file for $0\n");
 	} else {
 		croak("$0: empty input\n");
 	}
@@ -357,6 +361,37 @@ $wsf   = fnr('w.nsamp.avg');
 $doff  = fnr('nspec');
 
 #----------------------------------------------------------------------
+# Check input for duplicate files
+#----------------------------------------------------------------------
+
+my(@fileHash);
+
+for (my($bi)=0; $bi<@{specbuf}; $bi++) {
+	my($sum) = my($n) = 0;
+	for (my($r)=0; $r<@{$specbuf[$bi]}; $r++) {
+		next unless numberp($specbuf[$bi][$r][$pg_fmin]);
+		$sum += $specbuf[$bi][$r][$pg_fmin];
+		$n++;
+	}
+	push(@fileHash,$sum/$n);
+}
+
+my($sum) = my($n) = 0;
+for (my($r)=0; $r<@ants_; $r++) {
+	next unless numberp($ants_[$r][$pg_fmin]);
+	$sum += $ants_[$r][$pg_fmin];
+	$n++;
+}
+push(@fileHash,$sum/$n);
+
+for (my($i)=0; $i<@fileHash-1; $i++) {
+	for (my($j)=$i+1; $j<@fileHash; $j++) {
+		croak(sprintf("Error: Input files #%d and #%d are identical\n",$i+1,$j+1))
+			if ($fileHash[$i] == $fileHash[$j]);
+	}
+}
+
+#----------------------------------------------------------------------
 # Redirect STDOUT & create plot if STDOUT is a tty
 #----------------------------------------------------------------------
 
@@ -382,6 +417,37 @@ if (-t STDOUT) {
 #----------------------------------------------------------------------
 # Library
 #----------------------------------------------------------------------
+
+sub check_spectra($)															# check for duplicate input files
+{
+	my($r) = @_;
+	for (my($f)=$fs_fmin-1; $f<=$fs_fmax; $f++) {								# average w.nsamp.avg & spectral densities
+		my($sum) = my($ns) = 0;
+		if (numberp($ants_[$r][$f])) {											# final file has valid spectra
+			$sum = $ants_[$r][$f]; $ns = 1;										# NB: nspec is correct even if it doesn't
+		}
+
+		my($wi) = ($ants_[$r][$widxf]>0) ? $ants_[$r][$widxf] : 0;				# adjust for -1 
+		for (my($bi)=0; $bi<@specbuf; $bi++) {									# loop over all buffered files
+			next unless @{$specbuf[$bi][$wi]};									# skip input files w/o valid spectra
+			if (abs($specbuf[$bi][$wi][$df] - $ants_[$r][$df]) > 0) {			# depth mismatch
+#				die("assertion failed ($specbuf[$bi][$wi][$df] - $ants_[$r][$df] @ wi=$wi)") unless ($wi == 0);						# only allowed in bottom window
+				if (abs($specbuf[$bi][$wi][$df] - $ants_[$r][$df]) >
+					abs($ants_[$r][$maxdf] - $ants_[$r][$mindf])) {
+						printf(STDERR "WARNING: ignoring window #$wi from input file #%d because of depth mismatch\n",$bi+1)
+							if ($f == $fs_fmin);
+						next;
+				}
+			}
+			if (numberp($specbuf[$bi][$wi][$f])) {
+				$sum += $specbuf[$bi][$wi][$f]; $ns++;
+            }
+			$ants_[$r][$doff] += $specbuf[$bi][$wi][$doff]						# update nspec once per input record
+				if ($f == $fs_fmax);											#	... but for all files
+		}
+		$ants_[$r][$f] = ($ants_[$r][$doff] >= $opt_h) ? $sum/$ns : nan;		# update averaged spectral density
+	}
+}	
 
 sub average_spectra($)
 {

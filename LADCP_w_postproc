@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Fri Aug  4 11:28:09 2023
+#                    dlm: Tue Feb 25 11:04:54 2025
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 98 70 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 99 60 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -96,6 +96,7 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #	Aug  3, 2023: - BUG: replaced die() by croak()
 #	Aug  4, 2023: - BUG: several bugs in window correlation with gappy profiles
 #				  - BUG: warning about lack of overlap was often wrong
+#	Feb 25, 2025: - added error message for identical inputs
 # HISTORY END
 
 
@@ -568,6 +569,10 @@ if ($dual_head) {
 
 	($dc_R,$dc_var,$dc_var_DL,$dc_var_UL,$dc_rms_wdiff) = &dc_corr(int($opt_s/$opt_o),$#dcw1);		# correlation statistics
 	($uc_R,$uc_var,$uc_var_DL,$uc_var_UL,$uc_rms_wdiff) = &uc_corr(int($opt_s/$opt_o),$#ucw1);
+	croak("Error: perfect dc and/or uc correlation -- identical input files suspected\n")
+		if ($dc_R==1 || $uc_R==1);
+	croak("Error: zero dc and/or uc w differences -- identical input files suspected\n")
+		if ($dc_rms_wdiff==0 || $uc_rms_wdiff==0);
 	&antsAddParams('dc_w.R',$dc_R,'uc_w.R',$uc_R,
 				   'DL_dc_w.var',$dc_var_DL,'UL_dc_w.var',$dc_var_UL,
 				   'DL_uc_w.var',$uc_var_DL,'UL_uc_w.var',$uc_var_UL,

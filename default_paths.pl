@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T _ P A T H S . P L 
 #                    doc: Tue Mar 29 07:09:52 2016
-#                    dlm: Wed Jun  1 19:20:45 2016
+#                    dlm: Tue Jun 13 15:10:28 2023
 #                    (c) 2016 A.M. Thurnherr
-#                    uE-Info: 16 57 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 41 53 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -38,7 +38,7 @@ if (-r "ProcessingParams.$RUN") {
 $out_basename = sprintf('%03d',$PROF);
 
 
-# Output subdirectories
+# Output subdirectories for data, plots and log files
 #	these are automatically created as long as they don't contain a "/"
 
 $data_dir = $plot_dir = $log_dir = $RUN;
