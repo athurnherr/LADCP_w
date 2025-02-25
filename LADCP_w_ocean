@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Mon Mar 25 10:18:41 2024
+#                    dlm: Sun Feb 16 15:53:47 2025
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 337 46 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 340 43 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -335,6 +335,9 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Mar 22, 2024: - added CTD/LADCP depth-mismatch error
 #				  - BUG: $max_hspeed in ProcessingParams was overwritten by max_hspeed()
 #	Mar 25, 2024: - BUG: typo in error message
+#	Feb 13, 2025: - modified CTD/LADCP depth mismatch error to be more permissive for 
+#					shallow casts
+#	Feb 16, 2025: - loosened mismatch error
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -1049,9 +1052,9 @@ error("$0: CTD start depth must be numeric\n")
 progress("\tstart depth = %.1fm\n",$CTD{DEPTH}[0]);
 progress("\tmax depth   = %dm (# $CTD_atbottom)\n",$CTD_maxdepth);
 
-error("$0: CTD and LADCP depths disagree by more than 20% (wrong CTD file?)\n")
+error("$0: CTD and LADCP max. depths disagree by more than max(200m,20%) (wrong CTD file?)\n")
 	unless abs($CTD_maxdepth-$LADCP{ENSEMBLE}[$LADCP_atbottom]->{DEPTH}) 
-				< 0.2*max($CTD_maxdepth,$LADCP{ENSEMBLE}[$LADCP_atbottom]->{DEPTH});
+				< max(200,0.2*max($CTD_maxdepth,$LADCP{ENSEMBLE}[$LADCP_atbottom]->{DEPTH}));
 
 #--------------------------------------------------------------------
 # Construct sound-speed correction profile from CTD 1Hz downcast data
