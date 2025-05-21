@@ -1,9 +1,9 @@
 #======================================================================
 #                    T I M E _ S E R I E S . P L 
 #                    doc: Sun May 23 16:40:53 2010
-#                    dlm: Thu Aug 31 11:21:47 2023
+#                    dlm: Sun Apr 13 10:51:47 2025
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 35 64 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 127 82 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -33,6 +33,7 @@
 #					during last quartile
 #	Aug 31, 2023: - BUG: surface-gap detection did not deal correctly
 #						 with consistently -ve in-air velocities
+#	Apr 13, 2025: - removed unhelpful warnings
 # HISTORY END
 
 # NOTES:
@@ -122,14 +123,15 @@ sub calcLADCPts($$$$)
 			if (($max_depth>50 && $depth<0.1*$max_depth) &&							# looks like a profile
 				(@{$dta->{ENSEMBLE}}-$e < 0.5*@{$dta->{ENSEMBLE}})) {				# in the final quartile of the data
 					warning(1,"long gap (%ds) after likely profile (0->%d->%dm) --- finishing at ens#$dta->{ENSEMBLE}[$e]->{NUMBER}\n",
-						$dt,$max_depth,$depth);
+								$dt,$max_depth,$depth)
+						unless (@{$dta->{ENSEMBLE}}-$e < 0.1*@{$dta->{ENSEMBLE}});
 					last;				
             } elsif (!defined($max_depth) ||					# no +ve velocities measured (only in-air negative)
             		 ($depth == $max_depth) ||					# no -ve velocities measured (only in-air positive)
 					 (($depth < 10) && ($max_depth < 10))) {	# just bobbing at the surface
-            		 	my($md) = defined($max_depth) ? sprintf('%d',$max_depth) : 'undefined';
 						warning(1,"long surface gap (%ds) --- restarting at ens#$dta->{ENSEMBLE}[$e]->{NUMBER} " .
-								  "[depth = %d m; max_depth = $md m]\n",$dt,$depth);
+								  "[depth = %d m; max_depth = %d m]\n",$dt,$depth,$max_depth)
+						 	if defined($max_depth);
 						$firstgood = $lastgood = $e;
 						undef($atbottom); undef($max_depth);
 						$depth = 0;

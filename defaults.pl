@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Tue Jul  2 13:36:42 2024
+#                    dlm: Mon Mar 31 12:29:40 2025
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 97 47 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 218 30 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -215,7 +215,7 @@ $opt_b = '2,*' unless defined($opt_b);
 
 
 # The following sets the default error velocity limit; measurements 
-# with error velocities below this limit are discarded.
+# with error velocities above this limit are discarded.
 
 &antsFloatOpt(\$opt_e,0.1);
 
