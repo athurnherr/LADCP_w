@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ O C E A N 
 #                    doc: Fri Dec 17 18:11:13 2010
-#                    dlm: Sun Feb 16 15:53:47 2025
+#                    dlm: Fri Oct 31 19:10:00 2025
 #                    (c) 2010 A.M. Thurnherr
-#                    uE-Info: 340 43 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 343 60 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # TODO:
@@ -338,6 +338,9 @@ $antsSummary = 'calculate vertical velocities from LADCP & CTD time series';
 #	Feb 13, 2025: - modified CTD/LADCP depth mismatch error to be more permissive for 
 #					shallow casts
 #	Feb 16, 2025: - loosened mismatch error
+#	May 23, 2025: - BUG: depth mismatch error did not work with partial-depth yoyo 
+#						 profiles
+#	Oct 31, 2025: - updated copyright year to 2015 (year of release)
 # HISTORY END
 
 # CTD REQUIREMENTS
@@ -462,10 +465,10 @@ $antsSuppressCommonOptions = 1;
 	"<profile-id> [run-label]");
 
 if ($opt_V) {
-	printf(STDERR "+------------------------------+\n");
-	printf(STDERR "| LADCP_w Software V%s        |\n",$VERSION);
-	printf(STDERR "| (c) 2015-2023 A.M. Thurnherr |\n");
-	printf(STDERR "+------------------------------+\n");
+	printf(STDERR "+-------------------------+\n");
+	printf(STDERR "| LADCP_w Software V%s   |\n",$VERSION);
+	printf(STDERR "| (c) 2015 A.M. Thurnherr |\n");
+	printf(STDERR "+-------------------------+\n");
 	exit(0);
 }
 
@@ -1020,6 +1023,7 @@ $CTD_temp 		= &fnrNoErr('temp');
 warning(0,"no CTD temperature --- using ADCP temperature instead => Sv degraded!\n",$s)
    unless defined($CTD_temp);
 
+$CTD_mindepth = 9e99;;
 $CTD_maxdepth = -1;
 do {																		# read data
 	error("$0: cannot deal with non-numeric CTD elapsed time\n")
@@ -1030,6 +1034,8 @@ do {																		# read data
 	push(@{$CTD{W}},      $ants_[0][$CTD_w]);
 	push(@{$CTD{TEMP}},	  $ants_[0][$CTD_temp]) 	if defined($CTD_temp);
 	push(@{$CTD{W_WINCH}},$ants_[0][$CTD_winchvel]) if defined($CTD_winchvel);
+	$CTD_mindepth = $ants_[0][$CTD_depth]
+		if ($ants_[0][$CTD_depth] < $CTD_mindepth);
 	if ($ants_[0][$CTD_depth] > $CTD_maxdepth) {
 		$CTD_maxdepth = $ants_[0][$CTD_depth];
 		$CTD_atbottom = $#{$CTD{DEPTH}};
@@ -1053,7 +1059,7 @@ progress("\tstart depth = %.1fm\n",$CTD{DEPTH}[0]);
 progress("\tmax depth   = %dm (# $CTD_atbottom)\n",$CTD_maxdepth);
 
 error("$0: CTD and LADCP max. depths disagree by more than max(200m,20%) (wrong CTD file?)\n")
-	unless abs($CTD_maxdepth-$LADCP{ENSEMBLE}[$LADCP_atbottom]->{DEPTH}) 
+	unless abs($CTD_maxdepth-($LADCP{ENSEMBLE}[$LADCP_atbottom]->{DEPTH} + $CTD_mindepth)) 
 				< max(200,0.2*max($CTD_maxdepth,$LADCP{ENSEMBLE}[$LADCP_atbottom]->{DEPTH}));
 
 #--------------------------------------------------------------------

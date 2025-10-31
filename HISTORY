@@ -1,9 +1,9 @@
 ======================================================================
                     H I S T O R Y 
                     doc: Mon Oct 12 16:09:24 2015
-                    dlm: Tue Dec  6 12:46:47 2022
+                    dlm: Fri Oct 31 19:18:01 2025
                     (c) 2015 A.M. Thurnherr
-                    uE-Info: 458 5 NIL 0 0 72 3 2 4 NIL ofnI
+                    uE-Info: 472 52 NIL 0 0 72 3 2 4 NIL ofnI
 ======================================================================
 
 ----------------------------------------------------------------------
@@ -456,3 +456,24 @@ Jul 24, 2021: - [HISTORY] updated
 ...
 
 Dec  6, 2022: - V2.2 released
+
+----------------------------------------------------------------------
+V2.4 (released Aug 23, 2024)
+	- initial GitHUB release
+----------------------------------------------------------------------
+
+----------------------------------------------------------------------
+V2.5 (released Oct 31, 2025)
+	- [LADCP_w_postproc]
+		- added signal-to-noise filtering (major improvement for dual-
+		  head data)
+	- [defaults.pl]
+		- improved documentation
+		- added signal-to-noise filtering parameters
+	- [LADCP_VKE]
+		- minor bug fixes
+	- [LADCP_w_ocean]
+		- improved for shallow profiles
+	- [LADCP_wspec]
+		- minor bug fix		
+----------------------------------------------------------------------

@@ -1,9 +1,9 @@
 #======================================================================
 #                    V E R S I O N . P L 
 #                    doc: Tue Oct 13 10:40:57 2015
-#                    dlm: Fri Mar 15 17:27:16 2024
+#                    dlm: Fri Oct 31 18:39:41 2025
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 53 29 NIL 0 0 72 72 2 4 NIL ofnI
+#                    uE-Info: 54 29 NIL 0 0 72 72 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -37,6 +37,7 @@
 #	Sep 22, 2023: - updated to V2.3 (Sv from Gostiaux and van Haren)
 #				  - no update to prerequisites needed
 #	Mar 15, 2023: - updated to V2.4 (reflr_{u,v} in wsamp output)
+#	Sep 25, 2025: - updated to V2.5 (postproc -n signal-to-noise filtering)
 
 #$VERSION = '1.1';				# Jan  4, 2016
 #$VERSION = '1.2';				# May 12, 2016
@@ -47,10 +48,11 @@
 #$VERSION = '2.1';				# Sep  1, 2021
 #$VERSION = '2.2';				# Dec  6, 2022
 #$VERSION = '2.3';				# Sep 22, 2023
-$VERSION = '2.4';				# Mar 15, 2024
+#$VERSION = '2.4';				# Mar 15, 2024
+$VERSION = '2.5';				# Sep 25, 2025
 
-$antsMinLibVersion 		= 7.5;
-$ADCP_tools_minVersion 	= 2.6;
+$antsMinLibVersion 		= 7.7;
+$ADCP_tools_minVersion 	= 2.8;
 
 use lib '.';
 

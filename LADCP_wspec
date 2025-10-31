@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W S P E C 
 #                    doc: Thu Jun 11 12:02:49 2015
-#                    dlm: Thu Nov  1 10:09:48 2018
+#                    dlm: Fri May 23 08:23:39 2025
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 39 29 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 41 91 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE window spectra from LADCP profiles';
@@ -37,6 +37,9 @@ $antsSummary = 'calculate VKE window spectra from LADCP profiles';
 #	May 13, 2018: - BUG: Removal of higher order polynomials (-o > 0) did not work
 #	May 16, 2018: - modified depth.{min,max} to respect input resolution
 #	Nov  1, 2018: - cosmetics
+#	May 23, 2025: - BUG: -g was wrongly set to number of records for interpolate()
+#				  - BUG: -g 40 did not match 40-m resolution file with single missing value
+# HISTORY END
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
 ($WCALC)   = ($0              =~ m{^(.*)/[^/]*$});
@@ -136,8 +139,6 @@ croak("$0: insufficient data (no valid records found)\n")
 $dz = &antsXCheck($zfnr,0,$#ants_,1.01);						# calc dT; 1% jitter
 &antsAddParams("LADCP_wspec::input_depth_resolution",$dz);
 
-$opt_g = int(($opt_g - 1) / $dz);								# [m] -> [records]
-
 unless (defined($opt_w)) {										# default window size: largest pwr-of-two <= 600m
 	for ($opt_w=32; $opt_w*$dz>600; $opt_w/=2) {}
 	&antsInfo("%d-m windows ($opt_w samples)",$opt_w*$dz);
@@ -176,13 +177,14 @@ for (my($r)=0; $r<=$#ants_; $r++) {
 	if (numberp($ants_[$r][$dcwfnr])) {								# number => no interp.
 		$dcLastValid = $r;
 	} elsif (defined($dcLastValid)) {
-		$ants_[$r][$dcwfnr] = &interpolate($zfnr,$opt_g,$dcwfnr,$dcLastValid,$r);
+		$ants_[$r][$dcwfnr] = &interpolate($zfnr,$opt_g+$dz,$dcwfnr,$dcLastValid,$r);
 		$interp++ if numberp($ants_[$r][$dcwfnr]);
 	}
 	if (numberp($ants_[$r][$ucwfnr])) {								# number => no interp.
 		$ucLastValid = $r;
 	} elsif (defined($ucLastValid)) {
-		$ants_[$r][$ucwfnr] = &interpolate($zfnr,$opt_g,$ucwfnr,$ucLastValid,$r);
+		$ants_[$r][$ucwfnr] = &interpolate($zfnr,$opt_g+$dz,$ucwfnr,$ucLastValid,$r);
+##		print(STDERR "&interpolate($zfnr,$opt_g,$ucwfnr,$ucLastValid,$r) => $ants_[$r][$ucwfnr]\n");
 		$interp++ if numberp($ants_[$r][$ucwfnr]);
 	}
 }
@@ -252,12 +254,14 @@ WINDOW: for (my($widx)=1; 1; $widx++) {
 			$sumsq += $ants_[$r][$dcwfnr]**2;
 			$n++;
 		} else {
+##			print(STDERR "dc gap at record $r\n");
 			$dc_gap = 1;
 		}
 		if (numberp($ants_[$r][$ucwfnr])) {
 			$sumsq += $ants_[$r][$ucwfnr]**2;
 			$n++;
 		} else {
+##			print(STDERR "uc gap at record $r\n");
 			$uc_gap = 1;
 		}
 	}

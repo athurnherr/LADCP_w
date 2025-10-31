@@ -1,9 +1,9 @@
 #======================================================================
 #                    D E F A U L T S . P L 
 #                    doc: Tue Oct 11 17:11:21 2011
-#                    dlm: Mon Mar 31 12:29:40 2025
+#                    dlm: Fri Sep 19 16:13:29 2025
 #                    (c) 2011 A.M. Thurnherr
-#                    uE-Info: 218 30 NIL 0 0 72 0 2 4 NIL ofnI
+#                    uE-Info: 229 24 NIL 0 0 72 0 2 4 NIL ofnI
 #======================================================================
 
 # HISTORY:
@@ -172,17 +172,66 @@ $opt_b = '2,*' unless defined($opt_b);
 # Data Editing
 #======================================================================
 
-# The following sets the max allowable rms residual w per ensemble, as 
-# well as the max allowable difference between the two beam-pair
-# residuals. Measurements that fail either of these tests are are 
-# discarded. The limiting values were chosed by inspection of 
-# log files and diagnostic plots of a few example profiles. In case of
-# the delta-residual limit, histograms of this parameter show a very
-# steep cutoff at 0.05 cm/s for both IWISE and 2016_I08S data. 
+# CORRELATION
+# The following sets the default correlation limit; measurements with
+# correlations below this limit are discarded.
 
-&antsFloatOpt(\$opt_r,'0.06,0.06');
+&antsFloatOpt(\$opt_c,70);	# counts
 
 
+# TILT
+# It is not fully clear what tilt angles are acceptable for 
+# obtaining good vertical velocities. Up to 2016 (V1.3) the
+# default limit was 12 degrees based on an analysis of 
+# the 2010 IWISE data with inaccurate 2-beam transformations.
+# As re-processing with a limit of 20 degrees improves the
+# agreement between DL and UL data (R = 0.77/0.67 => 0.79/0.74)
+# the limit was changed to 22 degrees, the same used
+# in Martin Visbeck's inversion code.
+
+&antsFloatOpt(\$opt_t,22); # deg
+
+
+# TRDI ERROR VELOCITY
+# The following sets the default error velocity limit; measurements 
+# with error velocities above this limit are discarded.
+
+&antsFloatOpt(\$opt_e,0.1); # m/s
+
+
+# RESIDUALS
+# The following sets the values of two filters:
+#	1) Max allowable rms residual w per ensemble
+#	2) Max allowable difference between the two beam-pair residuals
+# All velocities from ensembles that fail 1 are discarded. Individual
+# velocities that fail 2 are discarded. Limiting values were chosen
+# by inspection of log files and diagnostic plots from a few example 
+# profiles.
+
+&antsFloatOpt(\$opt_r,'0.06,0.06');	# m/s
+
+# After the beam-pair residuals have been binned into profiles, rms
+# values in 5-output-bin-thick layers (200m by default) are calculated.
+# Vertical velocities from bins with values greater than the following 
+# limit are set to nan in the the output with the corresponding depth
+# ranges hashed red in the processing summary figures.
+
+$layer_residuals_rms_max = 0.003; # m/s
+
+# SIGNAL-TO-NOISE 
+# After binning, the signal-to-noise ratio for each w(z) value is
+# estimated using |w|/rms(Delta w_bp), where Delta w_bp = w_12 - w_34 
+# is the difference between the two w estimates from beam-pairs <1,2>
+# and <3,4>, which is closely related to the TRDI error velocity. The 
+# following variable defines the error corresponding a signal-to-noise
+# ratio of 1, which is the limiting value. The chosen value is 
+# consistent both with $layer_residuals_rms_max and the typical 
+# uncertainty of vertical velocities from regular-quality LADCP data.
+
+$vertical_velocity_noise = 0.003; 	# m/s
+
+
+# Time-LAGGING PROBLEMS
 # By default, ensembles with uncertain time-lagging are discarded,
 # unless the CTD time series data have been corrected for dropped scans.
 # This allows profiles with dropped CTD scans to be processed without
@@ -194,32 +243,7 @@ $opt_b = '2,*' unless defined($opt_b);
 # $opt_l = 1;
 
 
-# The following sets the default correlation limit; measurements with
-# correlations below this limit are discarded.
-
-&antsFloatOpt(\$opt_c,70);
-
-
-# Instrument Tilt
-#
-# It is not fully clear what tilt angles are acceptable for 
-# obtaining good vertical velocities. Up to 2016 (V1.3) the
-# default limit was 12 degrees based on an analysis of 
-# the 2010 IWISE data with inaccurate 2-beam transformations.
-# As re-processing with a limit of 20 degrees improves the
-# agreement between DL and UL data (R = 0.77/0.67 => 0.79/0.74)
-# the limit was changed to 22 degrees, the same used
-# in Martin Visbeck's inversion code.
-
-&antsFloatOpt(\$opt_t,22);
-
-
-# The following sets the default error velocity limit; measurements 
-# with error velocities above this limit are discarded.
-
-&antsFloatOpt(\$opt_e,0.1);
-
-
+# TRANSDUCER DISTANCE
 # The following variable allows editing the velocities farthest
 # from the transducer. It defines how many velocities are to be
 # removed from each ensemble. 
@@ -227,24 +251,28 @@ $opt_b = '2,*' unless defined($opt_b);
 $truncate_farthest_valid_bins = 0;
 
 
+# BAD BEAMS
 # The following variable allows editing all data from a given
 # beam. Set to 1-4 to enable.
 
 $bad_beam = 0;
 
 
+# DATA GAPS
 # The following sets the maximum gap length in the w time series that
 # is simply ignored.
 
-&antsFloatOpt(\$opt_g,60);
+&antsFloatOpt(\$opt_g,60);	# sec
 
 
+# VERTICAL VELOCITY MAGNITUDE
 # The following variable sets the max allowed vertical ocean velocity 
 # in m/s. Measurements with |w| this limit are discarded.
 
-$w_max_lim = 1;
+$w_max_lim = 1;	# m/s
 
 
+# OUTLIER FILTERING
 # In each ensemble, vertical velocities differing more than this
 # parameter times the mean absolute deviation from the median, are 
 # considered outliers and removed.
@@ -252,7 +280,8 @@ $w_max_lim = 1;
 $per_ens_outliers_mad_limit = 2;
 
 
-# Data from bins with less valid velocities than the following parameter
+# BEAM RANGE
+# Data from bins with fewer valid velocities than the following parameter
 # are considered bad and removed. It is not clear whether this really
 # makes sense, but this editing is likely safe because it only affects
 # ensebles with the largest ranges.
@@ -260,14 +289,16 @@ $per_ens_outliers_mad_limit = 2;
 $per_bin_valid_frac_lim = 0.15;
 
 
+# SURFACE CONTAMINATION
 # All ensembles recorded when the CTD is shallower than 
 # the following parameter (depth in meters) are discarded.
 # Possible contamination: ship's hull, thrusters, bubble clouds
 # Inspired by 2011_IWISE station 8.
 
-$surface_layer_depth = 25;
+$surface_layer_depth = 25;	# m
 
 
+# WATER DEPTH
 # Water depth is important for precious ping interference editing 
 # (see below) and for setting the height-above bottom field.
 # 	- by default, water depth for dowwnward-facing ADCPs is determined
@@ -286,7 +317,8 @@ $surface_layer_depth = 25;
 #$water_depth_db_cmd = 'waterdepth';	# uncomment to use 'waterdepth' command to get water depth
 
 
-# Previous Ping Interference editing as described in [edit_data.pl]
+# PREVIOUS PING INTERFERENCE
+# (for implementation details, see [edit_data.pl])
 #	- enabled by default seabed editing of WH150 data but nothing else
 #	- PPI_seabed_editing_required is a function that is called
 #	  once the data are loaded for the downlooker only; if it 
@@ -318,6 +350,7 @@ sub PPI_surface_editing_required()
 #$PPI_extend_upper_limit = 1.03;			# see comments above
 
 
+# SIDELOBE CONTAMINATION
 # The following variables control the "non-obvious" sidelobe editing for
 # contamination from the seabed for the UL and from the sea surface for the
 # DL. Tests with DoMORE-2 data (WH150 DL, WH300 UL) strongly suggest that
@@ -328,22 +361,25 @@ sub PPI_surface_editing_required()
 $sidelobe_editing_DL_surface	= 0;
 $sidelobe_editing_UL_seabed		= 1;
 
+# VESSEL DRAFT
 # The following variable sets the depth for sidelobe contamination
 # from the surface. 
 
 $vessel_draft					= 6;		# in meters
 
 
+# SEABED DETECTION
 # Based on SR1b/2004 data, there are sidelobe editing does not remove
 # all seabed contamination in all profiles. This could be due to rough
 # and/or sloping seabed or instrument tilt measurement errors. The 
 # contamination can easily be detected from vertical Sv gradients. 
-# Based on the SR1b/2004 data, a limiting dSv/dz value of 0.1db/m 
+# Based on the SR1b/2004 data, a limiting dSv/dz value of 0.1dB/m 
 # is suitable for WH300 instruments.
 
-$seabed_contamination_Sv_grad_limit = 0.1;
+$seabed_contamination_Sv_grad_limit = 0.1;	# dB/m
 
 
+# TOWING SPEED
 # The following function, which is called after the LADCP data have been 
 # read, must return the maximum horizontal reference-layer
 # speed that is allowed. The following values are based on 2018 GO-SHIP
@@ -378,13 +414,6 @@ sub max_hspeed()
 	}
 }
 
-
-# After the beam-pair residuals have been binned into profiles, rms
-# values in 5-output-bin-thick layers (200m by default) are calculated.
-# Vertical velocities from bins with values greater than the following 
-# limit are set to nan in the the output. 
-
-$layer_residuals_rms_max = 0.003;
 
 #======================================================================
 # Time Lagging

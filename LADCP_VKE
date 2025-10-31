@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ V K E 
 #                    doc: Tue Oct 14 11:05:16 2014 
-#                    dlm: Tue Feb 25 15:14:13 2025
+#                    dlm: Fri Sep 26 16:20:29 2025
 #                    (c) 2012 A.M. Thurnherr
-#                    uE-Info: 130 57 NIL 0 0 72 10 2 4 NIL ofnI
+#                    uE-Info: 192 0 NIL 0 0 72 10 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
@@ -128,6 +128,7 @@ $antsSummary = 'calculate VKE from LADCP-derived vertical-velocity profiles';
 #	Mar 22, 2024: - BUG: error message typo
 #	Mar 25, 2025: - BUG: wrong error message produced for invalid input file
 #				  - added check for duplicate input files
+#	May 23, 2025: - BUG: file hash check bombed for files without valid data
 # HISTORY END
 
 ($ANTSLIB) = (`which ANTSlib` =~ m{^(.*)/[^/]*$});
@@ -155,7 +156,6 @@ $opt_l = 0;								# [W/kg]; cutoff disabled Sep 12, 2019
 $opt_a = 0;								# assume background dissipation for samples that pass the tests but have eps below -l
 $opt_z = 50;							# number of w_ocean samples to require (note that the .wprof inputs may have harsher limits)
 $opt_o = 0;								# remove mean before calculating spectra
-$opt_s = 300;							# surface layer to exclude from spectra
 $opt_g = 40;							# max gap to interpolate over
 $opt_c_default = 100;					# short-wavelength cutoff
 $opt_h = 2;								# require 2 spectra for estimate
@@ -169,7 +169,7 @@ $antsSuppressCommonOptions = 1;
 		    "[poly-o)rder <n[$opt_o]> to de-mean data; -1 to disable>] [apply cosine-t)aper]",
 		    '[-d)own/-u)pcast-only] [exclude -b)ottom window]',								# LADCP_wspec options
 			"[-h) require spectral samples <min[${opt_h}]>",
-			"[-s)urface <layer depth to exclude[${opt_s}m]>",
+			"[-s)urface <layer depth to exclude[150/300m for dual-/single-head]>",
             "[-g)ap <max depth layer to fill with interpolation[${opt_g}m]>]",
             '[-w)indow <power-of-two input-records[32]>]',
 			"[shortwave -c)utoff <kz or lambda[${opt_c_default}m]>]",						# LADCP_VKE options
@@ -184,6 +184,10 @@ $antsSuppressCommonOptions = 1;
 			'[write output filed with -i)ndividual spectra <basename>]',
 			'[output -p)lot <ps-file[#_VKE.ps]>]',
 			'[file...]');
+
+my($dualhead) = defined($P{'DL_first_valid_bin'}) +
+			    defined($P{'UL_first_valid_bin'}) - 1;
+&antsCardOpt(\$opt_s,$dualhead?150:300);								# surface-layer defaults
 
 #----------------------------------------------------------------------
 # Determine Output File Name From Input File Names
@@ -373,21 +377,22 @@ for (my($bi)=0; $bi<@{specbuf}; $bi++) {
 		$sum += $specbuf[$bi][$r][$pg_fmin];
 		$n++;
 	}
-	push(@fileHash,$sum/$n);
+	push(@fileHash,($n > 0) ? $sum/$n : 0);
 }
 
 my($sum) = my($n) = 0;
 for (my($r)=0; $r<@ants_; $r++) {
+##	print(STDERR "@{$ants_[$r]}\n");
 	next unless numberp($ants_[$r][$pg_fmin]);
 	$sum += $ants_[$r][$pg_fmin];
 	$n++;
 }
-push(@fileHash,$sum/$n);
+push(@fileHash,($n > 0) ? $sum/$n : 0);
 
 for (my($i)=0; $i<@fileHash-1; $i++) {
 	for (my($j)=$i+1; $j<@fileHash; $j++) {
 		croak(sprintf("Error: Input files #%d and #%d are identical\n",$i+1,$j+1))
-			if ($fileHash[$i] == $fileHash[$j]);
+			if ($fileHash[$i] == $fileHash[$j]) && ($fileHash[$i] != 0);
 	}
 }
 

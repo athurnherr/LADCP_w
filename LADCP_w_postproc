@@ -2,9 +2,9 @@
 #======================================================================
 #                    L A D C P _ W _ P O S T P R O C 
 #                    doc: Fri Apr 24 17:15:59 2015
-#                    dlm: Tue Feb 25 11:04:54 2025
+#                    dlm: Thu Sep 25 15:01:55 2025
 #                    (c) 2015 A.M. Thurnherr
-#                    uE-Info: 99 60 NIL 0 0 72 2 2 4 NIL ofnI
+#                    uE-Info: 138 0 NIL 0 0 72 2 2 4 NIL ofnI
 #======================================================================
 
 $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
@@ -97,6 +97,8 @@ $antsSummary = 'edit and re-grid LADCP vertical-velocity samples';
 #	Aug  4, 2023: - BUG: several bugs in window correlation with gappy profiles
 #				  - BUG: warning about lack of overlap was often wrong
 #	Feb 25, 2025: - added error message for identical inputs
+#	Sep 24, 2025: - added -n for signal-to-noise filtering
+#	Sep 25, 2025: - halved surface layer depth for dual-head profiles because of -n				  
 # HISTORY END
 
 
@@ -114,13 +116,14 @@ require "$ANTS/libGMT.pl";
 &antsAddParams('LADCP_w_postproc::version',$VERSION);
 
 $antsSuppressCommonOptions = 1;
-&antsUsage('ab:c:d:f:i:k:o:p:s:v:w:z',1,
+&antsUsage('ab:c:d:f:i:kn::o:p:s:v:w:z',1,
 	'[profile -i)d <id>]',
 	'[disable -z)eroing of <w> (disable bias correction)]',
 	'[-o)utput bin <resolution>] [-k) require <min> samples]',
 	'[-v)alid bins <DL first>,<DL last>[,<UL first>,<UL_last>]',
+	'[-n)oise <level[0.006]> (in m/s for signal-to-noise filtering)',
 	'[-w) <DL_dc_field>,<DL_uc_field>[,<UL_dc_field>,<UL_uc_field>]',
-	'[-s)urface-layer <limit[300m]>] [-a)llow surface-layer data in output]',
+	'[-s)urface-layer <limit[150/300m for dual-/single-head]>] [-a)llow surface-layer data in output]',
 	'[-c)orrelation <window size[320m]>]',
 	'[ouptput -d)ir <name> -f)ile <fmt[%03d.wprof]>]',
 	'[-p)lot <[%03d_wprof.eps]> [-b)t <wprof>]]',
@@ -131,6 +134,8 @@ $antsSuppressCommonOptions = 1;
 $opt_f = '%03d.wprof'													# output file name
 	unless defined($opt_f);
 
+&antsFloatOpt(\$opt_n,0.012);											# signal-to-noise filtering; value determined
+																		# visually from 2024 I08S, which has excellent data quality
 $dual_head = (@ARGV==1);												# single or dual head
 
 if ($dual_head) {
@@ -152,7 +157,7 @@ if (defined($opt_d)) {													# select output directory
 	}
 }
 
-&antsCardOpt(\$opt_s,300);												# surface layer depth limit
+&antsCardOpt(\$opt_s,$dual_head?150:300);								# surface layer depth limit
 &antsCardOpt(\$opc_c,320);												# window thickness for correlation estimates
 
 if (defined($opt_v)) {													# bin ranges with valid data to use
@@ -639,6 +644,14 @@ for (my($bi)=0; $bi<=max($#dcw,$#ucw); $bi++) {
 	$ucns[$bi] = @{$ucw[$bi]};
 	$dcwmad[$bi] = mad2($dcwm[$bi],@{$dcw[$bi]});
 	$ucwmad[$bi] = mad2($ucwm[$bi],@{$ucw[$bi]});
+
+	if ($dual_head && numberp($opt_n)) {													# signal-to-noise filtering
+		$dcwm[$bi] = NaN																	# difference > max(magnitude,noise)
+			if (abs($dc_diff[$bi]) > max($opt_n,abs($dcwm[$bi])));
+		$ucwm[$bi] = NaN																	# difference > max(magnitude,noise)
+			if (abs($uc_diff[$bi]) > max($opt_n,abs($ucwm[$bi])));
+	}
+
 	push(@{$out[$bi]},
 			 ($bi+0.5)*$opt_o,																# depth
 			 (numberp($P{water_depth}) ? $P{water_depth}-($bi+0.5)*$opt_o : nan),			# hab
